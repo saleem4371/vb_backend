@@ -76,6 +76,7 @@ export class AuthService {
       email: user.email,
       phone: user.phone,
       logo: user.logo,
+      isListed:false
     });
 
     return {
@@ -151,7 +152,9 @@ async auto_login(dto) {
       name: user.name,
       email: user.email,
       phone: user.phone,
-    logo: user.logo
+    logo: user.logo,
+     isListed:false
+    
   });
 
   return {
@@ -211,7 +214,8 @@ async googleLogin(token: string) {
       name: user.name,
       email: user.email,
       phone: user.phone,
-    logo: user.logo
+    logo: user.logo,
+     isListed:false
   });
 
   return {
