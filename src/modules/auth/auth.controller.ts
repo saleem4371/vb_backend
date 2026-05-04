@@ -106,8 +106,15 @@ export class AuthController {
    // return req.user; // 🔥 comes from JwtStrategy
   }
 
-   @Post('send-otp')
-  async send_otp(@Body() dto: any) {
-    return this.authService.send_otp(dto);
-  }
+   
+  @Post('send-otp')
+async send_otp(@Body() dto: { phone: string }) {
+  const otp =  Math.floor(100000 + Math.random() * 900000).toString();
+
+  await this.authService.send_otp(dto.phone, otp);
+
+  // await this.smsService.send(dto.phone, `Your OTP is ${otp}`);
+
+  return { message: 'OTP sent successfully' };
+}
 }
