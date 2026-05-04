@@ -214,5 +214,14 @@ async googleLogin(token: string) {
     user,
   };
 }
+async findById(id: string) {
+  const newUser = await this.dataSource.query(
+      `SELECT * FROM users WHERE id = ? `,
+      [id],
+    );
+
+    return newUser[0];
+}
+  
 
 }
