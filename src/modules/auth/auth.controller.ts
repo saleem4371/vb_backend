@@ -4,7 +4,7 @@ import type { FastifyRequest } from 'fastify';
 import { AuthService } from './auth.service';
 import { ActivityLoggerService } from '../../common/activity-logger.service';
 
-import { JwtStrategy } from './strategies/jwt-auth.guard';
+import { JwtAuthGuard } from './strategies/jwt-auth.guard';
 
 
 @Controller('auth')
