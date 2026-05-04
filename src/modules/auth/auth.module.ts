@@ -13,7 +13,7 @@ import { CommonModule } from '../../common/common.module';
    imports: [
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',
-      signOptions: { expiresIn: '7d' },
+      signOptions: { expiresIn: '3650d' },
     }),
     MailModule,
     CommonModule
