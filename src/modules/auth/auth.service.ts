@@ -257,7 +257,7 @@ async verifyOtp(identifier: string, otp: string) {
     throw new Error('OTP is required');
   }
 
-  if (!record.otp_hash) {
+  if (!record.otp) {
     throw new Error('Stored OTP hash missing');
   }
 
@@ -272,7 +272,7 @@ async verifyOtp(identifier: string, otp: string) {
   }
 
   // ✅ Compare
-  const isValid = await bcrypt.compare(String(otp), String(record.otp_hash));
+  const isValid = await bcrypt.compare(String(otp), String(record.otp));
 
   if (!isValid) {
     await this.dataSource.query(
