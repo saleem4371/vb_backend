@@ -248,18 +248,31 @@ async verifyOtp(identifier: string, otp: string) {
 
   const record = records[0];
 
+  // 🔴 DEBUG (important)
+  console.log('OTP INPUT:', otp);
+  console.log('DB RECORD:', record);
+
+  // ✅ Validate inputs before bcrypt
+  if (!otp) {
+    throw new Error('OTP is required');
+  }
+
+  if (!record.otp_hash) {
+    throw new Error('Stored OTP hash missing');
+  }
+
   // ✅ Expiry check
   if (new Date(record.expires_at) < new Date()) {
     throw new Error('OTP expired');
   }
 
-  // ✅ Attempts check
+  // ✅ Attempt check
   if (record.attempts >= 5) {
     throw new Error('Too many attempts');
   }
 
-  // ✅ Compare OTP
-  const isValid = await bcrypt.compare(otp, record.otp_hash);
+  // ✅ Compare
+  const isValid = await bcrypt.compare(String(otp), String(record.otp_hash));
 
   if (!isValid) {
     await this.dataSource.query(
@@ -270,13 +283,12 @@ async verifyOtp(identifier: string, otp: string) {
     throw new Error('Invalid OTP');
   }
 
-  // ✅ Delete after success
+  // ✅ Delete used OTP
   await this.dataSource.query(
     `DELETE FROM user_otps WHERE id = ?`,
     [record.id],
   );
 
-  // ✅ Generate JWT
   return {
     message: 'OTP verified',
     token: this.jwtService.sign({ identifier }),
