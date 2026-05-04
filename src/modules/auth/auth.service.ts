@@ -236,4 +236,51 @@ async findById(id: string) {
   );
 }
 
+async verifyOtp(identifier: string, otp: string) {
+  const records = await this.dataSource.query(
+    `SELECT * FROM user_otps WHERE identifier = ? ORDER BY id DESC LIMIT 1`,
+    [identifier],
+  );
+
+  if (!records || records.length === 0) {
+    throw new Error('OTP not found');
+  }
+
+  const record = records[0];
+
+  // ✅ Expiry check
+  if (new Date(record.expires_at) < new Date()) {
+    throw new Error('OTP expired');
+  }
+
+  // ✅ Attempts check
+  if (record.attempts >= 5) {
+    throw new Error('Too many attempts');
+  }
+
+  // ✅ Compare OTP
+  const isValid = await bcrypt.compare(otp, record.otp_hash);
+
+  if (!isValid) {
+    await this.dataSource.query(
+      `UPDATE user_otps SET attempts = attempts + 1 WHERE id = ?`,
+      [record.id],
+    );
+
+    throw new Error('Invalid OTP');
+  }
+
+  // ✅ Delete after success
+  await this.dataSource.query(
+    `DELETE FROM user_otps WHERE id = ?`,
+    [record.id],
+  );
+
+  // ✅ Generate JWT
+  return {
+    message: 'OTP verified',
+    token: this.jwtService.sign({ identifier }),
+  };
+}
+
 }
