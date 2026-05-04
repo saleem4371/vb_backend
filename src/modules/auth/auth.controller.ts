@@ -115,6 +115,6 @@ async send_otp(@Body() dto: { phone: string }) {
 
   // await this.smsService.send(dto.phone, `Your OTP is ${otp}`);
 
-  return { message: 'OTP sent successfully' };
+  return { message: `OTP sent successfully - Your OTP is ${otp}` };
 }
 }
