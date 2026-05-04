@@ -186,9 +186,12 @@ async googleLogin(token: string) {
     [user.name, user.email,user.picture, 3],
   );
   }
-
+  const token = this.jwtService.sign({
+    id: user.id,
+    email: user.email,
+  });
   return {
-    token: this.JwtService.sign({ email: user.email }),
+    token: token,
     user,
   };
 }
