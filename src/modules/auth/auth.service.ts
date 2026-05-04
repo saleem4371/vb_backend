@@ -222,6 +222,8 @@ async findById(id: string) {
 
     return newUser[0];
 }
-  
+  async send_otp(dto) {
+return dto;
+}
 
 }
