@@ -72,7 +72,9 @@ export class AuthService {
 
     const token = this.jwtService.sign({
       id: user.id,
+      name: user.name,
       email: user.email,
+      phone: user.phone,
     });
 
     return {
@@ -144,8 +146,10 @@ async auto_login(dto) {
   }
 
   const token = this.jwtService.sign({
-    id: user.id,
-    email: user.email,
+     id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone
   });
 
   return {
@@ -201,8 +205,10 @@ async googleLogin(token: string) {
 
   // 5. Create JWT using DB user id
   const jwtToken = this.jwtService.sign({
-    id: user.id,
-    email: user.email,
+     id: user.id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
   });
 
   return {
