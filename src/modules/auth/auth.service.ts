@@ -2,6 +2,7 @@ import { Injectable, UnauthorizedException ,BadRequestException, ConflictExcepti
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { DataSource } from 'typeorm';
+import axios from "axios";
 
 import { MailService } from '../../mail/mail.service';
 import { ActivityLoggerService } from '../../common/activity-logger.service';
@@ -154,6 +155,41 @@ async auto_login(dto) {
       name: user.name,
       email: user.email,
     },
+  };
+}
+
+  
+async googleLogin(token: string) {
+  const googleRes = await axios.get(
+    `https://www.googleapis.com/oauth2/v3/userinfo`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  const user = googleRes.data;
+
+ 
+  const existingUser = await this.dataSource.query(
+    `SELECT * FROM users WHERE email = ?`,
+    [ user.email],
+  );
+
+  if (!existingUser) {
+
+
+    await this.dataSource.query(
+    `INSERT INTO users (name, email, logo , role_type)
+     VALUES (?, ?, ?, ?)`,
+    [user.name, user.email,user.picture, 3],
+  );
+  }
+
+  return {
+    token: this.jwt.sign({ email: user.email }),
+    user,
   };
 }
 
