@@ -222,8 +222,18 @@ async findById(id: string) {
 
     return newUser[0];
 }
-  async send_otp(dto) {
-return dto;
+
+  async send_otp(identifier: string, otp: string) {
+  const hash = await bcrypt.hash(otp, 10);
+
+    //`user_id`, `otp`, `expires_at`, `attempts`, `created_at` FROM `user_otps` 
+    const expire = new Date(Date.now() + 5 * 60 * 1000);
+    const now = new Date();
+ const result = await this.dataSource.query(
+    `INSERT INTO user_otps (identifier, otp, expires_at, attempts,created_at)
+     VALUES (?, ?, ?, ? , ? )`,
+    [identifier, hash, expire, 0 , now ],
+  );
 }
 
 }
