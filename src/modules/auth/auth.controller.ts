@@ -92,7 +92,7 @@ export class AuthController {
     return this.authService.auto_login(dto);
   }
     // ================= GOOGLE LOGIN =================
- @Post('googleLogin')
+ @Post('social-login')
   async googleLogin(@Body() body: any) {
     return this.authService.googleLogin(body);
   }
