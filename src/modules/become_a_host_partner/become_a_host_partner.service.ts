@@ -8,10 +8,11 @@ import { DataSource } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { MailService } from '../../mail/mail.service';
 import { emailVerifyTemplate } from '../../common/email/templates/email-verify.template';
-import { v4 as uuidv4 } from 'uuid';
+//import { v4 as uuidv4 } from 'uuid';
 import { JwtService } from '@nestjs/jwt';
 import { promises as fs } from 'fs';
 import * as path from 'path';
+const { v4: uuidv4 } = require('uuid');
 
 @Injectable()
 export class BecomeAHostPartnerService {
