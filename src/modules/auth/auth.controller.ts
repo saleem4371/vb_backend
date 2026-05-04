@@ -1,10 +1,10 @@
-import { Body, Controller, Post, Req ,UseGuards } from '@nestjs/common';
+import { Body, Controller, Post, Req ,UseGuards ,Get } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import { AuthService } from './auth.service';
 import { ActivityLoggerService } from '../../common/activity-logger.service';
 
-import { JwtStrategy } from './strategies/jwt.strategy';
+import { JwtStrategy } from './strategies/jwt-auth.guard';
 
 
 @Controller('auth')
