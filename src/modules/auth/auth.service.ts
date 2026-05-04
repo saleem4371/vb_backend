@@ -248,16 +248,12 @@ async verifyOtp(identifier: string, otp: string) {
 
   const record = records[0];
 
-  // 🔴 DEBUG (important)
-  console.log('OTP INPUT:', otp);
-  console.log('DB RECORD:', record);
-
-  // ✅ Validate inputs before bcrypt
+  // ✅ Validate input
   if (!otp) {
     throw new Error('OTP is required');
   }
 
-  if (!record.otp) {
+  if (!record.otp_hash) {
     throw new Error('Stored OTP hash missing');
   }
 
@@ -266,13 +262,16 @@ async verifyOtp(identifier: string, otp: string) {
     throw new Error('OTP expired');
   }
 
-  // ✅ Attempt check
+  // ✅ Attempts check
   if (record.attempts >= 5) {
     throw new Error('Too many attempts');
   }
 
-  // ✅ Compare
-  const isValid = await bcrypt.compare(String(otp), String(record.otp));
+  // ✅ Compare OTP
+  const isValid = await bcrypt.compare(
+    String(otp),
+    String(record.otp_hash),
+  );
 
   if (!isValid) {
     await this.dataSource.query(
@@ -283,46 +282,46 @@ async verifyOtp(identifier: string, otp: string) {
     throw new Error('Invalid OTP');
   }
 
-  // ✅ Delete used OTP
+  // ✅ Delete OTP after success
   await this.dataSource.query(
     `DELETE FROM user_otps WHERE id = ?`,
     [record.id],
   );
 
-const users = await this.dataSource.query(
-  `SELECT id, name, email FROM users WHERE phone = ? LIMIT 1`,
-  [identifier],
-);
-let user ='';
-if (!users || users.length === 0) {
+  // ✅ Get user
+  let users = await this.dataSource.query(
+    `SELECT id, name, email FROM users WHERE phone = ? LIMIT 1`,
+    [identifier],
+  );
 
-   await this.dataSource.query(
+  let user;
+
+  if (!users || users.length === 0) {
+    // ✅ Create user
+    const insertResult = await this.dataSource.query(
       `INSERT INTO users (name, email, phone, role_type)
        VALUES (?, ?, ?, ?)`,
-      [null, null, identifier , 3],
+      [null, null, identifier, 3],
     );
-  const users = await this.dataSource.query(
-  `SELECT id, name, email FROM users WHERE phone = ? LIMIT 1`,
-  [identifier],
-);
-  user = users[0];
-}
-  else
-{
-  user = users[0];
-}
 
+    user = {
+      id: insertResult.insertId,
+      name: null,
+      email: null,
+    };
+  } else {
+    user = users[0];
+  }
 
-
-const jwtToken = this.jwtService.sign({
-  id: user.id,
-  name: user.name,
-  email: user.email,
-});
+  // ✅ JWT (minimal payload recommended)
+  const jwtToken = this.jwtService.sign({
+    sub: user.id,
+  });
 
   return {
     message: 'OTP verified',
     token: jwtToken,
+    user,
   };
 }
 
