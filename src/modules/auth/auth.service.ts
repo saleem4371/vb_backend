@@ -320,7 +320,7 @@ async verifyOtp(identifier: string, otp: string) {
 
   return {
     message: 'OTP verified',
-    token: jwtToken,
+    access_token: jwtToken,
     user,
   };
 }
