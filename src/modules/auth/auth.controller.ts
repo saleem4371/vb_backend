@@ -1,0 +1,94 @@
+import { Body, Controller, Post, Req } from '@nestjs/common';
+import type { FastifyRequest } from 'fastify';
+
+import { AuthService } from './auth.service';
+import { ActivityLoggerService } from '../../common/activity-logger.service';
+
+@Controller('auth')
+export class AuthController {
+  constructor(
+    private readonly authService: AuthService,
+    private readonly activityLogger: ActivityLoggerService,
+  ) {}
+
+  // ================= REGISTER =================
+  @Post('register')
+  async register(@Req() req: FastifyRequest, @Body() dto: any) {
+    const result = await this.authService.register(dto);
+
+    try {
+      await this.activityLogger.log(
+        {
+          user_id: result?.userId || null,
+          action: 'REGISTER',
+          module: 'AUTH',
+          message: 'User registered',
+          description: 'New user registered successfully',
+        },
+        req,
+      );
+    } catch (err) {
+      console.log('Register logging error:', err);
+    }
+
+    return result;
+  }
+
+  // ================= LOGIN =================
+  @Post('login')
+  async login(@Req() req: FastifyRequest, @Body() dto: any) {
+    const result = await this.authService.login(dto);
+
+    try {
+      await this.activityLogger.log(
+        {
+          user_id: result?.user?.id || null,
+          action: 'LOGIN',
+          module: 'AUTH',
+          message: 'User login',
+          description: 'User login successful',
+        },
+        req,
+      );
+    } catch (err) {
+      console.log('Login logging error:', err);
+    }
+
+    return result;
+  }
+
+  // ================= FORGOT PASSWORD =================
+  @Post('forgot_password')
+  async forgot_password(@Body() dto: any) {
+    return this.authService.forgot_password(dto);
+  }
+
+  // ================= UPDATE PASSWORD =================
+  @Post('update_password')
+  async update_password(@Req() req: FastifyRequest, @Body() dto: any) {
+    const result = await this.authService.update_password(dto);
+
+    try {
+      await this.activityLogger.log(
+        {
+          user_id: result?.user?.id || null,
+          action: 'FORGOT_PASSWORD',
+          module: 'AUTH',
+          message: 'Password updated',
+          description: 'Password changed successfully',
+        },
+        req,
+      );
+    } catch (err) {
+      console.log('Update password logging error:', err);
+    }
+
+    return result;
+  }
+
+  // ================= AUTO LOGIN =================
+  @Post('auto_login')
+  async auto_login(@Body() dto: any) {
+    return this.authService.auto_login(dto);
+  }
+}
