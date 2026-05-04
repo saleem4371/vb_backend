@@ -105,4 +105,9 @@ export class AuthController {
      return this.authService.findById(req.user.id);
    // return req.user; // 🔥 comes from JwtStrategy
   }
+
+   @Post('send-otp')
+  async send_otp(@Body() dto: any) {
+    return this.authService.send_otp(dto);
+  }
 }
