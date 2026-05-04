@@ -160,38 +160,53 @@ async auto_login(dto) {
 
   
 async googleLogin(token: string) {
+  // 1. Get user from Google
   const googleRes = await axios.get(
     `https://www.googleapis.com/oauth2/v3/userinfo`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
       },
-    }
+    },
   );
 
-  const user = googleRes.data;
+  const googleUser = googleRes.data;
 
- 
+  // 2. Check user exists
   const existingUser = await this.dataSource.query(
-    `SELECT * FROM users WHERE email = ?`,
-    [ user.email],
+    `SELECT * FROM users WHERE email = ? LIMIT 1`,
+    [googleUser.email],
   );
 
-  if (!existingUser) {
+  let user;
 
-
+  if (existingUser.length === 0) {
+    // 3. Insert user if not exists
     await this.dataSource.query(
-    `INSERT INTO users (name, email, logo , role_type)
-     VALUES (?, ?, ?, ?)`,
-    [user.name, user.email,user.picture, 3],
-  );
+      `INSERT INTO users (name, email, logo, role_type)
+       VALUES (?, ?, ?, ?)`,
+      [googleUser.name, googleUser.email, googleUser.picture, 3],
+    );
+
+    // 4. Re-fetch inserted user
+    const newUser = await this.dataSource.query(
+      `SELECT * FROM users WHERE email = ? LIMIT 1`,
+      [googleUser.email],
+    );
+
+    user = newUser[0];
+  } else {
+    user = existingUser[0];
   }
-  const token = this.jwtService.sign({
+
+  // 5. Create JWT using DB user id
+  const jwtToken = this.jwtService.sign({
     id: user.id,
     email: user.email,
   });
+
   return {
-    token: token,
+    token: jwtToken,
     user,
   };
 }
