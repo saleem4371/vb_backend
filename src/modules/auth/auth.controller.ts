@@ -102,6 +102,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@Req() req) {
-    return req.user; // 🔥 comes from JwtStrategy
+     return this.authService.findById(req.user.id);
+   // return req.user; // 🔥 comes from JwtStrategy
   }
 }
