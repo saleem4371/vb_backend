@@ -3,11 +3,11 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { MailModule } from '../../mail/mail.module';
-
+import { JwtStrategy } from './jwt/jwt.strategy';
 import { CommonModule } from '../../common/common.module';
 
 @Module({
-  providers: [AuthService],
+  providers: [AuthService,JwtStrategy],
   exports: [AuthService],
   controllers: [AuthController],
    imports: [
