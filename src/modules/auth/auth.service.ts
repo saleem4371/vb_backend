@@ -293,12 +293,26 @@ const users = await this.dataSource.query(
   `SELECT id, name, email FROM users WHERE phone = ? LIMIT 1`,
   [identifier],
 );
-
+let user ='';
 if (!users || users.length === 0) {
-  throw new Error('User not found');
+
+   await this.dataSource.query(
+      `INSERT INTO users (name, email, phone, role_type)
+       VALUES (?, ?, ?, ?)`,
+      [null, null, identifier , 3],
+    );
+  const users = await this.dataSource.query(
+  `SELECT id, name, email FROM users WHERE phone = ? LIMIT 1`,
+  [identifier],
+);
+  user = users[0];
+}
+  else
+{
+  user = users[0];
 }
 
-const user = users[0];
+
 
 const jwtToken = this.jwtService.sign({
   id: user.id,
