@@ -117,4 +117,9 @@ async send_otp(@Body() dto: { phone: string }) {
 
   return { message: `OTP sent successfully - Your OTP is ${otp}` };
 }
+
+  @Post('verify-otp')
+async verifyOtp(@Body() dto: { phone: string; otp: string }) {
+  return this.authService.verifyOtp(dto.phone, dto.otp);
+}
 }
