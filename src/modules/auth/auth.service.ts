@@ -74,9 +74,6 @@ export class AuthService {
       id: user.id,
       name: user.name,
       email: user.email,
-      phone: user.phone,
-      logo: user.logo,
-      isListed:false
     });
 
     return {
@@ -150,10 +147,7 @@ async auto_login(dto) {
   const token = this.jwtService.sign({
      id: user.id,
       name: user.name,
-      email: user.email,
-      phone: user.phone,
-    logo: user.logo,
-     isListed:false
+      email: user.email
     
   });
 
@@ -212,10 +206,7 @@ async googleLogin(token: string) {
   const jwtToken = this.jwtService.sign({
      id: user.id,
       name: user.name,
-      email: user.email,
-      phone: user.phone,
-    logo: user.logo,
-     isListed:false
+      email: user.email
   });
 
   return {
