@@ -289,9 +289,19 @@ async verifyOtp(identifier: string, otp: string) {
     [record.id],
   );
 
+   const result = await this.dataSource.query(
+    `SELECT * FROM users WHERE phone = ?`,
+    [identifier],
+  );
+   const jwtToken = this.jwtService.sign({
+     id: result[0].id,
+      name: result[0].name,
+      email: result[0].email
+  });
+
   return {
     message: 'OTP verified',
-    token: this.jwtService.sign({ identifier }),
+    token: jwtToken,
   };
 }
 
