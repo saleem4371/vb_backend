@@ -1,8 +1,11 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Post, Req ,UseGuards } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import { AuthService } from './auth.service';
 import { ActivityLoggerService } from '../../common/activity-logger.service';
+
+import { JwtAuthGuard } from './jwt/jwt-auth.guard';
+
 
 @Controller('auth')
 export class AuthController {
@@ -96,5 +99,9 @@ export class AuthController {
   async googleLogin(@Body() body: any) {
     return this.authService.googleLogin(body);
   }
-  
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getMe(@Req() req) {
+    return req.user; // 🔥 comes from JwtStrategy
+  }
 }
