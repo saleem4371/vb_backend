@@ -88,14 +88,14 @@ export class AuthService {
 
 
   
-async forgot_password(identifier: string, otp: string) {
-  if (!identifier) {
+async forgot_password(dto, otp: string) {
+  if (!dto?.email) {
     throw new BadRequestException('Email are required');
   }
 
   const rows = await this.dataSource.query(
     `SELECT id FROM users WHERE email = ?`,
-    [identifier],
+    [dto?.email],
   );
 
   if (rows?.length == 0) {
@@ -110,12 +110,12 @@ async forgot_password(identifier: string, otp: string) {
  const result = await this.dataSource.query(
     `INSERT INTO user_otps (identifier, otp, expires_at, attempts,created_at)
      VALUES (?, ?, ?, ? , ? )`,
-    [identifier, hash, expire, 0 , now ],
+    [dto?.email, hash, expire, 0 , now ],
   );
   const verifyLink = otp;
   const html = emailVerifyTemplate(verifyLink,identifier);
 
-   await this.mailService.sendMail(identifier, 'Reset Your password', html);
+   await this.mailService.sendMail(dto?.email, 'Reset Your password', html);
 
     return {
       success: true,
