@@ -88,23 +88,34 @@ export class AuthService {
 
 
   
-async forgot_password(dto) {
-  if (!dto?.email) {
+async forgot_password(identifier: string, otp: string) {
+  if (!identifier) {
     throw new BadRequestException('Email are required');
   }
 
   const rows = await this.dataSource.query(
     `SELECT id FROM users WHERE email = ?`,
-    [dto.email],
+    [identifier],
   );
 
   if (rows?.length == 0) {
     throw new ConflictException('Email Not Registered');
   }
-const verifyLink = "bcd.com";
-  const html = emailVerifyTemplate(dto.email, verifyLink);
 
-   await this.mailService.sendMail(dto.email, 'Reset Your password', html);
+    const hash = await bcrypt.hash(otp, 10);
+
+    //`user_id`, `otp`, `expires_at`, `attempts`, `created_at` FROM `user_otps` 
+    const expire = new Date(Date.now() + 5 * 60 * 1000);
+    const now = new Date();
+ const result = await this.dataSource.query(
+    `INSERT INTO user_otps (identifier, otp, expires_at, attempts,created_at)
+     VALUES (?, ?, ?, ? , ? )`,
+    [identifier, hash, expire, 0 , now ],
+  );
+  const verifyLink = otp;
+  const html = emailVerifyTemplate(identifier, verifyLink);
+
+   await this.mailService.sendMail(identifier, 'Reset Your password', html);
 
     return {
       success: true,
