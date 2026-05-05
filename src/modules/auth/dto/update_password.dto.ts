@@ -2,6 +2,6 @@
 
 export class update_password {
   password ?: string;
-  confirmpassword ?: string;
+  otp ?: string;
   email ?: string;
 }
