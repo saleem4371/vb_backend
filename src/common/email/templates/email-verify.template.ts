@@ -1,4 +1,4 @@
-export function emailVerifyTemplate(name: string, verifyLink: string) {
+export function forgotPasswordOtpTemplate(name: string, otp: string) {
   return `
   <div style="margin:0;padding:0;background:#f6f7fb;font-family:Arial,sans-serif;">
 
@@ -6,42 +6,43 @@ export function emailVerifyTemplate(name: string, verifyLink: string) {
 
       <!-- Header -->
       <div style="background:#4f46e5;padding:20px;text-align:center;color:#fff;">
-        <h2 style="margin:0;">Verify Your Email</h2>
+        <h2 style="margin:0;">Reset Your Password</h2>
       </div>
 
       <!-- Body -->
       <div style="padding:30px;text-align:center;color:#333;">
 
-        <h3 style="margin-bottom:10px;">Hello ${name},</h3>
+        <h3 style="margin-bottom:10px;">Hello ${name || "User"},</h3>
 
         <p style="font-size:15px;color:#666;">
-          Welcome! Please verify your email address to activate your account.
+          We received a request to reset your password.
         </p>
 
-        <!-- Button -->
-        <div style="margin:30px 0;">
-          <a href="${verifyLink}" 
-             style="
-              background:#4f46e5;
-              color:#ffffff;
-              padding:14px 28px;
-              text-decoration:none;
-              border-radius:8px;
-              font-size:16px;
-              display:inline-block;
-              font-weight:bold;
-              box-shadow:0 3px 10px rgba(79,70,229,0.3);
-             ">
-            Verify Email
-          </a>
+        <p style="font-size:15px;color:#666;">
+          Use the OTP below to reset your password:
+        </p>
+
+        <!-- OTP BOX -->
+        <div style="
+          margin:30px 0;
+          font-size:32px;
+          font-weight:bold;
+          letter-spacing:6px;
+          color:#4f46e5;
+        ">
+          ${otp}
         </div>
 
         <p style="font-size:13px;color:#888;">
-          This link will expire in <b>15 minutes</b>.
+          This OTP will expire in <b>5 minutes</b>.
+        </p>
+
+        <p style="font-size:13px;color:#888;margin-top:10px;">
+          Do not share this code with anyone.
         </p>
 
         <p style="font-size:12px;color:#aaa;margin-top:20px;">
-          If you did not create this account, you can ignore this email.
+          If you didn’t request this, you can safely ignore this email.
         </p>
 
       </div>
