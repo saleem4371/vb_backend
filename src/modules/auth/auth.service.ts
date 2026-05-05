@@ -124,23 +124,45 @@ async forgot_password(dto, otp: string) {
 }
 
 async update_password(dto) {
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
+  const { email, otp, password } = dto;
 
-  await this.dataSource.query(
-    `UPDATE users SET password = ? WHERE email = ? `,
-    [hashedPassword, dto.email],
+  // 1. Get user
+  const users = await this.dataSource.query(
+    `SELECT id, otp, otp_expiry FROM users WHERE email = ?`,
+    [email],
   );
 
-  const result = await this.dataSource.query(
-    `SELECT * from users WHERE email = ? `,
-    [dto.email],
+  const user = users[0];
+
+  if (!user) {
+    throw new BadRequestException("User not found");
+  }
+
+  // 2. Validate OTP
+  if (!user.otp || user.otp !== otp) {
+    throw new BadRequestException("Invalid OTP");
+  }
+
+  // 3. Check expiry
+  if (new Date() > new Date(user.otp_expiry)) {
+    throw new BadRequestException("OTP expired");
+  }
+
+  // 4. Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // 5. Update password + clear OTP
+  await this.dataSource.query(
+    `UPDATE users 
+     SET password = ?, otp = NULL, otp_expiry = NULL 
+     WHERE email = ?`,
+    [hashedPassword, email],
   );
 
   return {
     success: true,
-    user: result[0],
+    message: "Password updated successfully",
   };
-    
 }
 async auto_login(dto) {
   const users = await this.dataSource.query(
