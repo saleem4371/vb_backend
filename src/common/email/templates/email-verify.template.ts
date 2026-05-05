@@ -1,4 +1,4 @@
-export function forgotPasswordOtpTemplate(name: string, otp: string) {
+export function emailVerifyTemplate(name: string, otp: string) {
   return ` 
   <div style="margin:0;padding:0;background:#f6f7fb;font-family:Arial,sans-serif;">
 
