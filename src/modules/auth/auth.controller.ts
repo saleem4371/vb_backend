@@ -64,7 +64,7 @@ export class AuthController {
   @Post('forgot_password')
   async forgot_password(@Body() dto: any) {
     const otp =  Math.floor(100000 + Math.random() * 900000).toString();
-    return this.authService.forgot_password(otp,dto);
+    return this.authService.forgot_password(dto , otp );
   }
 
   // ================= UPDATE PASSWORD =================
