@@ -113,7 +113,7 @@ async forgot_password(identifier: string, otp: string) {
     [identifier, hash, expire, 0 , now ],
   );
   const verifyLink = otp;
-  const html = emailVerifyTemplate(identifier, verifyLink);
+  const html = emailVerifyTemplate(verifyLink,identifier);
 
    await this.mailService.sendMail(identifier, 'Reset Your password', html);
 
