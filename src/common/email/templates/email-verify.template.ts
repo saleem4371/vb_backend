@@ -1,5 +1,5 @@
 export function forgotPasswordOtpTemplate(name: string, otp: string) {
-  return `
+  return ` 
   <div style="margin:0;padding:0;background:#f6f7fb;font-family:Arial,sans-serif;">
 
     <div style="max-width:600px;margin:40px auto;background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
