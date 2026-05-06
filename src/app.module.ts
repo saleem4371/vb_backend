@@ -13,6 +13,7 @@ import { PropertyModule } from './modules/property/property.module';
 import { CommonModule } from './common/common.module';
 import { LogsModule } from './logs/logs.module';
 import { NotificationModule } from './notifications/notification.module';
+import { AuthAdminModule } from './modules/admin/admin_auth/admin_auth.module';
 
 @Module({
   imports: [
@@ -46,7 +47,10 @@ import { NotificationModule } from './notifications/notification.module';
 
      CommonModule,
     LogsModule,
-    NotificationModule
+    NotificationModule,
+
+    //Admin
+    AuthAdminModule
   ],
 })
 export class AppModule {}
