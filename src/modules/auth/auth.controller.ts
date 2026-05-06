@@ -67,25 +67,25 @@ export class AuthController {
     return this.authService.forgot_password(dto , otp );
   }
 
-  // ================= UPDATE PASSWORD =================
+ // ================= UPDATE PASSWORD =================
   @Post('update_password')
   async update_password(@Req() req: FastifyRequest, @Body() dto: any) {
     const result = await this.authService.update_password(dto);
 
-    try {
-      await this.activityLogger.log(
-        {
-          user_id: result?.user?.id || null,
-          action: 'FORGOT_PASSWORD',
-          module: 'AUTH',
-          message: 'Password updated',
-          description: 'Password changed successfully',
-        },
-        req,
-      );
-    } catch (err) {
-      console.log('Update password logging error:', err);
-    }
+    // try {
+    //   await this.activityLogger.log(
+    //     {
+    //       user_id: result?.userId || null,
+    //       action: 'FORGOT_PASSWORD',
+    //       module: 'AUTH',
+    //       message: 'Password updated',
+    //       description: 'Password changed successfully',
+    //     },
+    //     req,
+    //   );
+    // } catch (err) {
+    //   console.log('Update password logging error:', err);
+    // }
 
     return result;
   }
