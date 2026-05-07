@@ -14,6 +14,7 @@ import { CommonModule } from './common/common.module';
 import { LogsModule } from './logs/logs.module';
 import { NotificationModule } from './notifications/notification.module';
 import { AuthAdminModule } from './modules/admin/admin_auth/admin_auth.module';
+import { VendorModule } from './modules/admin/vendor/vendor.module';
 
 @Module({
   imports: [
@@ -50,7 +51,9 @@ import { AuthAdminModule } from './modules/admin/admin_auth/admin_auth.module';
     NotificationModule,
 
     //Admin
-    AuthAdminModule
+    AuthAdminModule,
+
+    VendorModule
   ],
 })
 export class AppModule {}

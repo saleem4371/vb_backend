@@ -1,6 +1,7 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Post, Req ,UseGuards, Get} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { AuthService } from './admin_auth.service';
+import { JwtAuthGuard } from './strategies/jwt-auth.guard';
 
 @Controller('admin/auth')
 export class AuthController {
@@ -15,4 +16,12 @@ export class AuthController {
 
     return await this.authService.login(dto); 
   }
+
+
+   @UseGuards(JwtAuthGuard)
+    @Get('me')
+    getMe(@Req() req) {
+      return this.authService.findById(req.user.id);
+      // return req.user; // 🔥 comes from JwtStrategy
+    }
 }

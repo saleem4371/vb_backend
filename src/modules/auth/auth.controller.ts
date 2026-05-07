@@ -1,11 +1,10 @@
-import { Body, Controller, Post, Req ,UseGuards ,Get } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards, Get } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import { AuthService } from './auth.service';
 import { ActivityLoggerService } from '../../common/activity-logger.service';
 
 import { JwtAuthGuard } from './strategies/jwt-auth.guard';
-
 
 @Controller('auth')
 export class AuthController {
@@ -63,11 +62,11 @@ export class AuthController {
   // ================= FORGOT PASSWORD =================
   @Post('forgot_password')
   async forgot_password(@Body() dto: any) {
-    const otp =  Math.floor(100000 + Math.random() * 900000).toString();
-    return this.authService.forgot_password(dto , otp );
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    return this.authService.forgot_password(dto, otp);
   }
 
- // ================= UPDATE PASSWORD =================
+  // ================= UPDATE PASSWORD =================
   @Post('update_password')
   async update_password(@Req() req: FastifyRequest, @Body() dto: any) {
     const result = await this.authService.update_password(dto);
@@ -95,32 +94,31 @@ export class AuthController {
   async auto_login(@Body() dto: any) {
     return this.authService.auto_login(dto);
   }
-    // ================= GOOGLE LOGIN =================
- @Post('social-login')
+  // ================= GOOGLE LOGIN =================
+  @Post('social-login')
   async googleLogin(@Body() body: any) {
     return this.authService.googleLogin(body);
   }
   @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@Req() req) {
-     return this.authService.findById(req.user.id);
-   // return req.user; // 🔥 comes from JwtStrategy
+    return this.authService.findById(req.user.id);
+    // return req.user; // 🔥 comes from JwtStrategy
   }
 
-   
   @Post('send-otp')
-async send_otp(@Body() dto: { phone: string }) {
-  const otp =  Math.floor(100000 + Math.random() * 900000).toString();
+  async send_otp(@Body() dto: { phone: string }) {
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-  await this.authService.send_otp(dto.phone, otp);
+    await this.authService.send_otp(dto.phone, otp);
 
-  // await this.smsService.send(dto.phone, `Your OTP is ${otp}`);
+    // await this.smsService.send(dto.phone, `Your OTP is ${otp}`);
 
-  return { message: `OTP sent successfully - Your OTP is ${otp}` };
-}
+    return { message: `OTP sent successfully - Your OTP is ${otp}` };
+  }
 
   @Post('verify-otp')
-async verifyOtp(@Body() dto: { phone: string; otp: string }) {
-  return this.authService.verifyOtp(dto.phone, dto.otp);
-}
+  async verifyOtp(@Body() dto: { phone: string; otp: string }) {
+    return this.authService.verifyOtp(dto.phone, dto.otp);
+  }
 }
