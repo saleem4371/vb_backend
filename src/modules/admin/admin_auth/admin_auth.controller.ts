@@ -2,6 +2,7 @@ import { Body, Controller, Post, Req ,UseGuards, Get} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { AuthService } from './admin_auth.service';
 import { JwtAuthGuard } from './strategies/jwt-auth.guard';
+import { CurrentUser } from "../../../common/decorators/user.decorator";
 
 @Controller('admin/auth')
 export class AuthController {
@@ -20,8 +21,14 @@ export class AuthController {
 
    @UseGuards(JwtAuthGuard)
     @Get('me')
-    getMe(@Req() req) {
-      return this.authService.findById(req.user.id);
-      // return req.user; // 🔥 comes from JwtStrategy
-    }
+    // getMe(@Req() req) {
+    //   return this.authService.findById(req.user.id);
+    //   // return req.user; // 🔥 comes from JwtStrategy
+    // }
+    getMe(@CurrentUser() user) {
+
+  return this.authService.findById(
+    user.id,
+  );
+}
 }
