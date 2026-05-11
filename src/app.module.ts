@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
+import { APP_INTERCEPTOR } from "@nestjs/core";
 
+import { ActivityLogInterceptor } from "./modules/admin/activity-logs/interceptors/activity-log.interceptor";
+
+/* MODULES */
 import { HomeModule } from './modules/home/home.module';
 import { CategoryModule } from './modules/category/category.module';
 import { VenueModule } from './modules/venue/venue.module';
@@ -13,17 +17,31 @@ import { PropertyModule } from './modules/property/property.module';
 import { CommonModule } from './common/common.module';
 import { LogsModule } from './logs/logs.module';
 import { NotificationModule } from './notifications/notification.module';
+import { StorageModule } from "./common/storage/storage.module";
+
 import { AuthAdminModule } from './modules/admin/admin_auth/admin_auth.module';
 import { VendorModule } from './modules/admin/vendor/vendor.module';
+import { ActivityLogsModule } from './modules/admin/activity-logs/activity-logs.module';
+import { CurrencyModule } from './modules/admin/currency/currency.module';
+import { CountryModule } from './modules/admin/country/country.module';
+import { EventTagsModule } from "./modules/admin/event-tag/event-tag.module";
+import { VenueTagsModule } from "./modules/admin/venue-tags/venue-tag.module"
+
+// import { VenueTagsModule } from "./modules/admin/property-tag/property-tag.module";
+// import { CategoryPropertyModule } from './modules/admin/property_category/category.module';
+import { VenueCategoryModule } from './modules/admin/venue-category/venue-category.module';
+import { UnregisteredModule } from './modules/admin/scraped-data/scraped-data.module';
+import { GlobalModule } from './modules/global/global.module';
 
 @Module({
   imports: [
-    // 🔥 FIRST LOAD CONFIG
+
+    /* CONFIG */
     ConfigModule.forRoot({
       isGlobal: true,
     }),
 
-    // DB
+    /* DATABASE */
     TypeOrmModule.forRoot({
       type: 'mysql',
       host: '56.228.5.223',
@@ -37,7 +55,7 @@ import { VendorModule } from './modules/admin/vendor/vendor.module';
       connectTimeout: 10000,
     }),
 
-    // MODULES
+    /* USER MODULES */
     HomeModule,
     CategoryModule,
     VenueModule,
@@ -46,14 +64,33 @@ import { VendorModule } from './modules/admin/vendor/vendor.module';
     BecomeAHostPartnerModule,
     PropertyModule,
 
-     CommonModule,
+    CommonModule,
     LogsModule,
     NotificationModule,
+    StorageModule,
 
-    //Admin
+    /* ADMIN MODULES */
     AuthAdminModule,
-
-    VendorModule
+    ActivityLogsModule,
+    VendorModule,
+    CurrencyModule,
+    CountryModule,
+    EventTagsModule,
+    VenueTagsModule,
+    VenueCategoryModule,
+    UnregisteredModule,
+    GlobalModule,
+    // CategoryPropertyModule
+    // VenueTagsModule,
   ],
+
+  /* ✅ FIX IS HERE */
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: ActivityLogInterceptor,
+    },
+  ],
+
 })
 export class AppModule {}
