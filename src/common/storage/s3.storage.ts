@@ -51,10 +51,14 @@ export class S3StorageService extends StorageService {
       }
 
       const safeFilename =
-        file.filename.replace(
-          /[^a-zA-Z0-9.-]/g,
-          "_",
-        );
+  (
+    file.originalname ||
+    file.filename ||
+    "image.jpg"
+  ).replace(
+    /[^a-zA-Z0-9.-]/g,
+    "_",
+  );
 
       const key = `${folder}/${Date.now()}-${safeFilename}`;
 
