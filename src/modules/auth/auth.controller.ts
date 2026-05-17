@@ -6,6 +6,8 @@ import { ActivityLoggerService } from '../../common/activity-logger.service';
 
 import { JwtAuthGuard } from './strategies/jwt-auth.guard';
 
+import { AuthGuard } from '@nestjs/passport';
+
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -64,7 +66,9 @@ export class AuthController {
   async forgot_password(@Body() dto: any) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     return this.authService.forgot_password(dto, otp);
-  }
+  } 
+  
+
 
   // ================= UPDATE PASSWORD =================
   @Post('update_password')
@@ -99,11 +103,19 @@ export class AuthController {
   async googleLogin(@Body() body: any) {
     return this.authService.googleLogin(body);
   }
-  @UseGuards(JwtAuthGuard)
+ @UseGuards(JwtAuthGuard)
   @Get('me')
   getMe(@Req() req) {
+    console.log("AUTH HEADER =>", req.headers.authorization);
     return this.authService.findById(req.user.id);
     // return req.user; // 🔥 comes from JwtStrategy
+  }
+
+    // ================= logout =================
+     @UseGuards(JwtAuthGuard)
+  @Post('logout')
+  async logout(@Req() req) {
+    return this.authService.logout(req.user.id);
   }
 
   @Post('send-otp')

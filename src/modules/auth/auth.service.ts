@@ -14,6 +14,8 @@ import { ActivityLoggerService } from '../../common/activity-logger.service';
 import { emailVerifyTemplate } from '../../common/email/templates/email-verify.template';
 
 import { OAuth2Client } from 'google-auth-library';
+import { SocketService } from '../socket/socket.service';
+
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -24,6 +26,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private mailService: MailService,
     private activityLogger: ActivityLoggerService,
+    private socketService: SocketService
   ) {}
 
   // ✅ REGISTER
@@ -57,6 +60,7 @@ export class AuthService {
      VALUES (?, ? )`,
       [result.insertId, 3],
     );
+    
 
     return {
       success: true,
@@ -67,8 +71,8 @@ export class AuthService {
   // ✅ LOGIN
   async login(dto) {
     const users = await this.dataSource.query(
-     // `SELECT * FROM users WHERE email = ?`,
-      `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 3`,
+      // `SELECT * FROM users WHERE email = ?`,
+      `SELECT users.* FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 3`,
       [dto.email],
     );
 
@@ -84,6 +88,18 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
+  await this.dataSource.query(
+    `
+    UPDATE users
+    SET
+      is_online = 1,
+      last_login = NOW(),
+      last_seen = NOW()
+    WHERE id = ?
+    `,
+    [user.id],
+  );
+ this.socketService.online(user.id); //socket
     const token = this.jwtService.sign({
       id: user.id,
     });
@@ -180,8 +196,8 @@ export class AuthService {
   }
   async auto_login(dto) {
     const users = await this.dataSource.query(
-     // `SELECT * FROM users WHERE id = ?`,
-       `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE id = ? AND user_roles.role_id = 3`,
+      // `SELECT * FROM users WHERE id = ?`,
+      `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE id = ? AND user_roles.role_id = 3`,
       [dto.id],
     );
 
@@ -190,7 +206,17 @@ export class AuthService {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-
+  await this.dataSource.query(
+    `
+    UPDATE users
+    SET
+      is_online = 1,
+      last_login = NOW(),
+      last_seen = NOW()
+    WHERE id = ?
+    `,
+    [user.id],
+  );
     const token = this.jwtService.sign({
       id: user.id,
     });
@@ -251,7 +277,7 @@ export class AuthService {
         // 4. Fetch new user
         const newUser = await this.dataSource.query(
           //`SELECT * FROM users WHERE email = ? LIMIT 1`,
-            `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 3`,
+          `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 3`,
           [googleUser.email],
         );
 
@@ -260,6 +286,18 @@ export class AuthService {
         user = existingUser[0];
       }
 
+        await this.dataSource.query(
+    `
+    UPDATE users
+    SET
+      is_online = 1,
+      last_login = NOW(),
+      last_seen = NOW()
+    WHERE id = ?
+    `,
+    [user.id],
+  );
+ this.socketService.online(user.id); //socket
       // 5. Create JWT
       const jwtToken = this.jwtService.sign({
         id: user.id,
@@ -276,13 +314,40 @@ export class AuthService {
     }
   }
 
+  // async findById(id: string) {
+  //   const newUser = await this.dataSource.query(
+  //     `SELECT * FROM users WHERE id = ? `,
+  //     [id],
+  //   );
+
+  //   return newUser[0];
+  // }
   async findById(id: string) {
-    const newUser = await this.dataSource.query(
-      `SELECT * FROM users WHERE id = ? `,
+    const user = await this.dataSource.query(
+      `
+    SELECT
+
+      u.id,
+      u.name,
+      u.email,
+
+      EXISTS (
+        SELECT 1
+        FROM user_roles ur
+        WHERE ur.user_id = u.id
+        AND ur.role_id = 2
+      ) AS is_vendor
+
+    FROM users u
+
+    WHERE u.id = ?
+
+    LIMIT 1
+    `,
       [id],
     );
 
-    return newUser[0];
+    return user[0];
   }
 
   async send_otp(identifier: string, otp: string) {
@@ -349,7 +414,7 @@ export class AuthService {
     // ✅ Get user
     let users = await this.dataSource.query(
       //`SELECT id, name, email FROM users WHERE phone = ? LIMIT 1`,
-        `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE phone = ? AND user_roles.role_id = 3`,
+      `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE phone = ? AND user_roles.role_id = 3`,
       [identifier],
     );
 
@@ -390,4 +455,22 @@ export class AuthService {
       user,
     };
   }
+
+  async logout(userId: number) {
+    console.log(userId)
+  await this.dataSource.query(
+    `
+    UPDATE users
+    SET
+      is_online = 0,
+      last_logout = NOW()
+    WHERE id = ?
+    `,
+    [userId],
+  );
+
+  return {
+    message: 'Logged out',
+  };
+}
 }

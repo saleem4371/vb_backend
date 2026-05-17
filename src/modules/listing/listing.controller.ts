@@ -1,0 +1,381 @@
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Delete,
+  Patch,
+  Query,
+  Put,
+  Req,
+  BadRequestException,
+  UseGuards,
+} from '@nestjs/common';
+
+import { ListingService } from './listing.service';
+import { CreateListingDto } from './dto/create-listing.dto';
+import type { FastifyRequest } from 'fastify';
+
+import { JwtAuthGuard } from '../auth/strategies/jwt-auth.guard';
+
+@Controller('listing')
+export class ListingController {
+  constructor(private readonly listingService: ListingService) {}
+
+  @UseGuards(JwtAuthGuard)
+  @Post('create')
+  //  async create(
+  //   @Req() req: FastifyRequest,
+  // ) {
+
+  //   return this.listingService.create(req);
+  // }
+  async ListingData(@Body() dto: CreateListingDto, @Req() req: FastifyRequest) {
+    try {
+      const parts = req.parts();
+
+      const body: any = {};
+
+      const images: any[] = [];
+
+      let coverImage: any = null;
+      let bannerImage: any = null;
+
+      for await (const part of parts) {
+        /* ================= FILE ================= */
+
+        //if (part.type === 'file') {
+        // const buffer = await part.toBuffer();
+
+        // const fileData = {
+        //   fieldname: part.fieldname,
+
+        //   buffer,
+
+        //   originalname: part.filename,
+
+        //   mimetype: part.mimetype,
+
+        //   size: buffer.length,
+        // };
+
+        // /* ---------- gallery images ---------- */
+
+        // if (part.fieldname === 'images[]') {
+        //   images.push(fileData);
+        // } else if (part.fieldname === 'cover_image') {
+
+        // /* ---------- cover image ---------- */
+        //   coverImage = fileData;
+        // }
+
+        // continue;
+        //         const buffer = await part.toBuffer();
+
+        // const fileData = {
+        //   fieldname: part.fieldname,
+        //   buffer,
+        //   originalname: part.filename,
+        //   mimetype: part.mimetype,
+        //   size: buffer.length,
+        // };
+
+        // // gallery images
+        // if (part.fieldname === 'images[]') {
+        //   images.push({
+        //     ...fileData,
+        //     type: 'gallery',
+        //   });
+        // }
+
+        // // cover image
+        // else if (part.fieldname === 'cover_image') {
+        //   coverImage = {
+        //     ...fileData,
+        //     type: 'cover',
+        //   };
+        // }
+
+        // // banner image
+        // else if (part.fieldname === 'banner_image') {
+        //   bannerImage = {
+        //     ...fileData,
+        //     type: 'banner',
+        //   };
+        // }
+
+        // continue;
+        //       }
+        if (part.type === 'file') {
+          const buffer = await part.toBuffer();
+
+          const fileData = {
+            fieldname: part.fieldname,
+            buffer,
+            originalname: part.filename,
+            mimetype: part.mimetype,
+            size: buffer.length,
+          };
+
+          //
+          // COVER IMAGE
+          //
+          if (part.fieldname === 'cover_image') {
+            coverImage = {
+              ...fileData,
+              type: 'cover',
+            };
+
+            continue;
+          }
+
+          //
+          // BANNER IMAGE
+          //
+          if (part.fieldname === 'banner_image') {
+            bannerImage = {
+              ...fileData,
+              type: 'banner',
+            };
+
+            continue;
+          }
+
+          //
+          // GALLERY IMAGE
+          //
+          if (part.fieldname === 'images[]') {
+            const isCover = coverImage?.originalname === fileData.originalname;
+
+            const isBanner =
+              bannerImage?.originalname === fileData.originalname;
+
+            if (!isCover && !isBanner) {
+              images.push({
+                ...fileData,
+                type: 'gallery',
+              });
+            }
+
+            continue;
+          }
+        }
+
+        /* ================= FIELD ================= */
+
+        if (part.type === 'field') {
+          const field = part.fieldname;
+
+          const value = part.value;
+
+          /* ---------- amenities[] ---------- */
+
+          if (field === 'amenities[]') {
+            if (!body.amenities) {
+              body.amenities = [];
+            }
+
+            body.amenities.push(value);
+
+            continue;
+          }
+
+          /* ---------- pricing shifts ---------- */
+
+          const pricingMatch = field.match(
+            /^pricing\[shifts\]\[(.*?)\]\[(.*?)\]$/,
+          );
+
+          if (pricingMatch) {
+            const shiftKey = pricingMatch[1];
+
+            const subKey = pricingMatch[2];
+
+            if (!body.pricing) {
+              body.pricing = {};
+            }
+
+            if (!body.pricing.shifts) {
+              body.pricing.shifts = {};
+            }
+
+            if (!body.pricing.shifts[shiftKey]) {
+              body.pricing.shifts[shiftKey] = {};
+            }
+
+            let parsedValue: any = value;
+
+            /* ---- boolean ---- */
+
+            if (value === 'true') {
+              parsedValue = true;
+            } else if (value === 'false') {
+              parsedValue = false;
+            } else if (!isNaN(Number(value))) {
+              /* ---- number ---- */
+              parsedValue = Number(value);
+            }
+
+            body.pricing.shifts[shiftKey][subKey] = parsedValue;
+
+            continue;
+          }
+
+          /* ---------- normal fields ---------- */
+
+          body[field] = value;
+        }
+      }
+
+      return await this.listingService.create({
+        body,
+
+        images,
+
+        coverImage,
+        bannerImage,
+        user: (req as any).user,
+      });
+    } catch (error) {
+      console.log(error);
+
+      throw new BadRequestException(error || 'Upload failed');
+    }
+  }
+  //   async ListingData(
+  //   @Body() dto: CreateListingDto,
+  // ) {
+  //   try {
+
+  //     // ============================================
+  //     // CREATE LISTING WITHOUT IMAGE UPLOAD
+  //     // ============================================
+
+  //     return await this.listingService.createListing(dto, []);
+
+  //   } catch (error) {
+
+  //     console.error(error);
+
+  //     throw new BadRequestException('Upload failed');
+  //   }
+  // }
+  //   async ListingData(  @Body() body: any, @Req() req: FastifyRequest) {
+  //     try {
+  //     //   const parts = req.parts();
+
+  //     //   const body: any = {};
+
+  //     //   // ============================================
+  //     //   // MULTIPLE IMAGES
+  //     //   // ============================================
+
+  //     //   const images: any[] = [];
+
+  //     //   for await (const part of parts) {
+  //     //     // ============================================
+  //     //     // FILES
+  //     //     // ============================================
+
+  //     //     if (part.type === 'file') {
+  //     //       if (!part.filename) {
+  //     //         continue;
+  //     //       }
+
+  //     //       const buffer = await part.toBuffer();
+
+  //     //       if (!buffer?.length) {
+  //     //         continue;
+  //     //       }
+
+  //     //       const fileData = {
+  //     //         buffer,
+  //     //         originalname: part.filename || 'image.jpg',
+  //     //         mimetype: part.mimetype || 'image/jpeg',
+  //     //       };
+
+  //     //       if (part.fieldname === 'images') {
+  //     //         images.push(fileData);
+  //     //       }
+  //     //     }
+
+  //     //     // ============================================
+  //     //     // FIELDS
+  //     //     // ============================================
+
+  //     //     if (part.type === 'field') {
+  //     //       body[part.fieldname] = String(part.value);
+  //     //     }
+  //     //   }
+
+  //       // ============================================
+  //       // SERVICE
+  //       // ============================================
+
+  //     //   return await this.listingService.createListing(dto, images);
+  //       return await this.listingService.createListing(body, []);
+  //     } catch (error) {
+  //       console.error(error);
+
+  //       throw new BadRequestException('Upload failed');
+  //     }
+  //   }
+  private async parseVenueFiles(req: any) {
+    const uploadedFiles: any[] = [];
+
+    //
+    // READ ALL FILES FIRST
+    //
+    for await (const part of req.parts()) {
+      if (part.type !== 'file') continue;
+
+      const buffer = await part.toBuffer();
+
+      uploadedFiles.push({
+        fieldname: part.fieldname,
+        buffer,
+        originalname: part.filename,
+        mimetype: part.mimetype,
+        size: buffer.length,
+      });
+    }
+
+    //
+    // FIND COVER IMAGE
+    //
+    const coverImage = uploadedFiles.find((f) => f.fieldname === 'cover_image');
+
+    //
+    // FIND BANNER IMAGE
+    //
+    const bannerImage = uploadedFiles.find(
+      (f) => f.fieldname === 'banner_image',
+    );
+
+    //
+    // FILTER GALLERY IMAGES
+    // REMOVE DUPLICATE COVER/BANNER
+    //
+    const images = uploadedFiles.filter((f) => {
+      if (f.fieldname !== 'images[]') {
+        return false;
+      }
+
+      const isCover = coverImage && coverImage.originalname === f.originalname;
+
+      const isBanner =
+        bannerImage && bannerImage.originalname === f.originalname;
+
+      return !isCover && !isBanner;
+    });
+
+    return {
+      coverImage: coverImage || null,
+      bannerImage: bannerImage || null,
+      images,
+    };
+  }
+}
+
+//create

@@ -23,5 +23,21 @@ export class GlobalController {
   @Get('property')
   findProperty(@Query() query: any) {
     return this.globalService.findProperty(query);
+  } 
+  @Get('getPropertyName')
+  findNameProperty(@Query() query: any) {
+    return this.globalService.findNameProperty(query);
+  } 
+  @Get('Category')
+  LoadAllCategory() {
+    return this.globalService.LoadAllCategory();
+  }
+  @Get('country')
+  LoadAllCountry() {
+    return this.globalService.LoadAllCountry();
+  } 
+  @Get('getAmenties')
+  LoadGetAmenties(@Query() query: any) {
+    return this.globalService.LoadGetAmenties(query);
   }
 }

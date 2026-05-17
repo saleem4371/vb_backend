@@ -5,6 +5,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { MailModule } from '../../mail/mail.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { CommonModule } from '../../common/common.module';
+import { SocketModule } from '../socket/socket.module';
 
 @Module({
   providers: [AuthService,JwtStrategy],
@@ -16,7 +17,8 @@ import { CommonModule } from '../../common/common.module';
       signOptions: { expiresIn: '3650d' },
     }),
     MailModule,
-    CommonModule
+    CommonModule,
+    SocketModule
   ],
 })
 export class AuthModule {}

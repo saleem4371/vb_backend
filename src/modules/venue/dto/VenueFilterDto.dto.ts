@@ -1,23 +1,40 @@
+import { IsOptional, IsString, IsNumberString } from 'class-validator';
+
 export class VenueFilterDto {
-  location?: string;
-  searchMode?: 'location' | 'venue';
 
-  lat?: number;
-  lng?: number;
-  radius?: number;
+  @IsOptional()
+  @IsString()
+  search?: string;
 
-  category_id?: number;
-  venue_id?: number;
+  @IsOptional()
+  @IsString()
+  country?: string;
 
-  minPrice?: number;
-  maxPrice?: number;
+  @IsOptional()
+  @IsString()
+  state?: string;
 
-  guest_rooms?: number;
+  @IsOptional()
+  @IsString()
+  city?: string;
 
-  amenities?: string[];
-  tags?: string[];
-  shifts?: number[];
+  @IsOptional()
+  @IsString()
+  category?: string;
 
+  @IsOptional()
+  @IsString()
+  amenities?: string;
+
+  @IsOptional()
+  @IsString()
+  tags?: string;
+
+  @IsOptional()
+  @IsNumberString()
   page?: number;
+
+  @IsOptional()
+  @IsNumberString()
   limit?: number;
 }
