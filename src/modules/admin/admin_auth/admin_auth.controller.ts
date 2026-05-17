@@ -2,6 +2,8 @@ import { Body, Controller, Post, Req ,UseGuards, Get} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { AuthService } from './admin_auth.service';
 import { JwtAuthGuard } from './strategies/jwt-auth.guard';
+
+// import { JwtAuthGuard } from '../../auth/strategies/jwt-auth.guard';
 import { CurrentUser } from "../../../common/decorators/user.decorator";
 
 @Controller('admin/auth')
@@ -18,7 +20,13 @@ export class AuthController {
     return await this.authService.login(dto); 
   }
 
-
+//  @UseGuards(JwtAuthGuard)
+//   @Get('me')
+//   getMe(@Req() req) {
+//     console.log("AUTH HEADER =>", req.user);
+//     return this.authService.findById(req.user.id);
+//     // return req.user; // 🔥 comes from JwtStrategy
+//   }
    @UseGuards(JwtAuthGuard)
     @Get('me')
     // getMe(@Req() req) {
@@ -26,7 +34,7 @@ export class AuthController {
     //   // return req.user; // 🔥 comes from JwtStrategy
     // }
     getMe(@CurrentUser() user) {
-
+console.log(user)
   return this.authService.findById(
     user.id,
   );

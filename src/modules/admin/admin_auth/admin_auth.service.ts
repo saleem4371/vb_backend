@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException ,BadRequestException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException ,BadRequestException, ConflictException,NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { DataSource } from 'typeorm';
@@ -14,7 +14,7 @@ export class AuthService {
 
    async login(dto) {
       const users = await this.dataSource.query(
-        `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 1`,
+        `SELECT users.* FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 1`,
         [dto.email],
       );
   
@@ -45,12 +45,18 @@ export class AuthService {
     }
 
     async findById(id: string) {
-    const newUser = await this.dataSource.query(
-      `SELECT * FROM users WHERE id = ? `,
-      [id],
-    );
+  const users = await this.dataSource.query(
+    `SELECT * FROM users WHERE id = ?`,
+    [id],
+  );
 
-    return newUser[0];
+  const user = users[0];
+
+  if (!user) {
+    throw new NotFoundException('User not found');
   }
+
+  return user;
+}
 
 }
