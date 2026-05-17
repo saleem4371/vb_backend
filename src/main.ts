@@ -34,6 +34,8 @@ async function bootstrap() {
       "http://localhost:3002",
       "http://localhost:3003",
       "https://venuebook-psi.vercel.app",
+      "https://international-admin-dusky.vercel.app"
+      
     ],
     credentials: true,
 
