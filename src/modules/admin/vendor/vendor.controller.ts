@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { VendorService } from './vendor.service';
-import { JwtAuthGuard } from '../admin_auth/strategies/jwt-auth.guard';
+import { JwtAuthGuard } from '../../auth/strategies/jwt-auth.guard';
 
 // import { ACTIVITY_MODULE } from "../activity-logs/decorators/activity-module.decorator";
 // @ACTIVITY_MODULE("Amenities")
