@@ -26,12 +26,19 @@ import { CurrencyModule } from './modules/admin/currency/currency.module';
 import { CountryModule } from './modules/admin/country/country.module';
 import { EventTagsModule } from "./modules/admin/event-tag/event-tag.module";
 import { VenueTagsModule } from "./modules/admin/venue-tags/venue-tag.module"
+import { PropertyTagModule } from "./modules/admin/property-tag/property-tag.module"
 
 // import { VenueTagsModule } from "./modules/admin/property-tag/property-tag.module";
 // import { CategoryPropertyModule } from './modules/admin/property_category/category.module';
 import { VenueCategoryModule } from './modules/admin/venue-category/venue-category.module';
 import { UnregisteredModule } from './modules/admin/scraped-data/scraped-data.module';
+import { ListedVendorModule } from './modules/admin/listed_vendor/listed_vendor.module';
+import { CustomerModule } from './modules/admin/customer/customer.module';
 import { GlobalModule } from './modules/global/global.module';
+import { ListingModule } from './modules/listing/listing.module';
+
+import { GatewaysModule } from './gateways/gateways.module';
+import { SocketModule } from './modules/socket/socket.module';
 
 @Module({
   imports: [
@@ -44,7 +51,7 @@ import { GlobalModule } from './modules/global/global.module';
     /* DATABASE */
     TypeOrmModule.forRoot({
       type: 'mysql',
-      host: '56.228.5.223',
+      host: '13.50.209.14',
       port: 3306,
       username: 'vb_user',
       password: 'Syfte_2020',
@@ -54,6 +61,9 @@ import { GlobalModule } from './modules/global/global.module';
       logging: true,
       connectTimeout: 10000,
     }),
+
+    GatewaysModule,
+    SocketModule,
 
     /* USER MODULES */
     HomeModule,
@@ -79,7 +89,11 @@ import { GlobalModule } from './modules/global/global.module';
     VenueTagsModule,
     VenueCategoryModule,
     UnregisteredModule,
+    ListedVendorModule,
     GlobalModule,
+    ListingModule,
+    PropertyTagModule,
+    CustomerModule
     // CategoryPropertyModule
     // VenueTagsModule,
   ],

@@ -24,11 +24,11 @@ export class S3StorageService extends StorageService {
 
       credentials: {
         accessKeyId:
-          process.env.AWS_ACCESS_KEY_ID ||
+          process.env.AWS_ACCESS_KEY ||
           "",
 
         secretAccessKey:
-          process.env.AWS_SECRET_ACCESS_KEY ||
+          process.env.AWS_SECRET_KEY ||
           "",
       },
     });
@@ -51,14 +51,10 @@ export class S3StorageService extends StorageService {
       }
 
       const safeFilename =
-  (
-    file.originalname ||
-    file.filename ||
-    "image.jpg"
-  ).replace(
-    /[^a-zA-Z0-9.-]/g,
-    "_",
-  );
+        file.filename.replace(
+          /[^a-zA-Z0-9.-]/g,
+          "_",
+        );
 
       const key = `${folder}/${Date.now()}-${safeFilename}`;
 
