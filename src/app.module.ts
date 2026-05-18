@@ -39,6 +39,7 @@ import { ListingModule } from './modules/listing/listing.module';
 
 import { GatewaysModule } from './gateways/gateways.module';
 import { SocketModule } from './modules/socket/socket.module';
+import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing.module';
 
 @Module({
   imports: [
@@ -93,7 +94,8 @@ import { SocketModule } from './modules/socket/socket.module';
     GlobalModule,
     ListingModule,
     PropertyTagModule,
-    CustomerModule
+    CustomerModule,
+    VenueListingModule
     // CategoryPropertyModule
     // VenueTagsModule,
   ],
