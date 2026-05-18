@@ -4,7 +4,10 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany
 } from "typeorm";
+
+import { CategoryCountry } from "../../property-tag/entities/category-country.entity";
 
 @Entity("countries")
 export class Country {
@@ -27,6 +30,11 @@ export class Country {
   @Column({ default: true })
   status?: boolean;
 
+    @OneToMany(
+    () => CategoryCountry,
+    (categoryCountry) => categoryCountry.country
+  )
+  categoryCountries?: CategoryCountry[];
   
 
   @CreateDateColumn()
