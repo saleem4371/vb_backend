@@ -8,10 +8,12 @@ import {
   Param,
   Put,
   Delete,
+  Headers,
   Query,
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { VendorService } from './vendor.service';
+// import { JwtAuthGuard } from '../admin_auth/strategies/jwt-auth.guard';
 import { JwtAuthGuard } from '../../auth/strategies/jwt-auth.guard';
 
 // import { ACTIVITY_MODULE } from "../activity-logs/decorators/activity-module.decorator";
@@ -35,6 +37,7 @@ export class VendorController {
 
     @Query('category')
     category = '',
+    @Headers("x-country") country: string,
   ) {
     return this.vendorService.GetAmenities(
       Number(page),

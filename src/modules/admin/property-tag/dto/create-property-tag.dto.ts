@@ -1,4 +1,5 @@
-import { IsOptional, IsString } from "class-validator";
+import { IsOptional, IsString, IsArray, IsNumber } from "class-validator";
+import { Type } from "class-transformer";
 
 export class CreatePropertyTagDto {
   @IsString()
@@ -14,10 +15,9 @@ export class CreatePropertyTagDto {
 
   /*
   |--------------------------------------------------------------------------
-  | STAT JSON (string from FormData -> parsed in service/controller)
+  | STAT JSON
   |--------------------------------------------------------------------------
   */
-
   @IsOptional()
   stat?: {
     hosts?: string;
@@ -32,4 +32,15 @@ export class CreatePropertyTagDto {
   @IsOptional()
   @IsString()
   type?: string;
+
+  /*
+  |--------------------------------------------------------------------------
+  | COUNTRY IDS (IMPORTANT ADDITION)
+  |--------------------------------------------------------------------------
+  */
+
+  @IsOptional()
+  @IsArray()
+  @Type(() => Number)
+  country_ids?: number[];
 }

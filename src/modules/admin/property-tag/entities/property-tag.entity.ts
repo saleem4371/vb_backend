@@ -3,24 +3,26 @@ import {
   PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-} from 'typeorm';
+  OneToMany,
+} from "typeorm";
 
-@Entity('category')
+import { CategoryCountry } from "./category-country.entity";
+
+@Entity("category")
 export class Category {
   @PrimaryGeneratedColumn()
   id?: number;
 
-  @Column({ type: 'varchar', length: 255, nullable: true })
+  @Column({ type: "varchar", length: 255, nullable: true })
   name?: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: "text", nullable: true })
   image?: string;
 
-  @Column({ type: 'text', nullable: true })
+  @Column({ type: "text", nullable: true })
   video?: string;
 
-  // JSON field
-  @Column({ type: 'json', nullable: true })
+  @Column({ type: "json", nullable: true })
   stat?: {
     entity?: string;
     views?: number;
@@ -29,12 +31,16 @@ export class Category {
     [key: string]: any;
   };
 
-  @Column({ type: 'tinyint', default: 1 })
+  @Column({ type: "tinyint", default: 1 })
   status?: number;
 
-  @CreateDateColumn({
-    type: 'timestamp',
-    name: 'created_at',
-  })
+  @CreateDateColumn({ type: "timestamp", name: "created_at" })
   created_at?: Date;
+
+  // ✅ FIXED RELATION
+  @OneToMany(
+    () => CategoryCountry,
+    (categoryCountry) => categoryCountry.category
+  )
+  categoryCountries?: CategoryCountry[];
 }

@@ -7,7 +7,6 @@ import { Amenities } from "./amenities/entities/amenities.entity";
 import { AmenitiesCategory } from "./amenities/entities/amenities-category.entity";
 
 import { ActivityLogsModule } from '../activity-logs/activity-logs.module';
-// import { JwtStrategy } from '../admin_auth/strategies/jwt.strategy';
 import { JwtStrategy } from '../../auth/strategies/jwt.strategy';
 
 @Module({

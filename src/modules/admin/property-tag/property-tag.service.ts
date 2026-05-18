@@ -8,31 +8,39 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 
 import { Category } from "./entities/property-tag.entity";
+import { CategoryCountry } from "./entities/category-country.entity";
 
 import { StorageService } from "src/common/storage/storage.service";
 @Injectable()
 export class PropertyTagService {
      constructor(
         @InjectRepository(Category)
-        private categoryRepo: Repository<Category>,
+        private categoryRepo: Repository<Category>,  
+        
+        @InjectRepository(CategoryCountry)
+        private categoryCountryRepo: Repository<CategoryCountry>,
     
         private storageService: StorageService,
       ) {}
-
-    async findAll(query: any) {
+async findAll(query: any) {
   const {
     page = 1,
     limit = 10,
-    search = '',
+    search = "",
   } = query;
 
-  /*
-  |--------------------------------------------------------------------------
-  | QUERY BUILDER
-  |--------------------------------------------------------------------------
-  */
+  const qb = this.categoryRepo
+    .createQueryBuilder("category")
 
-  const qb = this.categoryRepo.createQueryBuilder('category');
+    // relations
+    .leftJoinAndSelect(
+      "category.categoryCountries",
+      "categoryCountry"
+    )
+    .leftJoinAndSelect(
+      "categoryCountry.country",
+      "country"
+    );
 
   /*
   |--------------------------------------------------------------------------
@@ -41,26 +49,20 @@ export class PropertyTagService {
   */
 
   if (search) {
-    qb.where('category.name LIKE :search', {
+    qb.where("category.name LIKE :search", {
       search: `%${search}%`,
     });
   }
 
   /*
   |--------------------------------------------------------------------------
-  | ORDER & PAGINATION
+  | PAGINATION
   |--------------------------------------------------------------------------
   */
 
-  qb.orderBy('category.created_at', 'DESC')
+  qb.orderBy("category.created_at", "DESC")
     .skip((Number(page) - 1) * Number(limit))
     .take(Number(limit));
-
-  /*
-  |--------------------------------------------------------------------------
-  | GET DATA
-  |--------------------------------------------------------------------------
-  */
 
   const [data, total] = await qb.getManyAndCount();
 
@@ -72,39 +74,29 @@ export class PropertyTagService {
 
   const formattedData = data.map((item: any) => ({
     id: item.id,
-
     name: item.name,
-
     image: item.image,
-
     video: item.video,
-
     stat: item.stat,
-
     status: item.status,
-
     created_at: item.created_at,
-  }));
 
-  /*
-  |--------------------------------------------------------------------------
-  | RETURN
-  |--------------------------------------------------------------------------
-  */
+    // 🔥 add countries here
+    countries: item.categoryCountries?.map((cc: any) => ({
+      id: cc.country?.id,
+      name: cc.country?.name,
+      iso_code: cc.country?.iso_code,
+      phone_code: cc.country?.phone_code,
+    })) || [],
+  }));
 
   return {
     data: formattedData,
-
     pagination: {
       total,
-
       page: Number(page),
-
       limit: Number(limit),
-
-      totalPages: Math.ceil(
-        total / Number(limit),
-      ),
+      totalPages: Math.ceil(total / Number(limit)),
     },
   };
 }
@@ -193,6 +185,8 @@ async create(
 
   video: videoPath, // ✅ ADD VIDEO
 
+  // active_countries
+
   /*
   |--------------------------------------------------------------------------
   | STAT JSON
@@ -206,7 +200,23 @@ async create(
     : null,
 });
 
-return await this.categoryRepo.save(tag);
+const savedCategory = await this.categoryRepo.save(tag);
+
+console.log(dto.active_countries)
+
+const countries =
+  typeof dto.active_countries === "string"
+    ? JSON.parse(dto.active_countries)
+    : dto.active_countries || [];
+
+if (countries.length) {
+  await this.categoryCountryRepo.insert(
+    countries.map((countryId: number) => ({
+      category_id: savedCategory.id,
+      country_id: countryId,
+    }))
+  );
+}
 
   
   }
@@ -292,7 +302,26 @@ return await this.categoryRepo.save(tag);
         typeof dto.stat === 'string' ? JSON.parse(dto.stat) : dto.stat;
     }
 
-    return await this.categoryRepo.save(existing);
+    await this.categoryRepo.save(existing);
+
+    //Update Country
+    const countries =
+  typeof dto.active_countries === "string"
+    ? JSON.parse(dto.active_countries)
+    : dto.active_countries || [];
+
+    await this.categoryCountryRepo.delete({
+  category_id: id,
+});
+
+if (countries.length) {
+  await this.categoryCountryRepo.insert(
+    countries.map((countryId: number) => ({
+      category_id: id,
+      country_id: countryId,
+    }))
+  );
+}
   }
 
    async remove(

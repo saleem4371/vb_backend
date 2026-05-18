@@ -17,6 +17,8 @@ export class AmenitiesCategory {
 
   @Column()
   category?: string;
+  
+  
 
   @Column()
   vendor_id ?: string;

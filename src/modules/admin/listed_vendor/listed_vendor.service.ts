@@ -12,7 +12,7 @@ export class ListedVendorService {
   constructor(private dataSource: DataSource) {}
 
   // ✅ GET ALL
-  async findAll(query: any) {
+  async findAll(query: any ,country:any ) {
     const page = Number(query.page) || 1;
     const limit = Number(query.limit) || 10;
     const offset = (page - 1) * limit;
@@ -20,19 +20,19 @@ export class ListedVendorService {
       `
     SELECT *
     FROM users
-    WHERE vendor_id IS NOT NULL
+    WHERE vendor_id IS NOT NULL AND country = ?
     ORDER BY updated_at DESC
     LIMIT ? OFFSET ?
     `,
-      [limit, offset],
+      [country,limit, offset],
     );
 
     const totalResult = await this.dataSource.query(
       `
     SELECT COUNT(*) as total
     FROM users
-    WHERE vendor_id IS NOT NULL
-    `,
+    WHERE vendor_id IS NOT NULL AND country = ?
+    `,[country]
     );
 
     const total = totalResult[0].total;

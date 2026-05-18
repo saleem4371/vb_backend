@@ -8,6 +8,7 @@ import {
   Query,
   Req,
   BadRequestException,
+  Headers
 } from '@nestjs/common';
 
 import { ListedVendorService } from './listed_vendor.service';
@@ -18,7 +19,7 @@ export class ListedVendorController {
 
   // ✅ GET ALL
   @Get('all_vendor')
-  findAll(@Query() query: any) {
-    return this.listedVendorService.findAll(query);
+  findAll(@Query() query: any, @Headers("x-country") country: string,) {
+    return this.listedVendorService.findAll(query,country);
   }
 }

@@ -124,6 +124,8 @@ export class VendorService {
         category: item.category?.category,
 
         amenities_category_id: item.amenities_category_id,
+        category_id:item.category_id,
+        svg_icon:item.svg_icon,
       })),
 
       pagination: {
@@ -168,8 +170,9 @@ export class VendorService {
     ipAddress?: string,
     useragent?: string,
   ) {
-    const { name, category, created_by } = dto;
+    const { name, category, category_id, svg_icon, created_by  } = dto;
 
+    console.log(dto)
     /*
   |--------------------------------------------------------------------------
   | VALIDATION
@@ -182,6 +185,10 @@ export class VendorService {
 
     if (!category?.trim()) {
       throw new BadRequestException('Category is required');
+    } 
+    
+    if (!category_id?.trim()) {
+      throw new BadRequestException('category_id is required');
     }
 
     const cleanName = name.trim().replace(/\s+/g, ' ');
@@ -242,6 +249,8 @@ export class VendorService {
     const amenity = this.amenitiesRepo.create({
       name: cleanName,
       amenities_category_id: categoryId,
+      category_id: category_id,
+      svg_icon: svg_icon,
       created_by,
     });
 
@@ -273,7 +282,7 @@ export class VendorService {
     ip?: string,
     userAgent?: string,
   ) {
-    const { name, category } = dto;
+    const { name, category , category_id, svg_icon} = dto;
 
     /*
   |--------------------------------------------------------------------------
@@ -287,6 +296,9 @@ export class VendorService {
 
     if (!category?.trim()) {
       throw new BadRequestException('Category is required');
+    } 
+    if (!category_id?.trim()) {
+      throw new BadRequestException('category_id is required');
     }
 
     /*
@@ -396,7 +408,8 @@ export class VendorService {
     amenity.name = cleanName;
 
     amenity.amenities_category_id = categoryId;
-
+    amenity.category_id = category_id;
+    amenity.svg_icon = svg_icon;
     // return await this.amenitiesRepo.save(amenity);
     const updated = await this.amenitiesRepo.save(amenity);
 

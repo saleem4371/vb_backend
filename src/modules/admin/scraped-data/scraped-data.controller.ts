@@ -14,6 +14,7 @@ import {
   Query,
   Put,
   Req,
+  Headers,
   BadRequestException
 } from '@nestjs/common';
 
@@ -32,7 +33,7 @@ export class UnregisteredController {
   // ============================================
 
   @Post('scrapedInsertApi')
-  scrapeGoogleData(@Body() dto: CreateUnregisteredDto) {
+  scrapeGoogleData(@Body() dto: CreateUnregisteredDto,) {
     return this.unregisteredService.scrapeGoogleData(dto);
   }
 
@@ -41,8 +42,8 @@ export class UnregisteredController {
   // ============================================
 
   @Get('scrapedApi')
-  findAll(@Query() query: any) {
-    return this.unregisteredService.findAll(query);
+  findAll(@Query() query: any ,  @Headers("x-country") country: string,) {
+    return this.unregisteredService.findAll(query,country);
   }
 
   // ============================================

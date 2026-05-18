@@ -203,7 +203,7 @@ export class UnregisteredService {
   // GET ALL
   // ======================================================
 
-  async findAll(query: any) {
+  async findAll(query: any , country:any)  {
     const { category = '', search = '', page = 1, limit = 10 } = query;
 
     const currentPage = Number(page);
@@ -239,9 +239,9 @@ export class UnregisteredService {
         name: `%${search}%`,
       });
     }
-    if (category) {
+    if (country) {
       qb.andWhere('country LIKE :country', {
-        country: `%${category}%`,
+        country: `%${country}%`,
       });
     }
 

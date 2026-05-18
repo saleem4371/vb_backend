@@ -23,6 +23,13 @@ export class Amenities {
   name?: string;
 
   @Column()
+  category_id ?: number;
+
+  @Column()
+  svg_icon?: string;
+
+
+  @Column()
   created_by?: string;
 
   // RELATION
