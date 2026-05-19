@@ -231,88 +231,153 @@ export class AuthService {
     };
   }
 
-  async googleLogin(data: any) {
-    try {
-      // 1. Verify ID token from Google
-      console.log('TOKEN:', data);
+   async googleLogin(data: any) {
+  try {
+    const token = data.token;
 
-      const token = data.token;
-
-      const googleRes = await axios.get(
-        'https://www.googleapis.com/oauth2/v3/userinfo',
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+    // ==============================
+    // 1. VERIFY GOOGLE TOKEN
+    // ==============================
+    const googleRes = await axios.get(
+      'https://www.googleapis.com/oauth2/v3/userinfo',
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
         },
-      );
+      },
+    );
 
-      const googleUser = googleRes.data;
+    const googleUser = googleRes.data;
 
-      console.log('GOOGLE USER:', googleUser);
-
-      // 2. Check user exists
-      const existingUser = await this.dataSource.query(
-        `SELECT * FROM users WHERE email = ? LIMIT 1`,
-        [googleUser.email],
-      );
-
-      let user;
-
-      if (existingUser.length === 0) {
-        // 3. Insert user
-        const result = await this.dataSource.query(
-          `INSERT INTO users (name, email, logo)
-         VALUES (?, ?, ?)`,
-          [googleUser.name, googleUser.email, googleUser.picture],
-        );
-
-        // Role Created
-        await this.dataSource.query(
-          `INSERT INTO user_roles (user_id, role_id)
-     VALUES (?, ? )`,
-          [result.insertId, 3],
-        );
-
-        // 4. Fetch new user
-        const newUser = await this.dataSource.query(
-          //`SELECT * FROM users WHERE email = ? LIMIT 1`,
-          `SELECT * FROM users LEFT JOIN user_roles ON user_roles.user_id = users.id WHERE email = ? AND user_roles.role_id = 3`,
-          [googleUser.email],
-        );
-
-        user = newUser[0];
-      } else {
-        user = existingUser[0];
-      }
-
-        await this.dataSource.query(
-    `
-    UPDATE users
-    SET
-      is_online = 1,
-      last_login = NOW(),
-      last_seen = NOW()
-    WHERE id = ?
-    `,
-    [user.id],
-  );
- this.socketService.online(user.id); //socket
-      // 5. Create JWT
-      const jwtToken = this.jwtService.sign({
-        id: user.id,
-      });
-
-      return {
-        token: jwtToken,
-        user,
-      };
-    } catch (error) {
-      console.error('🔥 FULL ERROR:', error);
-
-      throw error; // temporarily throw real error
+    if (!googleUser?.email) {
+      throw new Error('Google email not found');
     }
+
+    // ==============================
+    // 2. CHECK USER EXISTS
+    // ==============================
+    const existingUsers = await this.dataSource.query(
+      `
+      SELECT users.*, user_roles.role_id
+      FROM users
+      LEFT JOIN user_roles 
+        ON user_roles.user_id = users.id
+      WHERE users.email = ?
+      LIMIT 1
+      `,
+      [googleUser.email],
+    );
+
+    let user: any;
+    let isNewUser = false;
+
+    // ==============================
+    // 3. REGISTER NEW USER
+    // ==============================
+    if (existingUsers.length === 0) {
+      isNewUser = true;
+
+      const insertResult = await this.dataSource.query(
+        `
+        INSERT INTO users (
+          name,
+          email,
+          logo,
+          is_online,
+          last_login,
+          last_seen
+        )
+        VALUES (?, ?, ?, ?, NOW(), NOW())
+        `,
+        [
+          googleUser.name || '',
+          googleUser.email,
+          googleUser.picture || '',
+          1,
+        ],
+      );
+
+      const userId = insertResult.insertId;
+
+      // DEFAULT ROLE = CUSTOMER
+      await this.dataSource.query(
+        `
+        INSERT INTO user_roles (user_id, role_id)
+        VALUES (?, ?)
+        `,
+        [userId, 3],
+      );
+
+      // FETCH CREATED USER
+      const newUser = await this.dataSource.query(
+        `
+        SELECT users.*, user_roles.role_id
+        FROM users
+        LEFT JOIN user_roles 
+          ON user_roles.user_id = users.id
+        WHERE users.id = ?
+        LIMIT 1
+        `,
+        [userId],
+      );
+
+      user = newUser[0];
+    } else {
+      // ==============================
+      // 4. EXISTING USER LOGIN
+      // ==============================
+      user = existingUsers[0];
+
+      await this.dataSource.query(
+        `
+        UPDATE users
+        SET
+          is_online = 1,
+          last_login = NOW(),
+          last_seen = NOW()
+        WHERE id = ?
+        `,
+        [user.id],
+      );
+    }
+
+    // ==============================
+    // 5. SOCKET ONLINE STATUS
+    // ==============================
+    this.socketService.online(user.id);
+
+    // ==============================
+    // 6. GENERATE JWT TOKEN
+    // ==============================
+    const jwtToken = this.jwtService.sign({
+      id: user.id,
+      email: user.email,
+    });
+
+    // ==============================
+    // 7. RETURN RESPONSE
+    // ==============================
+    return {
+      success: true,
+      message: isNewUser
+        ? 'Registration successful'
+        : 'Login successful',
+
+      isNewUser,
+
+      token: jwtToken,
+
+      user,
+    };
+  } catch (error) {
+    console.error('GOOGLE LOGIN ERROR:', error);
+
+    throw new HttpException(
+      error || 'Google login failed',
+      HttpStatus.BAD_REQUEST,
+    );
   }
+}
 
   // async findById(id: string) {
   //   const newUser = await this.dataSource.query(
