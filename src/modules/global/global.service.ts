@@ -227,7 +227,8 @@ export class GlobalService {
       c.id               AS id,
       c.name             AS name,
       c.image            AS image,
-      c.status           AS status
+      c.status           AS status,
+      c.color           AS color
 
     FROM category_country cc
     LEFT JOIN category c 
