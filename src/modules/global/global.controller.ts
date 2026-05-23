@@ -8,6 +8,7 @@ import {
   Patch,
   Query,
   Put,
+  Headers
 } from '@nestjs/common';
 
 import { GlobalService } from './global.service';
@@ -27,6 +28,11 @@ export class GlobalController {
   @Get('getPropertyName')
   findNameProperty(@Query() query: any) {
     return this.globalService.findNameProperty(query);
+  }  
+  
+  @Get('findPropertyname')
+  findPropertyname(@Query() query: any) {
+    return this.globalService.findPropertyname(query);
   } 
   @Get('Category')
   LoadAllCategory() {
@@ -39,5 +45,14 @@ export class GlobalController {
   @Get('getAmenties')
   LoadGetAmenties(@Query() query: any) {
     return this.globalService.LoadGetAmenties(query);
-  }
+  } 
+
+  @Get('country_of_category')
+  country_of_category(@Headers('x-country') country_id: number) {
+    return this.globalService.countryOfCategory(country_id);
+  } 
+  // @Get('getAllCurrencies')
+  // getAllCurrencies(@Query() query: any) {
+  //   return this.globalService.getAllCurrencies(query);
+  // }
 }

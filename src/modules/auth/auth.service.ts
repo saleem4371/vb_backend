@@ -6,6 +6,7 @@ import {
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
+
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 import { DataSource } from 'typeorm';
@@ -233,7 +234,7 @@ export class AuthService {
     };
   }
 
-   async googleLogin(data: any) {
+  async googleLogin(data: any) {
   try {
     const token = data.token;
 

@@ -4,6 +4,10 @@ export class VenueFilterDto {
 
   @IsOptional()
   @IsString()
+  type?: string;
+  
+  @IsOptional()
+  @IsString()
   search?: string;
 
   @IsOptional()

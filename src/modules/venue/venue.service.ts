@@ -20,222 +20,826 @@ export class VenueService {
       LIMIT 10
     `);
   }
-  async getVenuesPageData(query: any) {
-  const page = Number(query.page || 1);
-  const limit = Number(query.limit || 10);
+  //   async getVenuesPageData(query: any, country: any) {
+  //     const page = Number(query.page || 1);
+  //     const limit = Number(query.limit || 10);
+  //     const offset = (page - 1) * limit;
 
-  const qb = this.childRepo
-    .createQueryBuilder('child')
+  //     const { shift, category_cards, budget, booking } = query.filters;
+
+  //     const mapBounds = query.mapBounds || {};
+
+  // const {
+  //   north = null,
+  //   south = null,
+  //   east = null,
+  //   west = null,
+  // } = mapBounds;
+
+  //     /* ======================
+  //      FILTERS
+  //   ====================== */
+  //     const where: string[] = [];
+  //     const params: any[] = [];
+
+  //     // SEARCH
+  //     if (query.search) {
+  //       where.push(`
+  //       (
+  //         cv.child_venue_name LIKE ?
+  //         OR pv.venue_name LIKE ?
+  //         OR pv.venue_city LIKE ?
+  //       )
+  //     `);
+
+  //       const search = `%${query.search}%`;
+
+  //       params.push(search, search, search);
+  //     }
+
+  //     // CATEGORY
+  //     if (query.type) {
+  //       const keyword = query.type?.trim().replace(/s$/, '');
+  //       where.push(`pv.propety_category = ?`);
+  //       params.push(keyword);
+  //     }
+
+  //     // CATEGORY
+  //     if (query.category) {
+  //       where.push(`cv.venue_category_id = ?`);
+  //       params.push(query.category);
+  //     }
+
+  //     // SUBCATEGORY
+  //     if (query.subcategory) {
+  //       where.push(`cv.venue_category_id = ?`);
+  //       params.push(query.subcategory);
+  //     }
+
+  //     // COUNTRY
+  //     if (country) {
+  //       where.push(`pv.venue_country = ?`);
+  //       params.push(country);
+  //     }
+
+  //     // STATE
+  //     if (query.state) {
+  //       where.push(`pv.venue_state = ?`);
+  //       params.push(query.state);
+  //     }
+
+  //     // CITY
+  //     if (query.city) {
+  //       where.push(`pv.venue_city = ?`);
+  //       params.push(query.city);
+  //     }
+
+  //     // AMENITIES
+  //     if (category_cards?.length) {
+  //       const amenities = Array.isArray(category_cards)
+  //         ? category_cards
+  //         : category_cards.split(',');
+
+  //       where.push(`
+  //       EXISTS (
+  //         SELECT 1
+  //         FROM venue_child_amenities vca
+  //         WHERE vca.child_venue_id = cv.child_venue_id
+  //         AND vca.amenities_id IN (${amenities.map(() => '?').join(',')})
+  //       )
+  //     `);
+
+  //       params.push(...amenities);
+  //     }
+
+  //     // PRICE FILTER
+  //     if (budget.min) {
+  //       where.push(`
+  //       EXISTS (
+  //         SELECT 1
+  //         FROM venue_shift_timing vst
+  //         WHERE vst.child_venue_id = cv.child_venue_id
+  //         AND vst.price >= ?
+  //       )
+  //     `);
+
+  //       params.push(Number(budget.min));
+  //     }
+
+  //     if (budget.max) {
+  //       where.push(`
+  //       EXISTS (
+  //         SELECT 1
+  //         FROM venue_shift_timing vst
+  //         WHERE vst.child_venue_id = cv.child_venue_id
+  //         AND vst.price <= ?
+  //       )
+  //     `);
+
+  //       params.push(Number(budget.max));
+  //     }
+
+  //     if (query.mapBounds) {
+  //       where.push(`
+  //     pv.lat BETWEEN ? AND ?
+  //     AND pv.lng BETWEEN ? AND ?
+  //   `);
+
+  //       params.push(south, north, west, east);
+  //     }
+
+  //     // SHIFT FILTER
+  //     if (shift?.length) {
+  //       const shiftValues = Array.isArray(shift) ? shift : shift.split(',');
+
+  //       where.push(`
+  //     EXISTS (
+  //       SELECT 1
+  //       FROM venue_shift_timing vst
+  //       WHERE vst.child_venue_id = cv.child_venue_id
+  //       AND vst.shift_type IN (${shiftValues.map(() => '?').join(',')})
+  //     )
+  //   `);
+
+  //       params.push(...shiftValues);
+  //     }
+
+  //     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+  //     /* ======================
+  //      MAIN RAW QUERY
+  //   ====================== */
+
+  //     const sql = `
+  //     SELECT
+  //       cv.child_venue_id AS childVenueId,
+  //       cv.child_venue_name AS venueName,
+  //       cv.venue_category_id AS subcategory,
+  //       cv.min_guest,
+  //       cv.guest_rooms AS maxGuest,
+  //       cv.venue_mode,
+
+  //       pv.parent_venue_id AS parentVenueId,
+  //       pv.venue_name AS parentVenueName,
+  //       pv.venue_city AS city,
+  //       pv.venue_state AS state,
+  //       pv.venue_country AS country,
+  //       pv.venue_address AS address,
+  //       pv.lat,
+  //       pv.lng,
+  //       pv.rating,
+  //       pv.reviews,
+  //       pv.propety_category AS category,
+
+  //       /* COVER IMAGE */
+  //       (
+  //         SELECT vg.attachment
+  //         FROM venue_gallery vg
+  //         WHERE vg.child_venue_id = cv.child_venue_id
+  //         AND vg.image_type = 1
+  //         LIMIT 1
+  //       ) AS coverImage,
+
+  //       /* BANNER IMAGE */
+  //       (
+  //         SELECT vg.attachment
+  //         FROM venue_gallery vg
+  //         WHERE vg.child_venue_id = cv.child_venue_id
+  //         AND vg.image_type = 2
+  //         LIMIT 1
+  //       ) AS bannerImage,
+
+  //       /* GALLERY */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', vg.id,
+  //             'image', vg.attachment
+  //           )
+  //         )
+  //         FROM venue_gallery vg
+  //         WHERE vg.child_venue_id = cv.child_venue_id
+  //         AND vg.image_type = 3
+  //       ) AS galleryImages,
+
+  //       /* AMENITIES */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', vca.id,
+  //             'amenityId', vca.amenities_id
+  //           )
+  //         )
+  //         FROM venue_child_amenities vca
+  //         WHERE vca.child_venue_id = cv.child_venue_id
+  //       ) AS amenities,
+
+  //       /* SHIFT TIMINGS */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', vst.id,
+  //             'price', vst.price,
+  //             'shiftType', vst.shift_type,
+  //             'fromTime', vst.from_time,
+  //             'toTime', vst.to_time
+  //           )
+  //         )
+  //         FROM venue_shift_timing vst
+  //         WHERE vst.child_venue_id = cv.child_venue_id
+  //       ) AS shiftTimings,
+
+  //       /* PRICING */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', vp.id,
+  //             'childVenueId', vp.child_venue_id,
+  //             'name', vp.name,
+  //             'pricingKey', vp.pricing_key,
+  //             'amount', vp.amount,
+  //             'enabled', vp.enabled,
+  //             'category', vp.category
+  //           )
+  //         )
+  //         FROM property_pricing vp
+  //         WHERE vp.child_venue_id = cv.child_venue_id
+  //       ) AS pricing,
+
+  //       /* MIN PRICE FOR SORTING */
+  //       (
+  //         SELECT MIN(vst.price)
+  //         FROM venue_shift_timing vst
+  //         WHERE vst.child_venue_id = cv.child_venue_id
+  //       ) AS minPrice
+
+  //     FROM venue_child cv
+
+  //     INNER JOIN venue_parent pv
+  //       ON pv.parent_venue_id = cv.parent_venue_id
+
+  //     ${whereClause}
+
+  //     ORDER BY minPrice ASC
+
+  //     LIMIT ?
+  //     OFFSET ?
+  //   `;
+
+  //     const rows = await this.dataSource.query(sql, [...params, limit, offset]);
+
+  //     /* ======================
+  //      TOTAL COUNT QUERY
+  //   ====================== */
+
+  //     const countSql = `
+  //     SELECT COUNT(DISTINCT cv.child_venue_id) AS total
+
+  //     FROM venue_child cv
+
+  //     INNER JOIN venue_parent pv
+  //       ON pv.parent_venue_id = cv.parent_venue_id
+
+  //     ${whereClause}
+  //   `;
+
+  //     const totalResult = await this.dataSource.query(countSql, params);
+
+  //     const total = Number(totalResult[0]?.total || 0);
+
+  //     /* ======================
+  //      FINAL RESPONSE
+  //   ====================== */
+
+  //     const data = rows.map((item: any) => ({
+  //       ...item,
+
+  //       galleryImages:
+  //         typeof item.galleryImages === 'string'
+  //           ? JSON.parse(item.galleryImages)
+  //           : item.galleryImages || [],
+
+  //       amenities:
+  //         typeof item.amenities === 'string'
+  //           ? JSON.parse(item.amenities)
+  //           : item.amenities || [],
+
+  //       shiftTimings:
+  //         typeof item.shiftTimings === 'string'
+  //           ? JSON.parse(item.shiftTimings)
+  //           : item.shiftTimings || [],
+
+  //       pricing:
+  //         typeof item.pricing === 'string'
+  //           ? JSON.parse(item.pricing)
+  //           : item.pricing || [],
+  //     }));
+
+  //  /* ======================
+  //      UnRegister DATA
+  //   ====================== */
+
+  //   const unsql = `
+  //     SELECT
+  //       uv.id,
+  //       uv.name,
+  //       uv.address,
+  //       uv.lat,
+  //       uv.lng,
+
+  //       /* COVER IMAGE */
+  //       (
+  //         SELECT ug.image
+  //         FROM unrigistered_gallery ug
+  //         WHERE ug.unreg_id = uv.id
+  //         ORDER BY ug.id ASC
+  //         LIMIT 1
+  //       ) AS coverImage,
+
+  //       /* ALL IMAGES */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', ug.id,
+  //             'image', ug.image
+  //           )
+  //         )
+  //         FROM unrigistered_gallery ug
+  //         WHERE ug.unreg_id = uv.id
+  //       ) AS images,
+
+  //       /* TYPES */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', ut.id,
+  //             'type', ut.type_name
+  //           )
+  //         )
+  //         FROM unrigistered_types ut
+  //         WHERE ut.unreg_id = uv.id
+  //       ) AS types,
+
+  //       /* EVENT TYPES */
+  //       (
+  //         SELECT JSON_ARRAYAGG(
+  //           JSON_OBJECT(
+  //             'id', uet.id,
+  //             'eventType', uet.event_type
+  //           )
+  //         )
+  //         FROM unrigistered_event_types uet
+  //         WHERE uet.unreg_id = uv.id
+  //       ) AS eventTypes
+
+  //     FROM unrigistered_venues uv
+  //   `;
+
+  //   const unregistered = await this.dataSource.query(unsql);
+
+  //   const unregistered_data = {
+  //     success: true,
+  //     data: unregistered.map((item: any) => ({
+  //       ...item,
+  //       images:
+  //         typeof item.images === 'string'
+  //           ? JSON.parse(item.images)
+  //           : item.images || [],
+
+  //       types:
+  //         typeof item.types === 'string'
+  //           ? JSON.parse(item.types)
+  //           : item.types || [],
+
+  //       eventTypes:
+  //         typeof item.eventTypes === 'string'
+  //           ? JSON.parse(item.eventTypes)
+  //           : item.eventTypes || [],
+  //     })),
+  //   };
+
+  //     return {
+  //       success: true,
+  //       total,
+  //       page,
+  //       limit,
+  //       totalPages: Math.ceil(total / limit),
+  //       // data,
+  //       data: [...data, ...unregistered_data]
+  //     };
+  //   }
+  //   async getVenuesPageData(query: any) {
+  //   const page = Number(query.page || 1);
+  //   const limit = Number(query.limit || 10);
+
+  //   const qb = this.childRepo
+  //     .createQueryBuilder('child')
+
+  //     /* ======================
+  //        RELATIONS (JOIN ONLY)
+  //     ====================== */
+  //     .leftJoin('child.parentVenue', 'parentVenue')
+  //     .leftJoin('child.galleries', 'gallery')
+  //     .leftJoin('child.shiftTimings', 'shiftTimings')
+  //     .leftJoin('child.childAmenities', 'amenities')
+  //     .leftJoin('child.pricings', 'pricing')
+
+  //     /* ======================
+  //        SELECT ONLY REQUIRED FIELDS
+  //     ====================== */
+  //     .select([
+  //       'child.child_venue_id',
+  //       'child.child_venue_name',
+  //       'child.venueCategoryId',
+  //       'child.minGuest',
+  //       'child.guestRooms',
+  //       'child.venueMode',
+
+  //       'parentVenue.parent_venue_id',
+  //       'parentVenue.venueName',
+  //       'parentVenue.venueCity',
+  //       'parentVenue.venueState',
+  //       'parentVenue.venueCountry',
+  //       'parentVenue.venueAddress',
+  //       'parentVenue.lat',
+  //       'parentVenue.lng',
+  //       'parentVenue.rating',
+  //       'parentVenue.reviews',
+  //       'parentVenue.propetyCategory',
+
+  //       'gallery.id',
+  //       'gallery.attachment',
+  //       'gallery.imageType',
+
+  //       'shiftTimings.id',
+  //       'shiftTimings.price',
+  //       'shiftTimings.shiftType',
+  //       'shiftTimings.fromTime',
+  //       'shiftTimings.toTime',
+
+  //       'amenities.id',
+  //       'amenities.amenities_id as am_id',
+
+  //       'pricing.id',
+  //       'pricing.childVenueId',
+  //       'pricing.name',
+  //       'pricing.pricingKey',
+  //       'pricing.amount',
+  //       'pricing.enabled',
+  //       'pricing.category',
+  //     ]);
+
+  //   /* ======================
+  //      SEARCH
+  //   ====================== */
+  //   if (query.search) {
+  //     qb.andWhere(
+  //       `(child.child_venue_name LIKE :search
+  //         OR parentVenue.venueName LIKE :search
+  //         OR parentVenue.venueCity LIKE :search)`,
+  //       { search: `%${query.search}%` },
+  //     );
+  //   }
+
+  //   /* ======================
+  //      FILTERS
+  //   ====================== */
+  //   if (query.category) {
+  //     qb.andWhere('parentVenue.propetyCategory = :category', {
+  //       category: query.category,
+  //     });
+  //   }
+
+  //   if (query.subcategory) {
+  //     qb.andWhere('child.venueCategoryId = :subcategory', {
+  //       subcategory: query.subcategory,
+  //     });
+  //   }
+
+  //   if (query.country) {
+  //     qb.andWhere('parentVenue.venueCountry = :country', {
+  //       country: query.country,
+  //     });
+  //   }
+
+  //   if (query.state) {
+  //     qb.andWhere('parentVenue.venueState = :state', {
+  //       state: query.state,
+  //     });
+  //   }
+
+  //   if (query.city) {
+  //     qb.andWhere('parentVenue.venueCity = :city', {
+  //       city: query.city,
+  //     });
+  //   }
+
+  //   /* ======================
+  //      AMENITIES FILTER
+  //   ====================== */
+  //   if (query.childAmenities?.length) {
+  //     const amenities = Array.isArray(query.childAmenities)
+  //       ? query.childAmenities
+  //       : query.childAmenities.split(',');
+
+  //     qb.andWhere('amenities.amenities_id IN (:...amenities)', {
+  //       amenities,
+  //     });
+  //   }
+
+  //   /* ======================
+  //      PRICE FILTER (SHIFT)
+  //   ====================== */
+  //   if (query.minPrice) {
+  //     qb.andWhere('shiftTimings.price >= :minPrice', {
+  //       minPrice: Number(query.minPrice),
+  //     });
+  //   }
+
+  //   if (query.maxPrice) {
+  //     qb.andWhere('shiftTimings.price <= :maxPrice', {
+  //       maxPrice: Number(query.maxPrice),
+  //     });
+  //   }
+
+  //   /* ======================
+  //      SORT (LOWEST PRICE FIRST)
+  //   ====================== */
+  //   qb.orderBy('shiftTimings.price', 'ASC');
+
+  //   /* ======================
+  //      PAGINATION
+  //   ====================== */
+  //   qb.skip((page - 1) * limit);
+  //   qb.take(limit);
+
+  //   qb.distinct(true);
+
+  //   /* ======================
+  //      EXECUTE
+  //   ====================== */
+  //   const [rows, total] = await qb.getManyAndCount();
+
+  //   /* ======================
+  //      CLEAN RESPONSE
+  //   ====================== */
+  //   const data = rows.map((item: any) => {
+  //     const galleries = item.galleries || [];
+
+  //     return {
+  //       childVenueId: item.child_venue_id,
+  //       venueName: item.child_venue_name,
+
+  //       category: item.parentVenue?.propetyCategory,
+  //       subcategory: item.venueCategoryId,
+
+  //       city: item.parentVenue?.venueCity,
+  //       state: item.parentVenue?.venueState,
+  //       country: item.parentVenue?.venueCountry,
+  //       address: item.parentVenue?.venueAddress,
+
+  //       lat: item.parentVenue?.lat,
+  //       lng: item.parentVenue?.lng,
+
+  //       rating: item.parentVenue?.rating,
+  //       reviews: item.parentVenue?.reviews,
+
+  //       minGuest: item.minGuest,
+  //       maxGuest: item.guestRooms,
+  //       venueMode: item.venueMode,
+
+  //       /* COVER */
+  //       coverImage:
+  //         galleries.find(g => Number(g.imageType) === 1)?.attachment || null,
+
+  //       /* BANNER */
+  //       bannerImage:
+  //         galleries.find(g => Number(g.imageType) === 2)?.attachment || null,
+
+  //       /* GALLERY */
+  //       galleryImages: galleries
+  //         .filter(g => Number(g.imageType) === 3)
+  //         .map(g => ({
+  //           id: g.id,
+  //           image: g.attachment,
+  //         })),
+
+  //       /* AMENITIES */
+  //       amenities: item.childAmenities || [],
+
+  //       /* SHIFT PRICING */
+  //       shiftTimings: item.shiftTimings || [],
+
+  //       /* PRICING (IMPORTANT FIX) */
+  //       pricing: item.pricings || [],
+  //     };
+  //   });
+
+  //   return {
+  //     success: true,
+  //     total,
+  //     page,
+  //     limit,
+  //     totalPages: Math.ceil(total / limit),
+  //     data,
+  //   };
+  // }
+  async getVenuesPageData(query: any, country: any) {
+    const page = Number(query.page || 1);
+    const limit = Number(query.limit || 10);
+    const offset = (page - 1) * limit;
+
+    const { shift, category_cards, budget } = query.filters || {};
+
+    const mapBounds = query.mapBounds || null;
+
+    const north = mapBounds?.north ?? null;
+    const south = mapBounds?.south ?? null;
+    const east = mapBounds?.east ?? null;
+    const west = mapBounds?.west ?? null;
 
     /* ======================
-       RELATIONS (JOIN ONLY)
-    ====================== */
-    .leftJoin('child.parentVenue', 'parentVenue')
-    .leftJoin('child.galleries', 'gallery')
-    .leftJoin('child.shiftTimings', 'shiftTimings')
-    .leftJoin('child.childAmenities', 'amenities')
-    .leftJoin('child.pricings', 'pricing')
-
-    /* ======================
-       SELECT ONLY REQUIRED FIELDS
-    ====================== */
-    .select([
-      'child.child_venue_id',
-      'child.childVenueName',
-      'child.venueCategoryId',
-      'child.minGuest',
-      'child.guestRooms',
-      'child.venueMode',
-
-      'parentVenue.parent_venue_id',
-      'parentVenue.venueName',
-      'parentVenue.venueCity',
-      'parentVenue.venueState',
-      'parentVenue.venueCountry',
-      'parentVenue.venueAddress',
-      'parentVenue.lat',
-      'parentVenue.lng',
-      'parentVenue.rating',
-      'parentVenue.reviews',
-      'parentVenue.propetyCategory',
-
-      'gallery.id',
-      'gallery.attachment',
-      'gallery.imageType',
-
-      'shiftTimings.id',
-      'shiftTimings.price',
-      'shiftTimings.shiftType',
-      'shiftTimings.fromTime',
-      'shiftTimings.toTime',
-
-      'amenities.id',
-      'amenities.amenities_id as am_id',
-
-      'pricing.id',
-      'pricing.childVenueId',
-      'pricing.name',
-      'pricing.pricingKey',
-      'pricing.amount',
-      'pricing.enabled',
-      'pricing.category',
-    ]);
-
-  /* ======================
-     SEARCH
-  ====================== */
-  if (query.search) {
-    qb.andWhere(
-      `(child.childVenueName LIKE :search
-        OR parentVenue.venueName LIKE :search
-        OR parentVenue.venueCity LIKE :search)`,
-      { search: `%${query.search}%` },
-    );
-  }
-
-  /* ======================
      FILTERS
   ====================== */
-  if (query.category) {
-    qb.andWhere('parentVenue.propetyCategory = :category', {
-      category: query.category,
-    });
-  }
+    const where: string[] = [];
+    const params: any[] = [];
 
-  if (query.subcategory) {
-    qb.andWhere('child.venueCategoryId = :subcategory', {
-      subcategory: query.subcategory,
-    });
-  }
+    if (query.search) {
+      where.push(`
+      (
+        cv.child_venue_name LIKE ?
+        OR pv.venue_name LIKE ?
+        OR pv.venue_city LIKE ?
+      )
+    `);
 
-  if (query.country) {
-    qb.andWhere('parentVenue.venueCountry = :country', {
-      country: query.country,
-    });
-  }
+      const search = `%${query.search}%`;
+      params.push(search, search, search);
+    }
 
-  if (query.state) {
-    qb.andWhere('parentVenue.venueState = :state', {
-      state: query.state,
-    });
-  }
+    if (query.type) {
+      where.push(`pv.propety_category = ?`);
+      params.push(query.type?.trim().replace(/s$/, ''));
+    }
 
-  if (query.city) {
-    qb.andWhere('parentVenue.venueCity = :city', {
-      city: query.city,
-    });
-  }
+    if (query.category) {
+      where.push(`cv.venue_category_id = ?`);
+      params.push(query.category);
+    }
 
-  /* ======================
-     AMENITIES FILTER
+    if (country) {
+      where.push(`pv.venue_country = ?`);
+      params.push(country);
+    }
+
+    if (query.city) {
+      where.push(`pv.venue_city = ?`);
+      params.push(query.city);
+    }
+
+    if (mapBounds) {
+      where.push(`
+      pv.lat BETWEEN ? AND ?
+      AND pv.lng BETWEEN ? AND ?
+    `);
+
+      params.push(south, north, west, east);
+    }
+
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+    /* ======================
+     REGISTERED VENUES
   ====================== */
-  if (query.childAmenities?.length) {
-    const amenities = Array.isArray(query.childAmenities)
-      ? query.childAmenities
-      : query.childAmenities.split(',');
 
-    qb.andWhere('amenities.amenities_id IN (:...amenities)', {
-      amenities,
-    });
-  }
+    const sql = `
+    SELECT
+      cv.child_venue_id AS childVenueId,
+      cv.child_venue_name AS venueName,
+      pv.venue_city AS city,
+      pv.venue_state AS state,
+      pv.lat,
+      pv.lng,
+      pv.propety_category AS category,
+       /* COVER IMAGE */
+      (
+        SELECT vg.attachment
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+        AND vg.image_type = 1
+        LIMIT 1
+      ) AS coverImage,
 
-  /* ======================
-     PRICE FILTER (SHIFT)
-  ====================== */
-  if (query.minPrice) {
-    qb.andWhere('shiftTimings.price >= :minPrice', {
-      minPrice: Number(query.minPrice),
-    });
-  }
-
-  if (query.maxPrice) {
-    qb.andWhere('shiftTimings.price <= :maxPrice', {
-      maxPrice: Number(query.maxPrice),
-    });
-  }
-
-  /* ======================
-     SORT (LOWEST PRICE FIRST)
-  ====================== */
-  qb.orderBy('shiftTimings.price', 'ASC');
-
-  /* ======================
-     PAGINATION
-  ====================== */
-  qb.skip((page - 1) * limit);
-  qb.take(limit);
-
-  qb.distinct(true);
-
-  /* ======================
-     EXECUTE
-  ====================== */
-  const [rows, total] = await qb.getManyAndCount();
-
-  /* ======================
-     CLEAN RESPONSE
-  ====================== */
-  const data = rows.map((item: any) => {
-    const galleries = item.galleries || [];
-
-    return {
-      childVenueId: item.child_venue_id,
-      venueName: item.childVenueName,
-
-      category: item.parentVenue?.propetyCategory,
-      subcategory: item.venueCategoryId,
-
-      city: item.parentVenue?.venueCity,
-      state: item.parentVenue?.venueState,
-      country: item.parentVenue?.venueCountry,
-      address: item.parentVenue?.venueAddress,
-
-      lat: item.parentVenue?.lat,
-      lng: item.parentVenue?.lng,
-
-      rating: item.parentVenue?.rating,
-      reviews: item.parentVenue?.reviews,
-
-      minGuest: item.minGuest,
-      maxGuest: item.guestRooms,
-      venueMode: item.venueMode,
-
-      /* COVER */
-      coverImage:
-        galleries.find(g => Number(g.imageType) === 1)?.attachment || null,
-
-      /* BANNER */
-      bannerImage:
-        galleries.find(g => Number(g.imageType) === 2)?.attachment || null,
+      /* BANNER IMAGE */
+      (
+        SELECT vg.attachment
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+        AND vg.image_type = 2
+        LIMIT 1
+      ) AS bannerImage,
 
       /* GALLERY */
-      galleryImages: galleries
-        .filter(g => Number(g.imageType) === 3)
-        .map(g => ({
-          id: g.id,
-          image: g.attachment,
-        })),
+      (
+        SELECT JSON_ARRAYAGG(
+          JSON_OBJECT(
+            'id', vg.id,
+            'image', vg.attachment
+          )
+        )
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+        AND vg.image_type = 3
+      ) AS galleryImages,
 
-      /* AMENITIES */
-      amenities: item.childAmenities || [],
 
-      /* SHIFT PRICING */
-      shiftTimings: item.shiftTimings || [],
+      (
+        SELECT MIN(vst.price)
+        FROM venue_shift_timing vst
+        WHERE vst.child_venue_id = cv.child_venue_id
+      ) AS minPrice
 
-      /* PRICING (IMPORTANT FIX) */
-      pricing: item.pricings || [],
+    FROM venue_child cv
+    INNER JOIN venue_parent pv
+      ON pv.parent_venue_id = cv.parent_venue_id
+
+    ${whereClause}
+
+    ORDER BY minPrice ASC
+    LIMIT ?
+    OFFSET ?
+  `;
+
+    const venues = await this.dataSource.query(sql, [...params, limit, offset]);
+
+    /* ======================
+     UNREGISTERED (PAGINATED)
+  ====================== */
+
+    const unsql = `
+  SELECT
+    uv.id AS childVenueId,
+    uv.name AS venueName,
+    uv.state,
+    uv.city,
+    uv.lat,
+    uv.lng,
+
+    /* COVER IMAGE */
+    (
+      SELECT ug.images
+      FROM unrigistered_gallery ug
+      WHERE ug.unreg_id = uv.id
+      ORDER BY ug.id ASC
+      LIMIT 1
+    ) AS coverImage,
+
+    /* GALLERY IMAGES (SAFE JSON) */
+    (
+      SELECT JSON_ARRAYAGG(ug.images)
+      FROM unrigistered_gallery ug
+      WHERE ug.unreg_id = uv.id
+    ) AS images
+
+
+  FROM unrigistered_venues uv
+`;
+
+    const unregistered = await this.dataSource.query(unsql, [limit, offset]);
+
+    /* ======================
+     MERGE RESULT (FIXED)
+  ====================== */
+
+    /* ======================
+     COUNT (only registered for now)
+  ====================== */
+
+    const countSql = `
+    SELECT COUNT(*) AS total
+    FROM venue_child cv
+    INNER JOIN venue_parent pv
+      ON pv.parent_venue_id = cv.parent_venue_id
+    ${whereClause}
+  `;
+
+    const totalResult = await this.dataSource.query(countSql, params);
+
+    const total = Number(totalResult[0]?.total || 0);
+
+    /* ======================
+     RESPONSE
+  ====================== */
+
+    return {
+      success: true,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      data: [...venues, ...unregistered],
     };
-  });
-
-  return {
-    success: true,
-    total,
-    page,
-    limit,
-    totalPages: Math.ceil(total / limit),
-    data,
-  };
-}
+  }
   async getVenuesPageDatas(filters: any) {
     const params: any[] = [];
 
@@ -392,4 +996,361 @@ export class VenueService {
 
     return await this.dataSource.query(query, params);
   }
+
+  async saveWishlistCategory(body: any, userId: any) {
+    try {
+      let categoryId = body.category_id;
+
+      /* ----------------------------------------
+       EXISTING CATEGORY
+    -----------------------------------------*/
+      if (categoryId) {
+        // optional check category belongs to user
+        const categoryCheck: any = await this.dataSource.query(
+          `SELECT id 
+         FROM wishlist_categories
+         WHERE id = ?
+         AND user_id = ?`,
+          [categoryId, userId],
+        );
+
+        if (!categoryCheck.length) {
+          return {
+            success: false,
+            message: 'Invalid category',
+          };
+        }
+      } else {
+        /* ----------------------------------------
+         CREATE NEW CATEGORY
+      -----------------------------------------*/
+
+        const categoryResult: any = await this.dataSource.query(
+          `INSERT INTO wishlist_categories
+        (user_id, name, is_default, created_at, updated_at)
+        VALUES (?, ?, ?, NOW(), NOW())`,
+          [userId, body.name, 0],
+        );
+
+        categoryId = categoryResult.insertId;
+      }
+
+      /* ----------------------------------------
+       CHECK ALREADY EXISTS
+    -----------------------------------------*/
+
+      const existingWishlist: any = await this.dataSource.query(
+        `SELECT id
+       FROM user_wishlists
+       WHERE user_id = ?
+       AND venue_id = ?
+       AND category_id = ?`,
+        [userId, body.venue_id, categoryId],
+      );
+
+      if (existingWishlist.length) {
+        return {
+          success: true,
+          message: 'Already saved',
+        };
+      }
+
+      /* ----------------------------------------
+       INSERT WISHLIST
+    -----------------------------------------*/
+
+      await this.dataSource.query(
+        `INSERT INTO user_wishlists
+      (user_id, venue_id, category_id, is_active, created_at, updated_at)
+      VALUES (?, ?, ?, ?, NOW(), NOW())`,
+        [userId, body.venue_id, categoryId, 1],
+      );
+
+      return {
+        success: true,
+        message: 'Wishlist saved successfully',
+        category_id: categoryId,
+      };
+    } catch (error) {
+      console.log(error);
+
+      return {
+        success: false,
+        message: 'Something went wrong',
+      };
+    }
+  }
+  async UserWishlistCategory(userId: any) {
+    const wishlistCategories = await this.dataSource.query(
+      `
+  SELECT 
+      wc.id,
+      wc.user_id,
+      wc.name,
+      wc.is_default,
+      wc.created_at,
+
+      COUNT(DISTINCT uw.id) AS total_wishlist,
+
+      (
+          SELECT vg.attachment
+          FROM user_wishlists uw2
+
+          LEFT JOIN venue_gallery vg
+              ON vg.child_venue_id = uw2.venue_id
+
+          WHERE uw2.category_id = wc.id
+          AND uw2.is_active = 1
+
+          ORDER BY vg.id ASC
+          LIMIT 1
+      ) AS category_image
+
+  FROM wishlist_categories wc
+
+  LEFT JOIN user_wishlists uw
+      ON uw.category_id = wc.id
+      AND uw.is_active = 1
+
+  WHERE wc.user_id = ?
+
+  GROUP BY
+      wc.id,
+      wc.user_id,
+      wc.name,
+      wc.is_default,
+      wc.created_at
+
+  ORDER BY wc.created_at DESC
+  `,
+      [userId],
+    );
+
+    return wishlistCategories;
+  }
+
+  async UserUserWishlist(userId: any) {
+    const UserWishlis = await this.dataSource.query(
+      `
+  SELECT 
+      uc.id,
+      uc.user_id,
+      uc.venue_id
+
+  FROM user_wishlists uc
+
+  WHERE uc.user_id = ?
+  `,
+      [userId],
+    );
+
+    return UserWishlis;
+  }
+
+  async remove_wishlist(body: any, userId: any) {
+    const UserWishlis = await this.dataSource.query(
+      `
+  DELETE
+
+  FROM user_wishlists 
+
+  WHERE user_id = ? AND  venue_id = ? 
+  `,
+      [userId, body.venue_id],
+    );
+  }
+
+  //addCompareAPI removeCompareAPI
+  /* ================================
+   COMPARE SERVICE - NEST JS
+================================ */
+
+  async addCompareAPI(body: any, userId: number) {
+    try {
+      /* ---------------- CHECK EXIST ---------------- */
+
+      const existing: any = await this.dataSource.query(
+        `
+      SELECT id
+      FROM compare_list
+      WHERE user_id = ?
+      AND venue_id = ?
+      LIMIT 1
+      `,
+        [userId, body.venue_id],
+      );
+
+      /* ---------------- REMOVE IF EXISTS ---------------- */
+
+      if (existing.length > 0) {
+        await this.dataSource.query(
+          `
+        DELETE FROM compare_list
+        WHERE user_id = ?
+        AND venue_id = ?
+        `,
+          [userId, body.venue_id],
+        );
+
+        return {
+          success: true,
+          action: 'removed',
+        };
+      }
+
+      /* ---------------- LIMIT CHECK ---------------- */
+
+      const total: any = await this.dataSource.query(
+        `
+      SELECT COUNT(*) as total
+      FROM compare_list
+      WHERE user_id = ?
+      `,
+        [userId],
+      );
+
+      if (total[0].total >= 4) {
+        return {
+          success: false,
+          message: 'Only 4 compare venues allowed',
+        };
+      }
+
+      /* ---------------- INSERT ---------------- */
+
+      await this.dataSource.query(
+        `
+      INSERT INTO compare_list
+      (
+        user_id,
+        venue_id,
+        created_at,
+        updated_at
+      )
+      VALUES
+      (
+        ?, ?, NOW(), NOW()
+      )
+      `,
+        [userId, body.venue_id],
+      );
+
+      return {
+        success: true,
+        action: 'added',
+      };
+    } catch (error) {
+      console.log(error);
+
+      return {
+        success: false,
+        message: 'Compare failed',
+      };
+    }
+  }
+  async removeCompareAPI(body: any, userId: number) {
+    try {
+      await this.dataSource.query(
+        `
+      DELETE FROM compare_list
+      WHERE user_id = ?
+      AND venue_id = ?
+      `,
+        [userId, body.venue_id],
+      );
+
+      return {
+        success: true,
+        message: 'Compare removed successfully',
+      };
+    } catch (error) {
+      console.log(error);
+
+      return {
+        success: false,
+        message: 'Failed to remove compare',
+      };
+    }
+  }
+
+  // async UserCompare(userId: any) {
+  //     const UserCompare = await this.dataSource.query(
+  //       `
+  //   SELECT
+  //       uc.id,
+  //       uc.user_id,
+  //       uc.venue_id
+
+  //   FROM compare_list uc
+
+  //   WHERE uc.user_id = ?
+  //   `,
+  //       [userId],
+  //     );
+
+  //     return UserCompare;
+  //   }
+  async UserCompare(userId: any) {
+    const UserCompare = await this.dataSource.query(
+      `
+    SELECT 
+        uc.id ,
+        uc.user_id,
+        uc.venue_id as childVenueId,
+
+        cv.child_venue_id,
+        cv.child_venue_name AS title,
+      
+
+        (
+          SELECT vg.attachment
+          FROM venue_gallery vg
+          WHERE vg.child_venue_id = cv.child_venue_id
+          ORDER BY vg.id ASC
+          LIMIT 1
+        ) AS image
+
+    FROM compare_list uc
+
+    LEFT JOIN venue_child cv
+        ON cv.child_venue_id = uc.venue_id
+
+    WHERE uc.user_id = ?
+
+    ORDER BY uc.id DESC
+    `,
+      [userId],
+    );
+
+    return UserCompare;
+  }
+  async userRecentViewsAPI(body: any, userId: any) {
+  await this.dataSource.query(
+    `
+    INSERT INTO user_recent_views (user_id, venue_id, viewed_at)
+    VALUES (?, ?, NOW())
+    ON DUPLICATE KEY UPDATE
+      viewed_at = NOW()
+    `,
+    [userId, body.venue_id],
+  );
+
+  // keep only latest 20
+  await this.dataSource.query(
+    `
+    DELETE FROM user_recent_views
+    WHERE id NOT IN (
+      SELECT id FROM (
+        SELECT id
+        FROM user_recent_views
+        WHERE user_id = ?
+        ORDER BY viewed_at DESC
+        LIMIT 20
+      ) t
+    )
+    `,
+    [userId],
+  );
+}
+  //	user_recent_views
 }
