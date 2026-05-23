@@ -6,5 +6,10 @@ export abstract class StorageService {
 
   abstract delete(
     filePath: string,
-  ): Promise<boolean>;
+  ): Promise<boolean>; 
+  
+ abstract uploadFromUrl(
+    imageUrl: string,
+    fileName: string,
+  ): Promise<string>;
 }

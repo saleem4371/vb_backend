@@ -95,4 +95,50 @@ export class LocalStorageService extends StorageService {
       return false;
     }
   }
+  async uploadFromUrl(
+  imageUrl: string,
+  fileName: string,
+): Promise<string> {
+  try {
+    const response = await fetch(imageUrl);
+
+    if (!response.ok) {
+      throw new Error("Failed to fetch image");
+    }
+
+    const arrayBuffer = await response.arrayBuffer();
+
+    const buffer = Buffer.from(arrayBuffer);
+
+    const uploadDir = path.join(
+      process.cwd(),
+      "uploads",
+      "venues",
+    );
+
+    await fs.promises.mkdir(uploadDir, {
+      recursive: true,
+    });
+
+    const finalName = `${Date.now()}-${fileName}.jpg`;
+
+    const filePath = path.join(
+      uploadDir,
+      finalName,
+    );
+
+    await fs.promises.writeFile(
+      filePath,
+      buffer,
+    );
+
+    return `uploads/venues/${finalName}`;
+  } catch (error) {
+    console.error(error);
+
+    throw new InternalServerErrorException(
+      "Image upload from URL failed",
+    );
+  }
+}
 }

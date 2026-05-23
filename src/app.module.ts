@@ -27,6 +27,7 @@ import { CountryModule } from './modules/admin/country/country.module';
 import { EventTagsModule } from "./modules/admin/event-tag/event-tag.module";
 import { VenueTagsModule } from "./modules/admin/venue-tags/venue-tag.module"
 import { PropertyTagModule } from "./modules/admin/property-tag/property-tag.module"
+import { MasterModule } from "./modules/admin/master/master.module"
 
 // import { VenueTagsModule } from "./modules/admin/property-tag/property-tag.module";
 // import { CategoryPropertyModule } from './modules/admin/property_category/category.module';
@@ -95,7 +96,8 @@ import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing
     ListingModule,
     PropertyTagModule,
     CustomerModule,
-    VenueListingModule
+    VenueListingModule,
+    MasterModule
     // CategoryPropertyModule
     // VenueTagsModule,
   ],
