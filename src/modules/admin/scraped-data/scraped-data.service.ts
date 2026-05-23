@@ -137,9 +137,20 @@ export class UnregisteredService {
 
           // PUSH IMAGE
 
-          if (imageUrl) {
-            galleryImages.push(imageUrl);
-          }
+          // if (imageUrl) {
+          //   galleryImages.push(imageUrl);
+          // }
+  if (imageUrl) {
+  const fileName = `google-${Date.now()}`;
+
+  const s3Url =
+    await this.storageService.uploadFromUrl(
+      imageUrl,
+      fileName,
+    );
+
+  galleryImages.push(s3Url);
+}
         }
       }
 
@@ -163,12 +174,14 @@ export class UnregisteredService {
         types: 1,
 
         user_ratings_total: item.user_ratings_total || 0,
+        lat:item.geometry?.location?.lat,
+        lng:item.geometry?.location?.lng,
 
-        geometry: {
-          lat: item.geometry?.location?.lat,
+        // geometry: {
+        //   lat: item.geometry?.location?.lat,
 
-          lng: item.geometry?.location?.lng,
-        },
+        //   lng: item.geometry?.location?.lng,
+        // },
       });
 
       const savedVenue = await this.venueRepo.save(venue);

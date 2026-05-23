@@ -47,6 +47,12 @@ export class UnregisteredVenue {
   @Column({ nullable: true })
   place_id?: string;
 
+  @Column({ nullable: true })
+  lat?: string;
+
+  @Column({ nullable: true })
+  lng?: string;
+
   @Column({ type: "json", nullable: true })
   geometry: any;
 
