@@ -307,7 +307,7 @@ export class UnregisteredService {
   }
 
   // ✅ UPDATE
-  async update(id: string, dto: UpdateUnregisteredVenueDto, images: any[]) {
+  async update(id: string, dto: UpdateUnregisteredVenueDto, images: any[],country:any) {
     // ============================================
     // FIND PROPERTY
     // ============================================
@@ -327,6 +327,7 @@ export class UnregisteredService {
     // ============================================
 
     property.status = Number(dto.status);
+    property.country = Number(country)
 
     await this.venueRepo.save(property);
 
