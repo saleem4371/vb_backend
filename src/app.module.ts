@@ -38,9 +38,15 @@ import { CustomerModule } from './modules/admin/customer/customer.module';
 import { GlobalModule } from './modules/global/global.module';
 import { ListingModule } from './modules/listing/listing.module';
 
+
+
 import { GatewaysModule } from './gateways/gateways.module';
 import { SocketModule } from './modules/socket/socket.module';
+
+//vendor
 import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing.module';
+import { ParentListingModule } from './modules/vendor/parent-listing/parent-listing.module';
+import { KycModule } from './modules/vendor/kyc/kyc.module';
 
 @Module({
   imports: [
@@ -96,8 +102,11 @@ import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing
     ListingModule,
     PropertyTagModule,
     CustomerModule,
+    
     VenueListingModule,
-    MasterModule
+    ParentListingModule,
+    MasterModule,
+    KycModule
     // CategoryPropertyModule
     // VenueTagsModule,
   ],
