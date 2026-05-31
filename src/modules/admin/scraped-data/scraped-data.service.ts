@@ -83,8 +83,8 @@ export class UnregisteredService {
     // LOOP
     // ============================================
 
-    // for (const item of results) {
-    for (const item of results.slice(0, 2)) {
+    for (const item of results) {
+    // for (const item of results.slice(0, 2)) {
       // CHECK EXISTING
 
       const exists = await this.venueRepo.findOne({
