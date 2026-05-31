@@ -59,7 +59,7 @@ export class UnregisteredService {
   // SCRAPE GOOGLE DATA 
   // ======================================================
 
-  async scrapeGoogleData(dto: CreateUnregisteredDto) {
+  async scrapeGoogleData(dto: CreateUnregisteredDto,country:any) {
     const GOOGLE_API_KEY = 'AIzaSyCr1Ed9nEknBLipvcLGwjoW5L4inVIDnoM';//process.env.GOOGLE_MAP_API_KEY;
 
     // ============================================
@@ -165,7 +165,7 @@ export class UnregisteredService {
 
         state: dto.state,
 
-        country: dto.country,
+        country: country,
 
         place_id: item.place_id,
 
