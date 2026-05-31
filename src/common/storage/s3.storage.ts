@@ -116,6 +116,7 @@ export class S3StorageService {
   // PUBLIC URL GENERATOR
   // -----------------------------
   private getPublicUrl(key: string): string {
-    return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
+    // return `https://${this.bucket}.s3.${this.region}.amazonaws.com/${key}`;
+    return key;
   }
 }
