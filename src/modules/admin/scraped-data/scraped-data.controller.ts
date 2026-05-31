@@ -59,6 +59,7 @@ export class UnregisteredController {
 async ScrapedData(
   @Param('id') id: string,
   @Req() req: FastifyRequest,
+  @Headers("x-country") country: string
 ) {
   try {
 
@@ -123,6 +124,7 @@ async ScrapedData(
       id,
       body,
       images,
+      country
     );
 
   } catch (error) {
