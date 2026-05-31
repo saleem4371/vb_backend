@@ -33,7 +33,7 @@ export class AuthService {
   ) {}
 
   // ✅ REGISTER
-  async register(dto) {
+  async register(dto,country_id) {
     if (!dto?.email || !dto?.password) {
       throw new BadRequestException(
         'Username, email and password are required',
@@ -52,9 +52,9 @@ export class AuthService {
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
     const result = await this.dataSource.query(
-      `INSERT INTO users (name, email, password)
-     VALUES (?, ?, ?)`,
-      [dto.name, dto.email, hashedPassword],
+      `INSERT INTO users (name, email, password,country)
+     VALUES (?, ?, ? , ?)`,
+      [dto.name, dto.email, hashedPassword,country_id],
     );
 
     // Role Created

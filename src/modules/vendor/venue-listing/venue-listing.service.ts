@@ -1,6 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { DataSource, Repository, Not, IsNull } from 'typeorm';
+import { Injectable,BadRequestException,
+  ConflictException, } from '@nestjs/common';
+import { DataSource, Repository, Not, IsNull, LessThan } from 'typeorm';
 import { StorageService } from 'src/common/storage/storage.service';
+
+import { v4 as uuidv4 } from "uuid";
 
 type UploadFile = {
   id: string;
@@ -54,8 +57,10 @@ export class VenueListingService {
       `SELECT  
         child_venue_name as title, more_info as description, venue_category_id as category,
         min_guest as minCapacity, guest_rooms  as maxCapacity, venue_address  as address,
-        venue_city  as city, venue_state  as state, venue_pincode  as pincode, venue_country  as country,
-        propety_category , cv.publish_status
+        venue_city  as city, venue_state  as state, venue_pincode  as pincode,
+         venue_country  as country,
+        propety_category , cv.publish_status,
+        cv.banquet_round as totalRooms , cv.cocktail_round as bedsPerRoom 
       FROM venue_child cv
       LEFT JOIN venue_parent pv ON pv.parent_venue_id = cv.parent_venue_id
       WHERE cv.child_venue_id = ?
@@ -101,6 +106,20 @@ export class VenueListingService {
     const venue_terms = await this.dataSource.query(
       `SELECT *
       FROM venue_terms_condition
+      WHERE child_venue_id = ?`,
+      [id],
+    );
+
+const venue_addon = await this.dataSource.query(
+      `SELECT *
+      FROM venue_addon
+      WHERE child_venue_id = ?`,
+      [id],
+    );
+    
+    const property_pricing = await this.dataSource.query(
+      `SELECT *
+      FROM property_pricing
       WHERE child_venue_id = ?`,
       [id],
     );
@@ -224,6 +243,8 @@ ORDER BY vgc.id, vg.id
       termsAccepted: venue_terms[0]?.platform_agreement == 1 ? true : false,
       houseRules: venue_terms[0]?.venue_rule ?? null,
       settings: Setting_grouped,
+      addons: venue_addon,
+      property_pricing: property_pricing,
     };
   }
 
@@ -526,14 +547,41 @@ ORDER BY vgc.id, vg.id
   ───────────────────────────── */
 
   async updateCapacity(id: any, body: any) {
-    const { minCapacity, maxCapacity } = body;
+    const { minCapacity, maxCapacity , bedsPerRoom , bathrooms , bedrooms, meetingRooms,totalDesks,totalRooms } = body;
+// let cocktail_round = null;
+// let banquet_round = null;
+
+// 👇 map based on category/type
+// switch (category) {
+//   case "room_type_1":
+//     cocktail_round = bedsPerRoom;
+//     banquet_round = bathrooms;
+//     break;
+
+//   case "room_type_2":
+//     cocktail_round = bedrooms;
+//     banquet_round = meetingRooms;
+//     break;
+
+//   case "workspace":
+//     cocktail_round = totalDesks;
+//     banquet_round = totalRooms;
+//     break;
+
+//   default:
+//     cocktail_round = totalRooms;
+//     banquet_round = totalRooms;
+//     break;
+// }
 
     await this.dataSource.query(
       `UPDATE venue_child SET
         min_guest = ?,
-        guest_rooms = ?
+        guest_rooms = ?,
+        cocktail_round= ? ,
+        banquet_round= ? 
       WHERE child_venue_id = ?`,
-      [minCapacity, maxCapacity, id],
+      [minCapacity, maxCapacity, bedsPerRoom,totalRooms, id],
     );
 
     return {
@@ -642,6 +690,9 @@ ORDER BY vgc.id, vg.id
   async updatePricing(id: any, body: any) {
     const pricing = this.safeJson(body.pricing);
 
+    if(body.type=='venue')
+    {
+
     const shiftMap = {
       morning: 1,
       afternoon: 2,
@@ -679,6 +730,73 @@ ORDER BY vgc.id, vg.id
         ],
       );
     }
+  }
+  else
+  {
+const pricingRows = [
+  {
+    pricing_key: "nightly",
+    amount: body.pricing.nightlyRate,
+  },
+  {
+    pricing_key: "weekly",
+    amount: body.pricing.weekendRate,
+  },
+  {
+    pricing_key: "cleaning_fee",
+    amount: body.pricing.cleaningFee,
+  },
+];
+
+for (const item of pricingRows) {
+  if (!item.amount) continue;
+
+  const existing = await this.dataSource.query(
+    `
+    SELECT id
+    FROM property_pricing
+    WHERE child_venue_id = ?
+      AND pricing_key = ?
+    LIMIT 1
+    `,
+    [id, item.pricing_key]
+  );
+
+  if (existing.length) {
+    await this.dataSource.query(
+      `
+      UPDATE property_pricing
+      SET amount = ?
+      WHERE child_venue_id = ?
+        AND pricing_key = ?
+      `,
+      [item.amount, id, item.pricing_key]
+    );
+  } else {
+    await this.dataSource.query(
+      `
+      INSERT INTO property_pricing
+      (
+        child_venue_id,
+        name,
+        pricing_key,
+        amount,
+        enabled,
+        category
+      )
+      VALUES (?, ?, ?, ?, 1, ?)
+      `,
+      [
+        id,
+        item.pricing_key,
+        item.pricing_key,
+        item.amount,
+        body.type,
+      ]
+    );
+  }
+}
+  }
 
     return {
       success: true,
@@ -733,7 +851,7 @@ ORDER BY vgc.id, vg.id
   /* ─────────────────────────────
      PHOTOS
   ───────────────────────────── */
-async updatePhotos(id: string, body: any, files: any[]) {
+async updatePhotos(id: string, body: any, files: any[],uid:any) {
   const photoSections = this.safeJson(body.photoSections);
   const existingPhotos = this.safeJson(body.existingPhotos);
 
@@ -773,6 +891,31 @@ async updatePhotos(id: string, body: any, files: any[]) {
       finalPhotos.push(photo.path);
     }
   }
+
+  /*
+-----------------------------------
+MAIN PHOTOS DB UPDATE
+-----------------------------------
+*/
+
+for (const photo of finalPhotos) {
+  const exists = await this.dataSource.query(
+    `SELECT id 
+     FROM venue_gallery
+     WHERE child_venue_id = ?
+     AND attachment = ?`,
+    [id, photo],
+  );
+
+  if (!exists.length) {
+    await this.dataSource.query(
+      `INSERT INTO venue_gallery
+      (child_venue_id, g_category, attachment, created_at) 
+      VALUES (?, ?, ?, NOW())`,
+      [id,exists.g_category, photo],
+    );
+  }
+}
 
   /*
   ---------------------------
@@ -934,4 +1077,335 @@ safeJson(val: any): any[] {
       success: true,
     };
   }
+  //addons
+ async SaveCategory(user_id: number, body: any) {
+  const name = body.name?.trim();
+
+  if (!name) {
+    throw new BadRequestException('Category name is required');
+  }
+
+  const exists = await this.dataSource.query(
+    `
+    SELECT id
+    FROM add_on_categories
+    WHERE created_by = ?
+      AND LOWER(name) = LOWER(?)
+    LIMIT 1
+    `,
+    [user_id, name],
+  );
+
+  if (exists.length) {
+    throw new ConflictException('Category already exists');
+  }
+
+  const result = await this.dataSource.query(
+    `
+    INSERT INTO add_on_categories
+    (
+      created_by,
+      name,
+      gradient,
+      iconKey,
+      strip,
+      created_at,
+      updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+    `,
+    [
+      user_id,
+      name,
+      body.gradient || null,
+      body.iconKey || null,
+      body.strip || null,
+    ],
+  );
+
+  return {
+    success: true,
+    message: 'Category created successfully',
+    id: result.insertId,
+  };
+}
+ async LoadaddonCategory(user_id: number) {
+ const addonCategory = await this.dataSource.query(
+    `
+    SELECT *
+    FROM add_on_categories
+    WHERE created_by = ?
+    `,
+    [user_id],
+  );
+  return addonCategory;
+ }
+
+async SaveAddon(userId: number, body: any, files: any[]) {
+  let categoryId: number;
+
+  // Find category
+  const category = await this.dataSource.query(
+    `
+    SELECT id
+    FROM add_on_categories
+    WHERE created_by = ?
+      AND LOWER(name) = LOWER(?)
+    LIMIT 1
+    `,
+    [userId, body.category],
+  );
+
+  // Create category if not exists
+  if (category.length === 0) {
+    const insertCategory: any = await this.dataSource.query(
+      `
+      INSERT INTO add_on_categories
+      (
+        created_by,
+        name,
+        gradient,
+        iconKey,
+        strip,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+      `,
+      [
+        userId,
+        body.cname,
+        body.gradient || null,
+        body.iconKey || null,
+        body.strip || null,
+      ],
+    );
+
+    categoryId = insertCategory.insertId;
+  } else {
+    categoryId = category[0].id;
+  }
+
+  // Upload image
+  let attachment = '';
+
+  if (files?.length) {
+    attachment = await this.storageService.upload(
+      files[0],
+      'venue/addons',
+    );
+  }
+
+  //form.id
+const tags = body.tags
+  ? JSON.stringify(
+      typeof body.tags === 'string'
+        ? JSON.parse(body.tags)
+        : body.tags
+    )
+  : null;
+
+if (body.id) {
+  await this.dataSource.query(
+    `
+    UPDATE add_ons
+    SET
+      add_on_category_id = ?,
+      add_on_name = ?,
+      price = ?,
+      type = ?,
+      stock = ?,
+      damagd = ?,
+      more_details = ?,
+      attachment = COALESCE(?, attachment),
+      publish_status = ?,
+      tags = ?,
+      updated_at = NOW()
+    WHERE add_on_id = ?
+      AND created_by = ?
+    `,
+    [
+      categoryId,
+      body.name,
+      body.price || body.pricePerUnit || 0,
+      body.pricingType,
+      body.totalStock || 0,
+      body.damagedUnits || 0,
+      body.description || null,
+      attachment || null,
+      body.status === 'active' ? '1' : '0',
+      tags,
+      body.id,
+      userId,
+    ],
+  );
+
+  return {
+    success: true,
+    message: 'Add-on updated successfully',
+    add_on_id: body.id,
+  };
+}
+
+// INSERT
+const addonUuid = uuidv4();
+
+await this.dataSource.query(
+  `
+  INSERT INTO add_ons
+  (
+    add_on_id,
+    child_venue_id,
+    add_on_category_id,
+    add_on_name,
+    price,
+    type,
+    stock,
+    damagd,
+    more_details,
+    attachment,
+    publish_status,
+    auto_increment,
+    tags,
+    created_by,
+    created_at,
+    updated_at
+  )
+  VALUES
+  (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+  `,
+  [
+    addonUuid,
+    body.child_venue_id || 2,
+    categoryId,
+    body.name,
+    body.price || body.pricePerUnit || 0,
+    body.pricingType,
+    body.totalStock || 0,
+    body.damagedUnits || 0,
+    body.description || null,
+    attachment || null,
+    body.status === 'active' ? '1' : '0',
+    2,
+    tags,
+    userId,
+  ],
+);
+
+return {
+  success: true,
+  message: 'Add-on created successfully',
+  add_on_id: addonUuid,
+};
+}
+
+ async Loadaddon(user_id: number) {
+ const addon = await this.dataSource.query(
+    `
+    SELECT 
+      add_on_id as id,
+      add_on_name as name,
+      name as category,
+      type as pricingType,
+      price,
+      type as unit,
+      price as pricePerUnit,
+      stock as totalStock,
+      damagd as damagedUnits,
+      publish_status as status,
+      tags,
+      attachment as image,
+      more_details as description
+    FROM add_ons LEFT JOIN add_on_categories ON add_on_categories.id = add_ons.add_on_category_id
+    WHERE add_ons.created_by = ?
+    `,
+    [user_id],
+  );
+  return addon;
+ }
+async DeleteAddon(id: any) {
+ const addon = await this.dataSource.query( ` DELETE FROM add_ons WHERE add_on_id = ? `,[id]);
+}
+async ToggleAddon(body: any) {
+ const addon = await this.dataSource.query( ` UPDATE add_ons
+    SET publish_status = ? WHERE add_on_id = ? `,[body.status , body.id]);
+}
+
+
+  async getAddon(user_id: any,body: any) {
+ const addon = await this.dataSource.query(
+    `
+    SELECT 
+      add_on_id as id,
+      add_on_name as name,
+      name as category,
+      type as pricingType,
+      price,
+      type as unit,
+      price as pricePerUnit,
+      stock as totalStock,
+      damagd as damagedUnits,
+      publish_status as status,
+      attachment as image,
+      more_details as description
+    FROM add_ons LEFT JOIN add_on_categories ON add_on_categories.id = add_ons.add_on_category_id
+    WHERE add_ons.created_by = ? 
+    `,
+    [user_id],
+  );
+  return addon;
+ }
+
+ 
+ async updateAddons(id: any, body: any) {
+    const addons = this.safeJson(body.addons);
+
+  await this.dataSource.query(
+      `DELETE FROM venue_addon
+       WHERE child_venue_id = ?`,
+      [id],
+    );
+
+    for (const ad of addons) {
+      await this.dataSource.query(
+        `INSERT INTO venue_addon
+        (child_venue_id, addon_id)
+        VALUES (?, ?)`,
+        [id, ad.addon_id],
+      );
+    }
+
+    return {
+      success: true,
+    };
+  }
+async DeletePhotos(body: any) {
+  const imageUrl = body?.image;
+
+  const url = new URL(imageUrl);
+
+  const key = decodeURIComponent(
+    url.pathname.startsWith("/")
+      ? url.pathname.slice(1)
+      : url.pathname
+  );
+
+  // Delete from S3 delete
+   const urls = await this.storageService.delete(
+        key
+      );
+
+  // Raw SQL delete
+  await this.dataSource.query(
+    `DELETE FROM venue_gallery WHERE attachment = ?`,
+    [key],
+  );
+
+  return {
+    key: key,
+    success: true,
+    message: "Image deleted successfully",
+  };
+}
+ 
 }

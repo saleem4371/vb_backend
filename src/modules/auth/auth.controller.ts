@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req, UseGuards, Get } from '@nestjs/common';
+import { Body, Controller, Post, Req, UseGuards, Get , Headers} from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import { AuthService } from './auth.service';
@@ -17,8 +17,8 @@ export class AuthController {
 
   // ================= REGISTER =================
   @Post('register')
-  async register(@Req() req: FastifyRequest, @Body() dto: any) {
-    const result = await this.authService.register(dto);
+  async register(@Req() req: FastifyRequest, @Body() dto: any, @Headers('x-country') country_id: number) {
+    const result = await this.authService.register(dto,country_id);
 
     try {
       await this.activityLogger.log(

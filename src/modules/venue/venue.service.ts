@@ -737,7 +737,7 @@ export class VenueService {
         WHERE vg.child_venue_id = cv.child_venue_id
         AND vg.image_type = 2
         LIMIT 1
-      ) AS bannerImage,
+      ) AS coverImage,
 
       /* GALLERY */
       (
@@ -750,7 +750,7 @@ export class VenueService {
         FROM venue_gallery vg
         WHERE vg.child_venue_id = cv.child_venue_id
         AND vg.image_type = 3
-      ) AS galleryImages,
+      ) AS images,
 
 
       (
@@ -830,6 +830,7 @@ export class VenueService {
     /* ======================
      RESPONSE
   ====================== */
+
 
     return {
       success: true,

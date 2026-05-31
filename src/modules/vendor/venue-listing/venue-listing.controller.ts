@@ -6,7 +6,10 @@ import {
   Put,
   Req,
   Patch,
-  Body
+  Post,
+  Body,
+  Query,
+  Delete
 } from '@nestjs/common';
 import type {
   FastifyRequest,
@@ -91,11 +94,12 @@ async updateListing(
   /* ─────────────────────────────
      PHOTOS (FASTIFY)
   ───────────────────────────── */
-
+ @UseGuards(JwtAuthGuard)
  @Patch(':id/photos')
 async updatePhotos(
   @Param('id') id: string,
   @Req() req: FastifyRequest,
+  @CurrentUser() user: any,
 ) {
   const parts = req.parts();
 
@@ -120,7 +124,7 @@ async updatePhotos(
     }
   }
 
-  return this.venueListingService.updatePhotos(id, body, files);
+  return this.venueListingService.updatePhotos(id, body, files,user?.id);
 }
   /* ─────────────────────────────
      CAPACITY
@@ -191,7 +195,7 @@ async updatePhotos(
     @Param('id') id: string,
     @Body() body: any,
   ) {
-    // return this.venueListingService.updateAddons(id, body);
+     return this.venueListingService.updateAddons(id, body);
   }
 
   /* ─────────────────────────────
@@ -213,4 +217,78 @@ async updatePhotos(
   ) {
     return this.venueListingService.SaveVenueSetting(id, body);
   }
+
+
+   @UseGuards(JwtAuthGuard)
+  @Post('SaveCategory')
+  SaveCategory(@CurrentUser() user: any,@Body() body: any,) {
+    return this.venueListingService.SaveCategory(user?.id,body);
+  }
+
+ @UseGuards(JwtAuthGuard)
+  @Get('LoadaddonCategory')
+  LoadaddonCategory(@CurrentUser() user: any) {
+    return this.venueListingService.LoadaddonCategory(user?.id);
+  } 
+  
+ 
+
+ @UseGuards(JwtAuthGuard)
+  @Post('SaveAddon')
+ async SaveAddon(@CurrentUser() user: any, @Req() req: FastifyRequest,) {
+     const parts = req.parts();
+
+  const files: any[] = [];
+  const body: any = {};
+
+  for await (const part of parts) {
+    if (part.type === 'file') {
+      const chunks: Buffer[] = [];
+
+      for await (const chunk of part.file) {
+        chunks.push(chunk);
+      }
+
+      files.push({
+        id: part.filename, // ✅ THIS IS YOUR UUID FROM FRONTEND
+        buffer: Buffer.concat(chunks),
+        mimetype: part.mimetype,
+      });
+    } else {
+      body[part.fieldname] = part.value;
+    }
+  }
+
+  return this.venueListingService.SaveAddon(user?.id, body, files);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('Loadaddon')
+  Loadaddon(@CurrentUser() user: any) {
+    return this.venueListingService.Loadaddon(user?.id);
+  }
+
+  @Delete('DeleteAddon/:id')
+  DeleteAddon( @Param('id') id: string,) {
+    return this.venueListingService.DeleteAddon(id);
+  }
+  
+  @Post('ToggleAddon')
+  ToggleAddon( @Body() body: any) {
+    return this.venueListingService.ToggleAddon(body);
+  }
+
+   @UseGuards(JwtAuthGuard)
+   @Get('getAddon')
+  getAddon(@Query() query: any,@CurrentUser() user: any) {
+    return this.venueListingService.getAddon(user?.id ,query);
+  } 
+
+   @Post('DeletePhotos')
+  DeletePhotos(@Body() body: any) {
+    return this.venueListingService.DeletePhotos(body);
+  } 
+
+
+  
 }
