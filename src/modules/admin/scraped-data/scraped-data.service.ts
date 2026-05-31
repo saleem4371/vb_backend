@@ -327,7 +327,7 @@ export class UnregisteredService {
     // ============================================
 
     property.status = Number(dto.status);
-    property.country = Number(country)
+    property.country = country;
 
     await this.venueRepo.save(property);
 
