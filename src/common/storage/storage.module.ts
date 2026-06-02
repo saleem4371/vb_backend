@@ -3,12 +3,10 @@ import {
   Module,
 } from "@nestjs/common";
 
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 
 import { StorageService } from "./storage.service";
-
 import { LocalStorageService } from "./local.storage";
-
 import { S3StorageService } from "./s3.storage";
 
 @Global()
@@ -17,33 +15,37 @@ import { S3StorageService } from "./s3.storage";
 
   providers: [
     LocalStorageService,
-
     S3StorageService,
 
     {
       provide: StorageService,
-
-      useFactory: (
-        localStorage: LocalStorageService,
-
-        s3Storage: S3StorageService,
-      ) => {
-        const driver =
-          process.env
-            .STORAGE_DRIVER ||
-          "local";
-
-        if (driver === "s3") {
-          return s3Storage;
-        }
-
-        return localStorage;
-      },
-
       inject: [
         LocalStorageService,
         S3StorageService,
+        ConfigService,
       ],
+      useFactory: (
+        localStorage: LocalStorageService,
+        s3Storage: S3StorageService,
+        configService: ConfigService,
+      ) => {
+        const driver = configService.get<string>("STORAGE_DRIVER") || "local";
+
+        console.log(` STORAGE_DRIVER: ${driver}. Use 'local' or 's3'.`)
+
+        switch (driver) {
+          case "s3":
+            return s3Storage;
+
+          case "local":
+            return localStorage;
+
+          default:
+            throw new Error(
+              `Invalid STORAGE_DRIVER: ${driver}. Use 'local' or 's3'.`,
+            );
+        }
+      },
     },
   ],
 
