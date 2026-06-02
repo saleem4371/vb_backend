@@ -10,6 +10,7 @@ import {
 } from "@aws-sdk/client-s3";
 
 import axios from "axios";
+import { v4 as uuid } from "uuid";
 
 @Injectable()
 export class S3StorageService {
@@ -31,36 +32,70 @@ export class S3StorageService {
   // -----------------------------
   // UPLOAD FILE BUFFER
   // -----------------------------
-  async upload(file: any, folder: string): Promise<string> {
-    try {
-      const buffer = file.buffer;
+async upload(
+  file: any,
+  folder: string,
+): Promise<string> {
 
-      if (!buffer || !Buffer.isBuffer(buffer)) {
-        throw new Error("Invalid file buffer");
-      }
+  console.log({
+  key: process.env.AWS_ACCESS_KEY_ID,
+  secret: process.env.AWS_SECRET_ACCESS_KEY,
+  region: process.env.AWS_REGION,
+  bucket: process.env.AWS_BUCKET,
+});
 
-      const safeFilename = file.originalname.replace(
+  try {
+
+    if (
+      !file?.buffer ||
+      !Buffer.isBuffer(file.buffer)
+    ) {
+      throw new Error(
+        "Invalid file buffer",
+      );
+    }
+
+    console.log("loading image");
+
+    const filename =
+      file.filename ||
+      file.originalname ||
+      `file-${Date.now()}`;
+
+    const safeFilename =
+      filename.replace(
         /[^a-zA-Z0-9.-]/g,
         "_",
       );
 
-      const key = `${folder}/${Date.now()}-${safeFilename}`;
+    const key =
+      `${folder}/${Date.now()}-${uuid()}-${safeFilename}`;
 
-      await this.s3.send(
-        new PutObjectCommand({
-          Bucket: this.bucket,
-          Key: key,
-          Body: buffer,
-          ContentType: file.mimetype,
-        }),
-      );
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: file.buffer,
+        ContentType:
+          file.mimetype ||
+          "application/octet-stream",
+      }),
+    );
 
-      return this.getPublicUrl(key);
-    } catch (error) {
-      console.error(error);
-      throw new InternalServerErrorException("S3 upload failed");
-    }
+    return this.getPublicUrl(key);
+
+  } catch (error) {
+
+    console.error(
+      "S3 UPLOAD ERROR =>",
+      error,
+    );
+
+    throw new InternalServerErrorException(
+      "S3 upload failed",
+    );
   }
+}
 
   // -----------------------------
   // DELETE FILE
@@ -82,7 +117,7 @@ export class S3StorageService {
   }
 
   // -----------------------------
-  // UPLOAD FROM URL (GOOGLE IMAGES)
+  // UPLOAD FROM URL
   // -----------------------------
   async uploadFromUrl(imageUrl: string, fileName: string): Promise<string> {
     try {
@@ -91,8 +126,7 @@ export class S3StorageService {
       });
 
       const buffer = Buffer.from(response.data);
-
-      const key = `venues/${Date.now()}-${fileName}.jpg`;
+      const key = `venues/${Date.now()}-${uuid()}-${fileName}.jpg`;
 
       await this.s3.send(
         new PutObjectCommand({
@@ -106,10 +140,26 @@ export class S3StorageService {
       return this.getPublicUrl(key);
     } catch (error) {
       console.error("S3 upload failed:", error);
-
-      // fallback to original image
       return imageUrl;
     }
+  }
+
+  // -----------------------------
+  // UPLOAD BUFFER (GENERIC)
+  // -----------------------------
+  async uploadFile(buffer: Buffer, mime: string, folder: string) {
+    const key = `${folder}/${uuid()}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+        Body: buffer,
+        ContentType: mime,
+      }),
+    );
+
+    return this.getPublicUrl(key);
   }
 
   // -----------------------------
