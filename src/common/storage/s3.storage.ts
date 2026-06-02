@@ -22,8 +22,8 @@ export class S3StorageService {
     this.s3 = new S3Client({
       region: this.region,
       credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+        accessKeyId: 'AKIAQHYCDO6SXUQ76LPP',//process.env.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: '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',//process.env.AWS_SECRET_ACCESS_KEY!,
       },
     });
   }
