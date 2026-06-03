@@ -44,7 +44,7 @@ export class VenueCategoryService {
       );
     }
 
-   let categoryId = 0;
+  let categoryId!: number;
 
     const isNumber =
       dto.category !== undefined &&
