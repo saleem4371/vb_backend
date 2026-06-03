@@ -59,8 +59,8 @@ export class UnregisteredService {
   // SCRAPE GOOGLE DATA 
   // ======================================================
 
-  async scrapeGoogleData(dto: CreateUnregisteredDto,country:any) {
-    const GOOGLE_API_KEY = 'AIzaSyCr1Ed9nEknBLipvcLGwjoW5L4inVIDnoM';//process.env.GOOGLE_MAP_API_KEY;
+  async scrapeGoogleData(dto: CreateUnregisteredDto) {
+    const GOOGLE_API_KEY = process.env.GOOGLE_MAP_API_KEY;
 
     // ============================================
     // SEARCH QUERY
@@ -83,8 +83,8 @@ export class UnregisteredService {
     // LOOP
     // ============================================
 
-    for (const item of results) {
-    // for (const item of results.slice(0, 2)) {
+    // for (const item of results) {
+    for (const item of results.slice(0, 2)) {
       // CHECK EXISTING
 
       const exists = await this.venueRepo.findOne({
@@ -165,7 +165,7 @@ export class UnregisteredService {
 
         state: dto.state,
 
-        country: country,
+        country: dto.country,
 
         place_id: item.place_id,
 
@@ -307,7 +307,7 @@ export class UnregisteredService {
   }
 
   // ✅ UPDATE
-  async update(id: string, dto: UpdateUnregisteredVenueDto, images: any[],country:any) {
+  async update(id: string, dto: UpdateUnregisteredVenueDto, images: any[]) {
     // ============================================
     // FIND PROPERTY
     // ============================================
@@ -327,7 +327,6 @@ export class UnregisteredService {
     // ============================================
 
     property.status = Number(dto.status);
-    property.country = country;
 
     await this.venueRepo.save(property);
 

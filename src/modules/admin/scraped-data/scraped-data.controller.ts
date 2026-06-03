@@ -33,8 +33,8 @@ export class UnregisteredController {
   // ============================================
 
   @Post('scrapedInsertApi')
-  scrapeGoogleData(@Body() dto: CreateUnregisteredDto, @Headers("x-country") country: string) {
-    return this.unregisteredService.scrapeGoogleData(dto,country);
+  scrapeGoogleData(@Body() dto: CreateUnregisteredDto,) {
+    return this.unregisteredService.scrapeGoogleData(dto);
   }
 
   // ============================================
@@ -59,7 +59,6 @@ export class UnregisteredController {
 async ScrapedData(
   @Param('id') id: string,
   @Req() req: FastifyRequest,
-  @Headers("x-country") country: string
 ) {
   try {
 
@@ -124,7 +123,6 @@ async ScrapedData(
       id,
       body,
       images,
-      country
     );
 
   } catch (error) {

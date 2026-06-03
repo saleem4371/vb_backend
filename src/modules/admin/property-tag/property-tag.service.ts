@@ -181,9 +181,9 @@ async create(
   status: dto.status || "0",
 
 
-  image: imagePath,
+  image: videoPath,
 
-  video: videoPath, // ✅ ADD VIDEO
+  video: imagePath, // ✅ ADD VIDEO
 
   // active_countries
 
