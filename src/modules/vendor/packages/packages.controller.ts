@@ -13,8 +13,6 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
-
-
 import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/user.decorator';
 import { PackagesService } from './packages.service';
@@ -40,10 +38,10 @@ export class PackagesController {
     return this.packagesService.updateCategoryPublish(body);
   }
 
-@Put('delete_items/:id')
-delete_items(@Param('id') id: string) {
-  return this.packagesService.delete_items(id);
-}
+  @Put('delete_items/:id')
+  delete_items(@Param('id') id: string) {
+    return this.packagesService.delete_items(id);
+  }
   @UseGuards(JwtAuthGuard)
   @Post('create_items')
   async create_items(@Req() req: FastifyRequest, @CurrentUser() user: any) {
@@ -71,4 +69,13 @@ delete_items(@Param('id') id: string) {
     }
     return this.packagesService.create_items(body, files, user?.id);
   }
+  @UseGuards(JwtAuthGuard)
+  @Post('create_packages')
+  create_packages(@CurrentUser() user: any, @Body() body: any) {
+    return this.packagesService.create_packages(user?.id, body);
+  }
+
+ 
+
+  //Packages
 }
