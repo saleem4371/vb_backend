@@ -23,27 +23,30 @@ export class VenueCategoryController {
   constructor(private readonly categoryService: VenueCategoryService) {}
 
   // ✅ CREATE
-  @Post("categoryInsertApi")
-  async create(  @Req() req: FastifyRequest) {
-     try {
-   const parts = req.parts();
+ @Post("categoryInsertApi")
+async create(@Req() req: FastifyRequest) {
+  try {
+    console.log("START CREATE");
+
+    const parts = req.parts();
 
     const body: any = {};
-
     let icon: any = null;
-
     let image: any = null;
-    
 
-     for await (const part of parts) {
-      /*
-      |--------------------------------------------------------------------------
-      | FILES
-      |--------------------------------------------------------------------------
-      */
+    for await (const part of parts) {
+      console.log(
+        "PART:",
+        part.type,
+        part.fieldname,
+      );
 
       if (part.type === "file") {
-        // Skip empty upload
+        console.log(
+          "FILE:",
+          part.filename,
+        );
+
         if (!part.filename) {
           continue;
         }
@@ -51,13 +54,10 @@ export class VenueCategoryController {
         const buffer =
           await part.toBuffer();
 
-        // Skip empty buffer
-        if (
-          !buffer ||
-          buffer.length === 0
-        ) {
-          continue;
-        }
+        console.log(
+          "BUFFER SIZE:",
+          buffer.length,
+        );
 
         const fileData = {
           buffer,
@@ -78,30 +78,42 @@ export class VenueCategoryController {
         }
       }
 
-      /*
-      |--------------------------------------------------------------------------
-      | FIELDS
-      |--------------------------------------------------------------------------
-      */
-
       if (part.type === "field") {
         body[part.fieldname] =
           String(part.value);
+
+        console.log(
+          "FIELD:",
+          part.fieldname,
+          part.value,
+        );
       }
     }
-      return await this.categoryService.create(
+
+    console.log("BODY:", body);
+    console.log(
+      "ICON:",
+      !!icon,
+    );
+    console.log(
+      "IMAGE:",
+      !!image,
+    );
+
+    return await this.categoryService.create(
       body,
       icon,
-      image
+      image,
     );
-  } catch (error) {
-    console.error(error);
-
-    throw new BadRequestException(
+  } catch (error: any) {
+    console.error(
+      "CONTROLLER ERROR:",
       error,
     );
+
+    throw error;
   }
-  }
+}
 
   // ✅ GET ALL
   @Get('categoryApi')
