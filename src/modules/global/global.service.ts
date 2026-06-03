@@ -241,4 +241,7 @@ export class GlobalService {
 
     return categories;
   }
+
+  //getAddon
+
 }

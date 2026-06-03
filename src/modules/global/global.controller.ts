@@ -45,7 +45,9 @@ export class GlobalController {
   @Get('getAmenties')
   LoadGetAmenties(@Query() query: any) {
     return this.globalService.LoadGetAmenties(query);
-  } 
+  }   
+  
+ 
 
   @Get('country_of_category')
   country_of_category(@Headers('x-country') country_id: number) {

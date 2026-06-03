@@ -1,5 +1,5 @@
 import {
-  Controller, 
+  Controller,
   Get,
   UseGuards,
   Param,

@@ -142,19 +142,22 @@ export class ListingService {
         royalConf: capacitySetting?.seatingStyles?.royal_conf?.capacity || 0,
         tShape: capacitySetting?.seatingStyles?.t_shape?.capacity || 0,
         talkShow: capacitySetting?.seatingStyles?.cabaret?.capacity || 0,
+        guestRooms: Number(data.body.capacity?.maxGuests || 0),
       };
     } else if (data.body.category === 'farmstay') {
       categoryData = {
         banquetRound: capacitySetting?.rooms || 0,
         cocktailRound: capacitySetting?.beds || 0,
-        theater: capacitySetting?.bathrooms || 0,
+        guestRooms: capacitySetting?.bathrooms || 0,
         checkIn: pricing?.checkIn || '3:00 PM',
         checkOut: pricing?.checkOut || '11:00 AM',
+        
       };
     } else if (data.body.category === 'studio') {
       categoryData = {
         banquetRound: capacitySetting?.sizeSqft || 0,
         cocktailRound: capacitySetting?.maxOccupancy || 0,
+        guestRooms : capacitySetting?.maxOccupancy || 0
       };
     } else if (data.body.category === 'workspace') {
       categoryData = {
@@ -180,7 +183,7 @@ export class ListingService {
       createdBy: userId,
       childVenueName: data.body.title,
       minGuest: Number(data.body.capacity?.minGuests || 0),
-      guestRooms: Number(data.body.capacity?.maxGuests || 0),
+     
       totalMeetingSpace: data.body.totalMeetingSpace,
       moreInfo: data.body.moreInfo,
       childVenueDetails: data.body.childVenueDetails,
