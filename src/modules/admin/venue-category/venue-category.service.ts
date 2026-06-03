@@ -4,12 +4,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { DataSource, Repository, Not, IsNull } from 'typeorm';
 import { Category } from "./entities/category.entity";
 import { VenueCategory } from "./entities/venue-category.entity";
 import { CreateCategoryDto } from "./dto/create-category.dto";
 import { UpdateCategoryDto } from "./dto/update-category.dto";
 import { StorageService } from "src/common/storage/storage.service";
+
 
 @Injectable()
 export class VenueCategoryService {
@@ -21,6 +22,7 @@ export class VenueCategoryService {
     private VenuecategoryRepo: Repository<VenueCategory>,
 
     private storageService: StorageService,
+    private dataSource: DataSource,
   ) {}
 
   // ✅ CREATE
