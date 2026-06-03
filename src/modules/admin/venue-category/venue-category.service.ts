@@ -75,6 +75,7 @@ export class VenueCategoryService {
       );
     }
 
+   
     if (image) {
       imagePath = await this.storageService.upload(
         image,
@@ -198,7 +199,7 @@ export class VenueCategoryService {
       tag.name = dto.name;
     }
 
-    if (dto.category_id !== undefined) {
+    if (dto.category !== undefined) {
       tag.category_id = Number(dto.category);
     }
 
