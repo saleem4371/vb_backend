@@ -24,9 +24,9 @@ export class VenueCategoryController {
 
   // ✅ CREATE
   @Post("categoryInsertApi")
-  async create( @Req() req: FastifyRequest) {
+  async create(  @Req() req: FastifyRequest) {
      try {
-    const parts = req.parts();
+   const parts = req.parts();
 
     const body: any = {};
 
@@ -35,7 +35,7 @@ export class VenueCategoryController {
     let image: any = null;
     
 
-    for await (const part of parts) {
+     for await (const part of parts) {
       /*
       |--------------------------------------------------------------------------
       | FILES
@@ -43,8 +43,21 @@ export class VenueCategoryController {
       */
 
       if (part.type === "file") {
+        // Skip empty upload
+        if (!part.filename) {
+          continue;
+        }
+
         const buffer =
           await part.toBuffer();
+
+        // Skip empty buffer
+        if (
+          !buffer ||
+          buffer.length === 0
+        ) {
+          continue;
+        }
 
         const fileData = {
           buffer,
