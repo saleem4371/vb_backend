@@ -24,110 +24,113 @@ export class VenueCategoryService {
   ) {}
 
   // ✅ CREATE
- async create(
+async create(
   dto: any,
   icon: any,
   image: any,
 ) {
   try {
-    console.log("CREATE DTO:", dto);
-
-    if (!dto.name) {
-      throw new BadRequestException(
-        "Name is required",
-      );
-    }
-
-    if (!dto.category) {
-      throw new BadRequestException(
-        "Category is required",
-      );
-    }
-
-  let categoryId;
+    let categoryId;
 
     const isNumber =
-      dto.category !== undefined &&
-      dto.category !== null &&
-      dto.category !== "" &&
+      dto.category &&
       !isNaN(Number(dto.category));
 
     if (isNumber) {
-      const existingCategory =
-        await this.categoryRepo.findOne({
-          where: {
-            id: Number(dto.category),
-          },
-        });
+      const categories =
+        await this.dataSource.query(
+          `
+          SELECT id
+          FROM categories
+          WHERE id = ?
+          LIMIT 1
+          `,
+          [Number(dto.category)],
+        );
 
-      if (!existingCategory) {
+      if (!categories.length) {
         throw new BadRequestException(
           "Category not found",
         );
       }
 
-      categoryId =
-        existingCategory.id;
+      categoryId = categories[0].id;
     } else {
-      let newCategory =
-        await this.categoryRepo.findOne({
-          where: {
-            name: dto.category,
-          },
-        });
+      const categories =
+        await this.dataSource.query(
+          `
+          SELECT id
+          FROM categories
+          WHERE name = ?
+          LIMIT 1
+          `,
+          [dto.category],
+        );
 
-      if (!newCategory) {
-        newCategory =
-          this.categoryRepo.create({
-            name: dto.category,
-          });
-
-        newCategory =
-          await this.categoryRepo.save(
-            newCategory,
+      if (categories.length) {
+        categoryId =
+          categories[0].id;
+      } else {
+        const insertCategory =
+          await this.dataSource.query(
+            `
+            INSERT INTO categories
+            (name)
+            VALUES (?)
+            `,
+            [dto.category],
           );
+
+        categoryId =
+          insertCategory.insertId;
       }
-
-      categoryId =
-        newCategory.id;
     }
 
-       let iconPath: string | undefined;
-    let imagePath: string | undefined;
+    let iconPath: string | null =
+      null;
 
+    let imagePath: string | null =
+      null;
 
-    if (icon) {
-      const iconPath = await this.storageService.upload(
-        icon,
-        "venue-tags/icons",
-      );
+    if (icon?.buffer) {
+      iconPath =
+        await this.storageService.upload(
+          icon,
+          "venue-tags/icons",
+        );
     }
 
-    if (image) {
-      const imagePath = await this.storageService.upload(
-        image,
-        "venue-tags/images",
-      );
+    if (image?.buffer) {
+      imagePath =
+        await this.storageService.upload(
+          image,
+          "venue-tags/images",
+        );
     }
 
-    const tag =
-      this.VenuecategoryRepo.create({
-        name: dto.name,
-        cat_status:
+    const result =
+      await this.dataSource.query(
+        `
+        INSERT INTO venue_category
+        (
+          name,
+          cat_status,
+          icon,
+          frontImage,
+          category_id
+        )
+        VALUES (?, ?, ?, ?, ?)
+        `,
+        [
+          dto.name,
           dto.status || "0",
-        icon: iconPath,
-        frontImage: imagePath,
-        category_id: categoryId,
-      });
+          iconPath,
+          imagePath,
+          categoryId,
+        ],
+      );
 
-    console.log(
-      "Saving tag:",
-      tag,
-    );
-
-    return await this.VenuecategoryRepo.save(
-      tag,
-    );
+    return result;
   } catch (error) {
     console.error(
       "CREATE ERROR:",
