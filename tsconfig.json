@@ -24,6 +24,11 @@
     "typeRoots": [
       "./node_modules/@types",
       "./src/types"
-    ]
+    ],
+    "paths": {
+      "@auth/*": ["auth/*"],
+      "@vendor/*": ["vendor/*"],
+      "@logs/*": ["activity-logs/*"]
+    }
   }
 }
