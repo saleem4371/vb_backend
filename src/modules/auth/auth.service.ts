@@ -390,11 +390,10 @@ export class AuthService {
 
   //   return newUser[0];
   // }
-  async findById(id: string) {
-    const user = await this.dataSource.query(
-      `
+ async findById(id: string) {
+  const user = await this.dataSource.query(
+    `
     SELECT
-
       u.id,
       u.name,
       u.email,
@@ -403,20 +402,24 @@ export class AuthService {
         SELECT 1
         FROM user_roles ur
         WHERE ur.user_id = u.id
-        AND ur.role_id = 2
-      ) AS is_vendor
+          AND ur.role_id = 2
+      ) AS is_vendor,
+
+      EXISTS (
+        SELECT 1
+        FROM venue_parent vp
+        WHERE vp.created_by = u.id
+      ) AS is_parent
 
     FROM users u
-
     WHERE u.id = ?
-
     LIMIT 1
     `,
-      [id],
-    );
+    [id],
+  );
 
-    return user[0];
-  }
+  return user[0];
+}
 
   async send_otp(identifier: string, otp: string) {
     const hash = await bcrypt.hash(otp, 10);
