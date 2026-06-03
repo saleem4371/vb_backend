@@ -24,75 +24,128 @@ export class VenueCategoryService {
   ) {}
 
   // ✅ CREATE
-  async create(
- dto: any, icon: any, image: any
+ async create(
+  dto: any,
+  icon: any,
+  image: any,
 ) {
+  try {
+    console.log("CREATE DTO:", dto);
 
-  let categoryId;
-
-  // CHECK CATEGORY
-  const isNumber = !isNaN(Number(dto.category));
-
-  if (isNumber) {
-
-    // EXISTING CATEGORY
-    const existingCategory = await this.categoryRepo.findOne({
-      where: { id: Number(dto.category) },
-    });
-
-    if (!existingCategory) {
-      throw new BadRequestException("Category not found");
+    if (!dto.name) {
+      throw new BadRequestException(
+        "Name is required",
+      );
     }
 
-    categoryId = existingCategory.id;
-
-  } else {
-
-    // NEW CATEGORY CREATE
-    let newCategory = await this.categoryRepo.findOne({
-      where: { name: dto.category },
-    });
-
-    // AVOID DUPLICATE CATEGORY
-    if (!newCategory) {
-      newCategory = this.categoryRepo.create({
-        name: dto.category,
-      });
-
-      newCategory = await this.categoryRepo.save(newCategory);
+    if (!dto.category) {
+      throw new BadRequestException(
+        "Category is required",
+      );
     }
 
-    categoryId = newCategory.id;
-  }
+    let categoryId: number;
 
-   let iconPath: string | undefined;
+    const isNumber =
+      dto.category !== undefined &&
+      dto.category !== null &&
+      dto.category !== "" &&
+      !isNaN(Number(dto.category));
+
+    if (isNumber) {
+      const existingCategory =
+        await this.categoryRepo.findOne({
+          where: {
+            id: Number(dto.category),
+          },
+        });
+
+      if (!existingCategory) {
+        throw new BadRequestException(
+          "Category not found",
+        );
+      }
+
+      categoryId =
+        existingCategory.id;
+    } else {
+      let newCategory =
+        await this.categoryRepo.findOne({
+          where: {
+            name: dto.category,
+          },
+        });
+
+      if (!newCategory) {
+        newCategory =
+          this.categoryRepo.create({
+            name: dto.category,
+          });
+
+        newCategory =
+          await this.categoryRepo.save(
+            newCategory,
+          );
+      }
+
+      categoryId =
+        newCategory.id;
+    }
+
+    let iconPath: string | undefined;
     let imagePath: string | undefined;
 
-    if (icon) {
-      iconPath = await this.storageService.upload(
-        icon,
-        "venue-tags/icons",
+    if (icon?.buffer) {
+      console.log(
+        "Uploading icon:",
+        icon.buffer.length,
       );
+
+      iconPath =
+        await this.storageService.upload(
+          icon,
+          "venue-tags/icons",
+        );
     }
 
-   
-    if (image) {
-      imagePath = await this.storageService.upload(
-        image,
-        "venue-tags/images",
+    if (image?.buffer) {
+      console.log(
+        "Uploading image:",
+        image.buffer.length,
       );
+
+      imagePath =
+        await this.storageService.upload(
+          image,
+          "venue-tags/images",
+        );
     }
 
-  // CREATE SUBCATEGORY
-  const tag = this.VenuecategoryRepo.create({
-    name: dto.name,
-    cat_status: dto.status || "0",
-    icon: iconPath,
-    frontImage: imagePath,
-    category_id: categoryId,
-  });
+    const tag =
+      this.VenuecategoryRepo.create({
+        name: dto.name,
+        cat_status:
+          dto.status || "0",
+        icon: iconPath,
+        frontImage: imagePath,
+        category_id: categoryId,
+      });
 
-  return await this.VenuecategoryRepo.save(tag);
+    console.log(
+      "Saving tag:",
+      tag,
+    );
+
+    return await this.VenuecategoryRepo.save(
+      tag,
+    );
+  } catch (error) {
+    console.error(
+      "CREATE ERROR:",
+      error,
+    );
+    throw error;
+  }
 }
 
 
