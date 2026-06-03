@@ -199,7 +199,7 @@ export class VenueCategoryService {
     }
 
     if (dto.category_id !== undefined) {
-      tag.category_id = Number(dto.category_id);
+      tag.category_id = Number(dto.category);
     }
 
     if (dto.status !== undefined) {
