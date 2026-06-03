@@ -4,141 +4,111 @@ import {
 } from "@nestjs/common";
 
 import * as fs from "fs";
-
 import * as path from "path";
+import { v4 as uuid } from "uuid";
+import axios from "axios";
 
 import { StorageService } from "./storage.service";
 
 @Injectable()
 export class LocalStorageService extends StorageService {
-  async upload(
-    file: any,
-    folder: string,
-  ): Promise<string> {
-    try {
-      const buffer = file.buffer;
 
-      if (
-        !buffer ||
-        !Buffer.isBuffer(buffer)
-      ) {
-        throw new Error(
-          "Invalid file buffer",
-        );
+  // -----------------------------
+  // UPLOAD IMAGE / VIDEO FILE
+  // -----------------------------
+  async upload(file: any, folder: string): Promise<string> {
+    try {
+      if (!file?.buffer || !Buffer.isBuffer(file.buffer)) {
+        throw new Error("Invalid file buffer");
       }
 
-      const safeFilename =
-  (
-    file.originalname ||
-    file.filename ||
-    "image.jpg"
-  ).replace(
-    /[^a-zA-Z0-9.-]/g,
-    "_",
-  );
-      const finalName = `${Date.now()}-${safeFilename}`;
+      const mime = file.mimetype || "";
+
+      // detect type
+      const isVideo = mime.startsWith("video/");
+      const baseFolder = isVideo ? "videos" : "images";
+
+      const safeFilename = (
+        file.originalname ||
+        file.filename ||
+        "file"
+      ).replace(/[^a-zA-Z0-9.-]/g, "_");
+
+      const finalName = `${Date.now()}-${uuid()}-${safeFilename}`;
 
       const uploadDir = path.join(
         process.cwd(),
         "uploads",
+        baseFolder,
         folder,
       );
 
-      await fs.promises.mkdir(
-        uploadDir,
-        {
-          recursive: true,
-        },
-      );
+      await fs.promises.mkdir(uploadDir, { recursive: true });
 
-      const filePath = path.join(
-        uploadDir,
-        finalName,
-      );
+      const filePath = path.join(uploadDir, finalName);
 
-      await fs.promises.writeFile(
-        filePath,
-        buffer,
-      );
+      await fs.promises.writeFile(filePath, file.buffer);
 
-      return `uploads/${folder}/${finalName}`;
+      return `uploads/${baseFolder}/${folder}/${finalName}`;
     } catch (error) {
       console.error(error);
-
-      throw new InternalServerErrorException(
-        "File upload failed",
-      );
+      throw new InternalServerErrorException("File upload failed");
     }
   }
 
-  async delete(
-    filePath: string,
-  ): Promise<boolean> {
+  // -----------------------------
+  // DELETE FILE
+  // -----------------------------
+  async delete(filePath: string): Promise<boolean> {
     try {
-      const fullPath = path.join(
-        process.cwd(),
-        filePath,
-      );
+      const fullPath = path.join(process.cwd(), filePath);
 
-      if (
-        fs.existsSync(fullPath)
-      ) {
-        await fs.promises.unlink(
-          fullPath,
-        );
+      try {
+        await fs.promises.access(fullPath);
+        await fs.promises.unlink(fullPath);
+      } catch {
+        // file not found → ignore
       }
 
       return true;
     } catch (error) {
       console.error(error);
-
       return false;
     }
   }
-  async uploadFromUrl(
-  imageUrl: string,
-  fileName: string,
-): Promise<string> {
-  try {
-    const response = await fetch(imageUrl);
 
-    if (!response.ok) {
-      throw new Error("Failed to fetch image");
+  // -----------------------------
+  // UPLOAD FROM URL (IMAGE ONLY)
+  // -----------------------------
+  async uploadFromUrl(imageUrl: string, fileName: string): Promise<string> {
+    try {
+      const response = await axios.get(imageUrl, {
+        responseType: "arraybuffer",
+      });
+
+      const buffer = Buffer.from(response.data);
+
+      const uploadDir = path.join(
+        process.cwd(),
+        "uploads",
+        "images",
+        "venues",
+      );
+
+      await fs.promises.mkdir(uploadDir, { recursive: true });
+
+      const finalName = `${Date.now()}-${uuid()}-${fileName}.jpg`;
+
+      const filePath = path.join(uploadDir, finalName);
+
+      await fs.promises.writeFile(filePath, buffer);
+
+      return `uploads/images/venues/${finalName}`;
+    } catch (error) {
+      console.error(error);
+      throw new InternalServerErrorException(
+        "Image upload from URL failed",
+      );
     }
-
-    const arrayBuffer = await response.arrayBuffer();
-
-    const buffer = Buffer.from(arrayBuffer);
-
-    const uploadDir = path.join(
-      process.cwd(),
-      "uploads",
-      "venues",
-    );
-
-    await fs.promises.mkdir(uploadDir, {
-      recursive: true,
-    });
-
-    const finalName = `${Date.now()}-${fileName}.jpg`;
-
-    const filePath = path.join(
-      uploadDir,
-      finalName,
-    );
-
-    await fs.promises.writeFile(
-      filePath,
-      buffer,
-    );
-
-    return `uploads/venues/${finalName}`;
-  } catch (error) {
-    console.error(error);
-
-    throw new InternalServerErrorException(
-      "Image upload from URL failed",
-    );
   }
-}
 }

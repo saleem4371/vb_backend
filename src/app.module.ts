@@ -47,6 +47,7 @@ import { SocketModule } from './modules/socket/socket.module';
 import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing.module';
 import { ParentListingModule } from './modules/vendor/parent-listing/parent-listing.module';
 import { KycModule } from './modules/vendor/kyc/kyc.module';
+import { PackagesModule } from './modules/vendor/packages/packages.module';
 
 @Module({
   imports: [
@@ -106,7 +107,8 @@ import { KycModule } from './modules/vendor/kyc/kyc.module';
     VenueListingModule,
     ParentListingModule,
     MasterModule,
-    KycModule
+    KycModule,
+    PackagesModule
     // CategoryPropertyModule
     // VenueTagsModule,
   ],
