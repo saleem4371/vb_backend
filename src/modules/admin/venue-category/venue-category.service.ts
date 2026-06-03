@@ -92,33 +92,22 @@ export class VenueCategoryService {
         newCategory.id;
     }
 
-    let iconPath: string | undefined;
+       let iconPath: string | undefined;
     let imagePath: string | undefined;
 
-    if (icon?.buffer) {
-      console.log(
-        "Uploading icon:",
-        icon.buffer.length,
-      );
 
-      iconPath =
-        await this.storageService.upload(
-          icon,
-          "venue-tags/icons",
-        );
+    if (icon) {
+      const iconPath = await this.storageService.upload(
+        icon,
+        "venue-tags/icons",
+      );
     }
 
-    if (image?.buffer) {
-      console.log(
-        "Uploading image:",
-        image.buffer.length,
+    if (image) {
+      const imagePath = await this.storageService.upload(
+        image,
+        "venue-tags/images",
       );
-
-      imagePath =
-        await this.storageService.upload(
-          image,
-          "venue-tags/images",
-        );
     }
 
     const tag =
