@@ -49,6 +49,11 @@ import { ParentListingModule } from './modules/vendor/parent-listing/parent-list
 import { KycModule } from './modules/vendor/kyc/kyc.module';
 import { PackagesModule } from './modules/vendor/packages/packages.module';
 
+//Third party API
+
+import { SurepassModule } from "./modules/integrations/surepass/surepass.module"
+import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
+
 @Module({
   imports: [
 
@@ -108,9 +113,12 @@ import { PackagesModule } from './modules/vendor/packages/packages.module';
     ParentListingModule,
     MasterModule,
     KycModule,
-    PackagesModule
+    PackagesModule,
     // CategoryPropertyModule
     // VenueTagsModule,
+
+    SurepassModule,
+    CashfreeModule
   ],
 
   /* ✅ FIX IS HERE */
