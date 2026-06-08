@@ -15,14 +15,18 @@ import type { FastifyRequest } from 'fastify';
 
 import { CashfreeService } from './cashfree.service';
 
+import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
+import { CurrentUser } from '../../../common/decorators/user.decorator';
+
+
 @Controller('cashfree')
 export class CashfreeController {
   constructor(private readonly cashfreeService: CashfreeService) {}
 
-  
+  @UseGuards(JwtAuthGuard)
  @Post('subscription')
-subscription(@Body() body: any) {
-  return this.cashfreeService.subscription(body);
+subscription(@Body() body: any,@CurrentUser() user: any) {
+  return this.cashfreeService.subscription(body,user?.id);
 }
 
 @Get("verify_subscription/:subscription_id")
