@@ -40,6 +40,7 @@
     "cashfree-pg": "^6.0.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
+    "dayjs": "^1.11.21",
     "google-auth-library": "^10.6.2",
     "mysql2": "^3.22.3",
     "nodemailer": "^8.0.7",
