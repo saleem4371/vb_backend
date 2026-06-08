@@ -390,8 +390,8 @@ export class AuthService {
 
   //   return newUser[0];
   // }
- async findById(id: string) {
-  const user = await this.dataSource.query(
+async findById(id: string) {
+  const [user] = await this.dataSource.query(
     `
     SELECT
       u.id,
@@ -409,16 +409,32 @@ export class AuthService {
         SELECT 1
         FROM venue_parent vp
         WHERE vp.created_by = u.id
-      ) AS is_parent
+      ) AS is_parent,
+
+      CASE
+        WHEN us.id IS NOT NULL THEN 1
+        ELSE 0
+      END AS subscribe_status,
+
+      us.status,
+      us.plan_id,
+      us.end_date
 
     FROM users u
+
+    LEFT JOIN (
+      SELECT user_id, id, status, plan_id, end_date
+      FROM user_subscriptions
+      WHERE status = 1
+    ) us ON us.user_id = u.id
+
     WHERE u.id = ?
     LIMIT 1
     `,
     [id],
   );
 
-  return user[0];
+  return user;
 }
 
   async send_otp(identifier: string, otp: string) {
