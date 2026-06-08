@@ -125,6 +125,32 @@ export class VenueParent {
   @Column({ name: "propety_category", type: "varchar", length: 255, nullable: true})
   propetyCategory?: number;
 
+  //new 
+   @Column({ name: "logo", type: "text", nullable: true })
+  logo?: string;
+
+
+   @Column({ name: "conatct_person", type: "varchar", length: 255, nullable: true })
+  conatct_person?: string;
+
+   @Column({ name: "email", type: "varchar", length: 255, nullable: true })
+  email?: string;
+
+   @Column({ name: "phone", type: "varchar", length: 255, nullable: true })
+  phone?: string;
+
+   @Column({ name: "property_size", type: "varchar", length: 255, nullable: true })
+  property_size?: string;
+
+   @Column({ name: "build_year", type: "varchar", length: 255, nullable: true })
+  build_year?: string; 
+  
+  @Column({ name: "opertaion_year", type: "varchar", length: 255, nullable: true })
+  opertaion_year?: string; 
+  
+  @Column({ name: "child_count", type: "varchar", length: 255, nullable: true })
+  child_count?: number;
+
   // 🔥 ONE TO MANY RELATION
   @OneToMany(() => VenueChild, (child) => child.parentVenue)
   children?: VenueChild[];

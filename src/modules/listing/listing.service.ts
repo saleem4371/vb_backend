@@ -66,7 +66,7 @@ export class ListingService {
   }) {
     const userId = data.user?.id;
 
-    console.log(data.user);
+    console.log(data);
     /* =========================================================
                            User Updte
      ========================================================= */
@@ -93,27 +93,84 @@ export class ListingService {
     /* =========================================================
                            Prent VENUES
      ========================================================= */
-    const parentVenue = this.parentRepo.create({
-      venueName: data.body.title,
-      venueCompanyName: data.body.title,
-      parentAutoNo: data.body.title,
+     // check here parent_venue_id
+    // const parentVenue = this.parentRepo.create({
+    //   venueName: data.body.title,
+    //   venueCompanyName: data.body.title,
+    //   parentAutoNo: data.body.title,
+    //   venueAddress: data.body.address,
+    //   venueState: data.body.state || '',
+    //   venueCity: data.body.city,
+    //   venuePincode: data.body.pincode || '',
+    //   venueCountry: data.body.country,
+      
+    //   district: '',
+    //   rating: 0,
+    //   lat: Number(data.body.lat || 0),
+    //   lng: Number(data.body.lng || 0),
+    //   reviews: 1,
+    //   placeId: '',
+    //   createdBy: userId,
+    //   userRatingsTotal: 1,
+    //   publishStatus: '0',
+    //   propetyCategory: data.body.category,
+    // });
+    // const savedVenue = await this.parentRepo.save(parentVenue);
+    let savedVenue;
+    let Child_count = 1;
+
+if (data.body.parent_venue_id) {
+  const existingVenue = await this.parentRepo.findOne({
+    where: {
+      parent_venue_id: data.body.parent_venue_id,
+    },
+  });
+ Child_count = existingVenue ? Number(existingVenue.child_count): 1;
+
+  if (existingVenue) {
+   
+    Object.assign(existingVenue, {
       venueAddress: data.body.address,
       venueState: data.body.state || '',
       venueCity: data.body.city,
       venuePincode: data.body.pincode || '',
       venueCountry: data.body.country,
-      district: '',
-      rating: 0,
       lat: Number(data.body.lat || 0),
       lng: Number(data.body.lng || 0),
-      reviews: 1,
-      placeId: '',
-      createdBy: userId,
-      userRatingsTotal: 1,
-      publishStatus: '0',
-      propetyCategory: data.body.category,
+      propetyCategory: data.body.category
     });
-    const savedVenue = await this.parentRepo.save(parentVenue);
+
+    savedVenue = await this.parentRepo.save(existingVenue);
+
+    
+  }
+}
+
+if (!savedVenue) {
+  const parentVenue = this.parentRepo.create({
+    venueName: data.body.title,
+    venueCompanyName: data.body.title,
+    parentAutoNo: data.body.title,
+    venueAddress: data.body.address,
+    venueState: data.body.state || '',
+    venueCity: data.body.city,
+    venuePincode: data.body.pincode || '',
+    venueCountry: data.body.country,
+    district: '',
+    rating: 0,
+    lat: Number(data.body.lat || 0),
+    lng: Number(data.body.lng || 0),
+    reviews: 1,
+    placeId: '',
+    createdBy: userId,
+    userRatingsTotal: 1,
+    publishStatus: '0',
+    propetyCategory: data.body.category,
+  });
+
+  savedVenue = await this.parentRepo.save(parentVenue);
+}
+
     /* =========================================================
                            CHILD VENUES
     ========================================================= */
@@ -126,7 +183,7 @@ export class ListingService {
     let categoryData = {};
     const pricing = data.body.pricing || {};
 
-    if (data.body.category === 'venue') {
+    if (data.body.category == 'venue') {
       categoryData = {
         uShape: capacitySetting?.seatingStyles?.ushape?.capacity || 0,
         banquetRound: capacitySetting?.seatingStyles?.banquet?.capacity || 0,
@@ -142,9 +199,9 @@ export class ListingService {
         royalConf: capacitySetting?.seatingStyles?.royal_conf?.capacity || 0,
         tShape: capacitySetting?.seatingStyles?.t_shape?.capacity || 0,
         talkShow: capacitySetting?.seatingStyles?.cabaret?.capacity || 0,
-        guestRooms: Number(data.body.capacity?.maxGuests || 0),
+        guestRooms: Number(data.body.capacity_maxGuests || 0),
       };
-    } else if (data.body.category === 'farmstay') {
+    } else if (data.body.category == 'farmstay') {
       categoryData = {
         banquetRound: capacitySetting?.rooms || 0,
         cocktailRound: capacitySetting?.beds || 0,
@@ -153,24 +210,24 @@ export class ListingService {
         checkOut: pricing?.checkOut || '11:00 AM',
         
       };
-    } else if (data.body.category === 'studio') {
+    } else if (data.body.category == 'studio') {
       categoryData = {
         banquetRound: capacitySetting?.sizeSqft || 0,
         cocktailRound: capacitySetting?.maxOccupancy || 0,
         guestRooms : capacitySetting?.maxOccupancy || 0
       };
-    } else if (data.body.category === 'workspace') {
+    } else if (data.body.category == 'workspace') {
       categoryData = {
         guestRooms: capacitySetting?.seatingCapacity || 0,
         banquetRound: capacitySetting?.sizeSqft || 0,
       };
-    } else if (data.body.category === 'rental') {
+    } else if (data.body.category == 'rental') {
       categoryData = {
         guestRooms: capacitySetting?.maxGuests || 0,
         banquetRound: capacitySetting?.bedrooms || 0,
         cocktailRound: capacitySetting?.bathrooms || 0,
       };
-    } else if (data.body.category === 'experience') {
+    } else if (data.body.category == 'experience') {
       categoryData = {
         guestRooms: capacitySetting?.maxGuests || 0,
         banquetRound: capacitySetting?.groupSize || 0,
@@ -181,17 +238,28 @@ export class ListingService {
       parentVenueId: savedVenue.parent_venue_id,
       venueCategoryId: data.body.subcategory,
       createdBy: userId,
+      // moreInfo: data.body.description,
       childVenueName: data.body.title,
-      minGuest: Number(data.body.capacity?.minGuests || 0),
+      minGuest: Number(data.body.capacity_minGuests || 0),
      
       totalMeetingSpace: data.body.totalMeetingSpace,
-      moreInfo: data.body.moreInfo,
+      moreInfo: data.body.description,
       childVenueDetails: data.body.childVenueDetails,
       ...categoryData,
       venueMode: data.body.mode,
       publishStatus: 0,
     });
     const savedChildVenue = await this.childRepo.save(ChildVenue);
+
+     /* =========================================================
+                           Tags 
+     ========================================================= */
+     await this.dataSource.query(
+          `INSERT INTO venue_tags (child_venue_id, venue_cat_id)
+         VALUES (?, ?)`,
+          [savedChildVenue.child_venue_id, data.body.subcategory],
+      );
+
     /* =========================================================
                            Menties
      ========================================================= */
@@ -324,6 +392,58 @@ export class ListingService {
     /* =========================================================
                            shift Timing
      ========================================================= */
+
+
+ /* =========================================================
+                        Settings
+     ========================================================= */
+
+     const sd = data.body?.pricing?.deposit;
+     if(sd)
+     {
+              this.dataSource.query(
+          `
+        INSERT INTO venue_child_settings
+        (
+          child_id,
+          group,
+          key,
+          value
+        )
+
+        VALUES (?, ?, ?, ?)
+
+        ON DUPLICATE KEY UPDATE
+        value = VALUES(value)
+        `,
+          [savedChildVenue.child_venue_id, 'deposits','secAmt', sd ],
+        );
+     }
+const yourPlans = await this.dataSource.query(
+  `SELECT id
+   FROM plans
+   WHERE max_venue = ? 
+     AND recomended = 1 
+     AND status = 1`,
+  [Child_count],
+);
+
+for (const plan of yourPlans) {
+  await this.dataSource.query(
+    `INSERT INTO vendor_options (
+      parent_id,
+      option_type,
+      option_key,
+      created_at
+    ) VALUES (?, ?, ?, NOW())`,
+    [
+      savedVenue.parent_venue_id,
+      'plans',
+      plan.id,
+    ],
+  );
+}
+
     return {
       success: true,
       data,
@@ -346,5 +466,57 @@ export class ListingService {
       : 1;
 
     return `V${next.toString().padStart(5, '0')}`;
+  }  
+  
+
+  async create_parent(id: any, body: any, image: any) {
+let uploaded = '';
+    if (image) {
+      const uploadFile = {
+        fieldname: 'logo',
+       originalname: image.originalname || image.filename,
+        encoding: '7bit',
+        mimetype: image.mimetype,
+        buffer: image.buffer,
+      };
+      uploaded = await this.storageService.upload(
+        uploadFile,
+        'venues/parent/logo',
+      );
+    }
+
+    const parentVenue = this.parentRepo.create({
+      venueName: body.property_name,
+      venueCompanyName: body.property_name,
+      logo: uploaded,
+      child_count: body.child_venue_count,
+      conatct_person: body.contact_person,
+      email: body.email || '',
+      phone: body.phone,
+      property_size: body.property_size || '',//size_unit
+      build_year: body.built_year,
+      opertaion_year: body.operating_since,
+      aboutVenues: body.description,
+      createdBy: id
+    });
+    const savedVenue = await this.parentRepo.save(parentVenue);
+    return savedVenue.parent_venue_id;
   }
+
+async parent_last_create_id(id: any, type: any) {
+  const parent = await this.dataSource.query(
+    `
+    SELECT parent_venue_id
+    FROM venue_parent
+    WHERE created_by = ?
+      AND (propety_category = ? OR propety_category IS NULL OR propety_category = '')
+    ORDER BY parent_venue_id DESC
+    LIMIT 1
+    `,
+    [id, type],
+  );
+
+  return parent?.[0]?.parent_venue_id ?? null;
 }
+}
+

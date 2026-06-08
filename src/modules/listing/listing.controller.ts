@@ -16,21 +16,45 @@ import {
 import { ListingService } from './listing.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import type { FastifyRequest } from 'fastify';
+import { CurrentUser } from '../../common/decorators/user.decorator';
 
 import { JwtAuthGuard } from '../auth/strategies/jwt-auth.guard';
 
 @Controller('listing')
 export class ListingController {
   constructor(private readonly listingService: ListingService) {}
+  @UseGuards(JwtAuthGuard)
+  @Put('last_parent_id/:id')
+  async parent_last_create_id(@CurrentUser() user: any,@Param('id') id: string) {
+    return this.listingService.parent_last_create_id(user?.id,id);
+  }
+  @UseGuards(JwtAuthGuard)
+  @Post('parent_create')
+  async parent_create(@Req() req: FastifyRequest, @CurrentUser() user: any) {
+    const parts = req.parts();
 
+    const body: any = {};
+    const files: any[] = [];
+
+    for await (const part of parts) {
+      if (part.type === 'file') {
+        files.push({
+          fieldname: part.fieldname,
+          originalname: part.filename,
+          mimetype: part.mimetype,
+          buffer: await part.toBuffer(),
+        });
+      } else {
+        body[part.fieldname] = part.value;
+      }
+    }
+
+    const logo = files.find((f) => f.fieldname === 'logo');
+
+    return this.listingService.create_parent(user?.id, body, logo);
+  }
   @UseGuards(JwtAuthGuard)
   @Post('create')
-  //  async create(
-  //   @Req() req: FastifyRequest,
-  // ) {
-
-  //   return this.listingService.create(req);
-  // }
   async ListingData(@Body() dto: CreateListingDto, @Req() req: FastifyRequest) {
     try {
       const parts = req.parts();
@@ -43,70 +67,6 @@ export class ListingController {
       let bannerImage: any = null;
 
       for await (const part of parts) {
-        /* ================= FILE ================= */
-
-        //if (part.type === 'file') {
-        // const buffer = await part.toBuffer();
-
-        // const fileData = {
-        //   fieldname: part.fieldname,
-
-        //   buffer,
-
-        //   originalname: part.filename,
-
-        //   mimetype: part.mimetype,
-
-        //   size: buffer.length,
-        // };
-
-        // /* ---------- gallery images ---------- */
-
-        // if (part.fieldname === 'images[]') {
-        //   images.push(fileData);
-        // } else if (part.fieldname === 'cover_image') {
-
-        // /* ---------- cover image ---------- */
-        //   coverImage = fileData;
-        // }
-
-        // continue;
-        //         const buffer = await part.toBuffer();
-
-        // const fileData = {
-        //   fieldname: part.fieldname,
-        //   buffer,
-        //   originalname: part.filename,
-        //   mimetype: part.mimetype,
-        //   size: buffer.length,
-        // };
-
-        // // gallery images
-        // if (part.fieldname === 'images[]') {
-        //   images.push({
-        //     ...fileData,
-        //     type: 'gallery',
-        //   });
-        // }
-
-        // // cover image
-        // else if (part.fieldname === 'cover_image') {
-        //   coverImage = {
-        //     ...fileData,
-        //     type: 'cover',
-        //   };
-        // }
-
-        // // banner image
-        // else if (part.fieldname === 'banner_image') {
-        //   bannerImage = {
-        //     ...fileData,
-        //     type: 'banner',
-        //   };
-        // }
-
-        // continue;
-        //       }
         if (part.type === 'file') {
           const buffer = await part.toBuffer();
 
@@ -118,9 +78,6 @@ export class ListingController {
             size: buffer.length,
           };
 
-          //
-          // COVER IMAGE
-          //
           if (part.fieldname === 'cover_image') {
             coverImage = {
               ...fileData,
@@ -129,10 +86,6 @@ export class ListingController {
 
             continue;
           }
-
-          //
-          // BANNER IMAGE
-          //
           if (part.fieldname === 'banner_image') {
             bannerImage = {
               ...fileData,
@@ -141,10 +94,6 @@ export class ListingController {
 
             continue;
           }
-
-          //
-          // GALLERY IMAGE
-          //
           if (part.fieldname === 'images[]') {
             const isCover = coverImage?.originalname === fileData.originalname;
 
