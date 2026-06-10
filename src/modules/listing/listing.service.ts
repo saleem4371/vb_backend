@@ -203,13 +203,18 @@ if (!savedVenue) {
       };
     } else if (data.body.category == 'farmstay') {
       categoryData = {
-        banquetRound: capacitySetting?.rooms || 0,
-        cocktailRound: capacitySetting?.beds || 0,
-        guestRooms: capacitySetting?.bathrooms || 0,
+        // banquetRound: capacitySetting?.rooms || 0,
+        // cocktailRound: capacitySetting?.beds || 0,
+        // guestRooms: capacitySetting?.bathrooms || 0,
         checkIn: pricing?.checkIn || '3:00 PM',
         checkOut: pricing?.checkOut || '11:00 AM',
         
       };
+
+      
+
+//FarmStayCapacity
+
     } else if (data.body.category == 'studio') {
       categoryData = {
         banquetRound: capacitySetting?.sizeSqft || 0,
@@ -250,6 +255,33 @@ if (!savedVenue) {
       publishStatus: 0,
     });
     const savedChildVenue = await this.childRepo.save(ChildVenue);
+
+
+    if (data.body.category == 'farmstay') {
+     const FarmStayCapacity = typeof data.body.capacity_setting === 'string'
+        ? JSON.parse(data.body.capacity_setting)
+        : data.body.capacity_setting;
+
+      await this.dataSource.query(
+          `INSERT INTO venue_attributes (venue_id, category_id,max_adults,max_kids,
+          pets_allowed,room_combined,room_types,property_area,property_area_type,bathroom_facilities,bed_types,created_at,updated_at)
+         VALUES (?, ? , ? ,? ,? ,? , ? , ? , ? ,?, ? , NOW() , NOW())`,
+          [
+            savedChildVenue.child_venue_id,
+            2,
+            FarmStayCapacity.maxAdults,
+            FarmStayCapacity.maxKids,
+            FarmStayCapacity.pet_allowed == 'yes' ? 1 : 0,
+            FarmStayCapacity.roomCombination == 'yes' ? 1 : 0,
+            FarmStayCapacity.propertyArea,
+            FarmStayCapacity.propertyAreaUnit,
+            JSON.stringify(FarmStayCapacity.roomTypes),
+            JSON.stringify(FarmStayCapacity.bathroomFacilities),
+            JSON.stringify(FarmStayCapacity.bedTypes)
+          ],
+      );
+
+    }
 
      /* =========================================================
                            Tags 
