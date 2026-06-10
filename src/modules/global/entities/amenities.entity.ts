@@ -24,6 +24,9 @@ export class Amenities {
 
   @Column()
   created_by?: string;
+  
+  @Column()
+  svg_icon?: string;
 
   // RELATION
 
