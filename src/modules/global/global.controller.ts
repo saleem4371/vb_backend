@@ -53,8 +53,14 @@ export class GlobalController {
   country_of_category(@Headers('x-country') country_id: number) {
     return this.globalService.countryOfCategory(country_id);
   } 
+  
+  // @Put('general_settings/:id')
+  // general_settings(@Headers('x-country') country_id: number,@Param('id') id: string) {
+  //   return this.globalService.general_settings(id);
+  // } 
   // @Get('getAllCurrencies')
   // getAllCurrencies(@Query() query: any) {
   //   return this.globalService.getAllCurrencies(query);
   // }
+  
 }

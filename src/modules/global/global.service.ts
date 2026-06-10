@@ -169,53 +169,74 @@ export class GlobalService {
     return country;
   }
 
-  async LoadGetAmenties(query: any) {
-    const { category = '' } = query;
+async LoadGetAmenties(query: any) {
+  const { category = '' } = query;
 
-    const qb = this.amenitiesRepo
-      .createQueryBuilder('amenity')
-      .leftJoinAndSelect('amenity.category', 'category');
+  let categ = 0;
 
-    // Optional category filter
-    // if (category) {
-    //   qb.andWhere('amenity.amenities_category_id = :category', {
-    //     category,
-    //   });
-    // }
+  if (category) {
+    const cate = category.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
 
-    const amenities = await qb
-      .orderBy('category.category', 'ASC')
-      .addOrderBy('amenity.name', 'ASC')
-      .getMany();
+    const [categoryRow] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? LIMIT 1`,
+      [cate],
+    );
 
-    // Group by category
-    const groupedData = amenities.reduce((acc: any[], item: any) => {
-      const existingCategory = acc.find((cat) => cat.id === item.category.id);
-
-      const amenityData = {
-        id: item.id,
-        name: item.name,
-      };
-
-      if (existingCategory) {
-        existingCategory.children.push(amenityData);
-      } else {
-        acc.push({
-          id: item.category.id,
-          category: item.category.category,
-          children: [amenityData],
-        });
-      }
-
-      return acc;
-    }, []);
-
-    return {
-      success: true,
-      data: groupedData,
-    };
+    categ = categoryRow?.id || 0;
   }
 
+  const qb = this.amenitiesRepo
+    .createQueryBuilder('amenity')
+    .leftJoinAndSelect('amenity.category', 'category');
+
+  // Category + Global
+  if (categ > 0) {
+    qb.andWhere(
+      '(amenity.category_id = :categ OR amenity.category_id = 0)',
+      { categ },
+    );
+  }
+
+  const amenities = await qb
+    .orderBy('category.category', 'ASC')
+    .addOrderBy('amenity.name', 'ASC')
+    .getMany();
+
+  const groupedData = amenities.reduce((acc: any[], item: any) => {
+    if (!item.category) {
+      return acc; // skip global items if they have no category relation
+    }
+
+    const existingCategory = acc.find(
+      (cat) => cat.id === item.category.id,
+    );
+
+    const amenityData = {
+      id: item.id,
+      name: item.name,
+      icon: item.svg_icon,
+    };
+
+    if (existingCategory) {
+      existingCategory.children.push(amenityData);
+    } else {
+      acc.push({
+        id: item.category.id,
+        category: item.category.category,
+        children: [amenityData],
+      });
+    }
+
+    return acc;
+  }, []);
+
+  return {
+    success: true,
+    data: groupedData,
+  };
+}
   async countryOfCategory(country_id: number) {
     const categories = await this.dataSource.query(
       `
