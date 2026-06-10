@@ -18,4 +18,11 @@ export class HomeController {
     const userId = user?.id;
     return this.homeService.getUserRecentViews(userId);
   }
+
+   @UseGuards(JwtAuthGuard)
+  @Get('vendor_category')
+  vendor_category(@CurrentUser() user: any) {
+    const userId = user?.id;
+    return this.homeService.vendor_category(userId);
+  }
 }

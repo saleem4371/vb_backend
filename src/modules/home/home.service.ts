@@ -57,4 +57,17 @@ export class HomeService {
 
     return result;
   }
+async vendor_category(userId: any) {
+  const categories = await this.dataSource.query(
+    `SELECT propety_category
+     FROM venue_parent
+     WHERE created_by = ?
+       AND propety_category IS NOT NULL
+       AND propety_category != ''`,
+    [userId]
+  );
+
+  return categories.map(item => `${item.propety_category}s`);
+}
+  
 }
