@@ -20,9 +20,22 @@ export class SurepassController {
   constructor(private readonly surepassService: SurepassService) {}
 
   
- @Get('pan_verify')
-pan_verify(@Query('pan') pan: string) {
-  return this.surepassService.verifyPan(pan);
+ @Post('verifyPAN')
+pan_verify(@Body() body: string) {
+  return this.surepassService.verifyPan(body);
+}
+ @Post('verifyBank')
+verifyBank(@Body() body: string) {
+  return this.surepassService.verifyBank(body);
+} 
+
+@Post('verifyAdhar')
+verifyAdhar(@Body() body: string) {
+  return this.surepassService.verifyAdhar(body);
+}
+@Post('digilocker/callback')
+callback(@Body() body: string) {
+  return this.surepassService.callback(body);
 }
 
 }
