@@ -418,21 +418,53 @@ async findById(id: string) {
 
       us.status,
       us.plan_id,
-      us.end_date
+      us.end_date,
+      us.next_billing_date,
+
+      p.plan_name,
+      p.plan_title,
+      p.min_venue,
+      p.max_venue
 
     FROM users u
 
     LEFT JOIN (
-      SELECT user_id, id, status, plan_id, end_date
+      SELECT
+        user_id,
+        id,
+        status,
+        plan_id,
+        end_date,
+        next_billing_date
       FROM user_subscriptions
       WHERE status = 1
     ) us ON us.user_id = u.id
+
+    LEFT JOIN plans p ON p.id = us.plan_id
 
     WHERE u.id = ?
     LIMIT 1
     `,
     [id],
   );
+
+  if (user) {
+    if (user.max_venue === 1) {
+      user.plan_category = 'starter';
+    } else if (user.max_venue >= 2 && user.max_venue <= 4) {
+      user.plan_category = 'professional';
+    } else if (user.max_venue >= 5) {
+      user.plan_category = 'business';
+    } else {
+      user.plan_category = null;
+    }
+    if(user.plan_title==1) {
+      user.plan_type = 'Monthly';
+    }
+    else{
+      user.plan_type = 'Yearly';
+    }
+  }
 
   return user;
 }
