@@ -75,7 +75,10 @@ export class PackagesController {
     return this.packagesService.create_packages(user?.id, body);
   }
 
- 
+  @Post('publish_packages')
+  publish_packages(@Body() body: any) {
+    return this.packagesService.publish_packages(body);
+  }
 
-  //Packages
+  //Packages publish_packages
 }

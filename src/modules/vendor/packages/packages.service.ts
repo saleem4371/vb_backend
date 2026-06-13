@@ -29,7 +29,7 @@ export class PackagesService {
 
     const items = await this.packageCat.find({
       where: {
-        created_by: id,
+        created_by: user_id,
         types: 0,
       },
       relations: {
@@ -39,7 +39,7 @@ export class PackagesService {
 
     const addon_category = await this.packageCat.find({
       where: {
-        created_by: id,
+        created_by: user_id,
         types: 1,
       },
       relations: {
@@ -382,4 +382,16 @@ const packageData = await this.dataSource.query(
 }
 
 
+  async publish_packages(body: any) {
+    await this.dataSource.query(
+      `
+      UPDATE package
+      SET
+        package_status = ?,
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [body.status, body.id],
+    );
+  }
 }

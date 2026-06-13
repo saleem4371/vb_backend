@@ -124,21 +124,23 @@ const venue_addon = await this.dataSource.query(
       [id],
     );
 
-    const shifts = await this.dataSource.query(
-      `SELECT vsh.*, vst.*
-   FROM venue_shift_header vsh
-   LEFT JOIN venue_shift_timing vst
-     ON vst.id = (
-       SELECT id
-       FROM venue_shift_timing
-       WHERE shift_type = vsh.Shift_type
-       ORDER BY id ASC
-       LIMIT 1
-     )
-   WHERE vsh.child_id = ?`,
-      [id],
-    );
-
+ const shifts = await this.dataSource.query(
+  `
+  SELECT vsh.*, vst.*
+  FROM venue_shift_header vsh
+  LEFT JOIN venue_shift_timing vst
+    ON vst.id = (
+      SELECT id
+      FROM venue_shift_timing
+      WHERE shift_type = vsh.Shift_type
+        AND child_venue_id = vsh.child_id
+      ORDER BY id ASC
+      LIMIT 1
+    )
+  WHERE vsh.child_id = ?
+  `,
+  [id],
+);
     const pricing = {};
 
     shifts.forEach((row) => {
@@ -690,47 +692,147 @@ ORDER BY vgc.id, vg.id
   async updatePricing(id: any, body: any) {
     const pricing = this.safeJson(body.pricing);
 
-    if(body.type=='venue')
-    {
+   if (body.type === "venue") {
+  const shiftMap: Record<string, number> = {
+    morning: 1,
+    afternoon: 2,
+    evening: 3,
+  };
 
-    const shiftMap = {
-      morning: 1,
-      afternoon: 2,
-      evening: 3,
-    };
+  for (const [key, value] of Object.entries(pricing)) {
+    const shiftId = shiftMap[key];
+    if (!shiftId) continue;
 
-    for (const [key, value] of Object.entries(pricing)) {
-      const shiftId = shiftMap[key];
+    const shift: any = value;
 
-      if (!shiftId) continue;
+    // Check if shift header exists
+    const header = await this.dataSource.query(
+      `SELECT id
+       FROM venue_shift_header
+       WHERE child_id = ?
+         AND Shift_type = ?
+       LIMIT 1`,
+      [id, shiftId]
+    );
 
-      const shift: any = value;
-
+    if (header.length > 0) {
+      // Update existing shift header
       await this.dataSource.query(
         `UPDATE venue_shift_header
-         SET publish = ?
-         WHERE Shift_type = ?
-         AND child_id = ?`,
-        [shift?.enabled ? 1 : 0, shiftId, id],
-      );
-
-      await this.dataSource.query(
-        `UPDATE venue_shift_timing
-         SET price = ?,
-             from_time = ?,
-             to_time = ?
-         WHERE shift_type = ?
-         AND child_venue_id = ?`,
+         SET
+            publish = ?,
+            from_time = ?,
+            to_time = ?,
+            base_price_update = ?
+         WHERE child_id = ?
+           AND Shift_type = ?`,
         [
-          shift?.price ?? 0,
-          shift?.start ?? null,
-          shift?.end ?? null,
+          shift.enabled ? 1 : 0,
+          shift.start ?? null,
+          shift.end ?? null,
+          shift.price ?? 0,
+          id,
+          shiftId,
+        ]
+      );
+    } else if (shift.enabled) {
+      // Insert new shift header only when enabled
+      await this.dataSource.query(
+        `INSERT INTO venue_shift_header
+        (
+          name,
+          custom_name,
+          Shift_type,
+          child_id,
+          from_time,
+          to_time,
+          base_price_update,
+          publish,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, 1, NOW(), NOW())`,
+        [
+          key.charAt(0).toUpperCase() + key.slice(1), // Morning
+          key.charAt(0).toUpperCase() + key.slice(1),
           shiftId,
           id,
-        ],
+          shift.start ?? null,
+          shift.end ?? null,
+          shift.price ?? 0,
+        ]
       );
     }
+
+    // Venue shift timing
+    // await this.dataSource.query(
+    //   `INSERT INTO venue_shift_timing
+    //   (
+    //     child_venue_id,
+    //     shift_type,
+    //     price,
+    //     from_time,
+    //     to_time
+    //   )
+    //   VALUES (?, ?, ?, ?, ?)
+    //   ON DUPLICATE KEY UPDATE
+    //     price = VALUES(price),
+    //     from_time = VALUES(from_time),
+    //     to_time = VALUES(to_time)`,
+    //   [
+    //     id,
+    //     shiftId,
+    //     shift.price ?? 0,
+    //     shift.start ?? null,
+    //     shift.end ?? null,
+    //   ]
+    // );
+    const timing= await this.dataSource.query(
+  `SELECT id
+   FROM venue_shift_timing
+   WHERE child_venue_id = ?
+     AND shift_type = ?
+   LIMIT 1`,
+  [id, shiftId]
+);
+
+if (timing.length > 0) {
+  await this.dataSource.query(
+    `UPDATE venue_shift_timing
+     SET
+       price = ?,
+       from_time = ?,
+       to_time = ?
+     WHERE id = ?`,
+    [
+      shift.price ?? 0,
+      shift.start ?? null,
+      shift.end ?? null,
+      timing[0].id,
+    ]
+  );
+} else {
+  await this.dataSource.query(
+    `INSERT INTO venue_shift_timing
+      (
+        child_venue_id,
+        shift_type,
+        price,
+        from_time,
+        to_time
+      )
+     VALUES (?, ?, ?, ?, ?)`,
+    [
+      id,
+      shiftId,
+      shift.price ?? 0,
+      shift.start ?? null,
+      shift.end ?? null,
+    ]
+  );
+}
   }
+}
   else
   {
 const pricingRows = [
