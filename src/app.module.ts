@@ -48,6 +48,8 @@ import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing
 import { ParentListingModule } from './modules/vendor/parent-listing/parent-listing.module';
 import { KycModule } from './modules/vendor/kyc/kyc.module';
 import { PackagesModule } from './modules/vendor/packages/packages.module';
+import { SettingsModule } from './modules/vendor/settings/settings.module';
+import { BookingsModule } from './modules/vendor/bookings/bookings.module';
 
 //Third party API
 
@@ -114,6 +116,8 @@ import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
     MasterModule,
     KycModule,
     PackagesModule,
+    SettingsModule,
+    BookingsModule,
     // CategoryPropertyModule
     // VenueTagsModule,
 
