@@ -706,7 +706,7 @@ export class VenueService {
     //   params.push(south, north, west, east);
     // }
 
-    // const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     /* ======================
      REGISTERED VENUES
