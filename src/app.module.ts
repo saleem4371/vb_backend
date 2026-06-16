@@ -42,7 +42,7 @@ import { ListingModule } from './modules/listing/listing.module';
 
 import { GatewaysModule } from './gateways/gateways.module';
 import { SocketModule } from './modules/socket/socket.module';
-import { PushModule } from './modules/push/push.module';
+// import { PushModule } from './modules/push/push.module';
 
 //vendor
 import { VenueListingModule } from './modules/vendor/venue-listing/venue-listing.module';
@@ -125,7 +125,7 @@ import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
     SurepassModule,
     CashfreeModule,
 
-    PushModule
+    //PushModule
   ],
 
   /* ✅ FIX IS HERE */
