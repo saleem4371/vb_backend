@@ -501,7 +501,7 @@ for (const plan of yourPlans) {
   }  
   
 
-  async create_parent(id: any, body: any, image: any) {
+  async create_parent(id: any, body: any, image: any, Country: any) {
 let uploaded = '';
     if (image) {
       const uploadFile = {
@@ -529,6 +529,8 @@ let uploaded = '';
       build_year: body.built_year,
       opertaion_year: body.operating_since,
       aboutVenues: body.description,
+      propetyCategory: body.category,
+      venueCountry: Country,
       createdBy: id
     });
     const savedVenue = await this.parentRepo.save(parentVenue);
@@ -549,6 +551,45 @@ async parent_last_create_id(id: any, type: any) {
   );
 
   return parent?.[0]?.parent_venue_id ?? null;
+}
+
+async parent_of_category(id: any, type: any) {
+
+  const parent = await this.dataSource.query(
+    `
+    SELECT *
+    FROM venue_parent
+    WHERE created_by = ? AND propety_category = ?
+    LIMIT 1
+    `,
+    [id, type],
+  );
+
+  return parent;
+}
+
+async listing_sub_check(id: any, type: any) {
+
+   const singular = type.endsWith("s")
+  ? type.slice(0, -1)
+  : type;
+
+    const [categorys] = await this.dataSource.query(
+  `SELECT id FROM category WHERE name = ? limit 1`,
+  [singular],
+); 
+
+  const parent = await this.dataSource.query(
+    `
+    SELECT *
+    FROM user_subscriptions
+    WHERE user_id = ? AND category_id = ?
+    LIMIT 1
+    `,
+    [id, categorys.id],
+  );
+
+  return parent;
 }
 }
 

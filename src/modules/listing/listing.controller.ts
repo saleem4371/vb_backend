@@ -11,6 +11,7 @@ import {
   Req,
   BadRequestException,
   UseGuards,
+  Headers,
 } from '@nestjs/common';
 
 import { ListingService } from './listing.service';
@@ -27,10 +28,23 @@ export class ListingController {
   @Put('last_parent_id/:id')
   async parent_last_create_id(@CurrentUser() user: any,@Param('id') id: string) {
     return this.listingService.parent_last_create_id(user?.id,id);
+  } 
+  
+  @UseGuards(JwtAuthGuard)
+  @Put('parent_of_category/:id')
+  async parent_of_category(@CurrentUser() user: any,@Param('id') id: string) {
+    return this.listingService.parent_of_category(user?.id,id);
   }
+  
+  @UseGuards(JwtAuthGuard)
+  @Put('listing_sub_check/:id')
+  async listing_sub_check(@CurrentUser() user: any,@Param('id') id: string) {
+    return this.listingService.listing_sub_check(user?.id,id);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Post('parent_create')
-  async parent_create(@Req() req: FastifyRequest, @CurrentUser() user: any) {
+  async parent_create(@Req() req: FastifyRequest, @CurrentUser() user: any , @Headers('x-country') Country : any) {
     const parts = req.parts();
 
     const body: any = {};
@@ -51,7 +65,7 @@ export class ListingController {
 
     const logo = files.find((f) => f.fieldname === 'logo');
 
-    return this.listingService.create_parent(user?.id, body, logo);
+    return this.listingService.create_parent(user?.id, body, logo ,Country);
   }
   @UseGuards(JwtAuthGuard)
   @Post('create')

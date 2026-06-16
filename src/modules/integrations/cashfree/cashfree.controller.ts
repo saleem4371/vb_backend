@@ -38,10 +38,10 @@ async verifySubscription(
 }
 @Get("cashfree_plans/:category")
 async cashfree_plans(
-  @Param("category") category_id: string
+  @Param("category") category_id: string, @Query('category') category: string,
 ) {
   
-  return this.cashfreeService.cashfree_plans(category_id);
+  return this.cashfreeService.cashfree_plans(category_id,category);
 }
 
 }

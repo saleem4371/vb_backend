@@ -321,8 +321,7 @@ await Promise.all(
     } catch (error) {
       console.error('Subscription Error:');
 
-      throw new BadRequestException(
-        error.response?.data || error.message || 'Subscription creation failed',
+      throw new BadRequestException( 'Subscription creation failed',
       );
     }
   }
@@ -363,11 +362,27 @@ await Promise.all(
       );
     }
   }
-  async cashfree_plans(parentId: string) {
-    const rows = await this.dataSource.query(
+  async cashfree_plans(parentId: string , category :any ) {
+
+    
+     const [categorys] = await this.dataSource.query(
+  `SELECT id FROM category WHERE name = ? limit 1`,
+  [category],
+); 
+let rows = '';
+if(category=='farmstay')
+{
+ rows = await this.dataSource.query(
+      `SELECT * FROM plans WHERE  category_id = ? `,
+      [categorys.id],
+    );
+}
+else{
+     rows = await this.dataSource.query(
       `SELECT * FROM vendor_options vo  LEFT JOIN plans p ON p.id = vo.option_key WHERE vo.parent_id = ? `,
       [parentId],
     );
+  }
     return rows;
   }
 }
