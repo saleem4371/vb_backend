@@ -697,14 +697,14 @@ export class VenueService {
       params.push(query.city);
     }
 
-    // if (mapBounds) {
-    //   where.push(`
-    //   pv.lat BETWEEN ? AND ?
-    //   AND pv.lng BETWEEN ? AND ?
-    // `);
+    if (mapBounds) {
+      where.push(`
+      pv.lat BETWEEN ? AND ?
+      AND pv.lng BETWEEN ? AND ?
+    `);
 
-    //   params.push(south, north, west, east);
-    // }
+      params.push(south, north, west, east);
+    }
 
      const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
