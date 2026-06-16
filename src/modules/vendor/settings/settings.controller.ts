@@ -10,6 +10,7 @@ import {
   Body,
   Query,
   Delete,
+  Headers
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
@@ -23,8 +24,8 @@ export class SettingsController {
 
   @UseGuards(JwtAuthGuard)
   @Get('get')
-  settings(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.settingsService.settings(user?.id, id);
+  settings(@CurrentUser() user: any, @Param('id') id: string,@Headers("x-category") category: string) {
+    return this.settingsService.settings(user?.id, id , category);
   }
  @UseGuards(JwtAuthGuard)
   @Post('saveSettingsAPI')

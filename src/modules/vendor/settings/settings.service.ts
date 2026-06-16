@@ -18,27 +18,39 @@ export class SettingsService {
       private readonly settingGroupRepository: Repository<SettingGroup>,
   ) {}
 
-  async settings(user_id: any, id: any) {
-    const category = await this.dataSource.query(
-      `SELECT * FROM package_items_category WHERE created_by = ? AND  types = ? `,
-      [user_id, 0],
-    );
+  async settings(user_id: any, id: any, category: any) {
 
+    const singular = category.endsWith("s")
+  ? category.slice(0, -1)
+  : category;
 
-    const data = await this.settingGroupRepository.find({
+const categories = await this.dataSource.query(
+  `SELECT * FROM category WHERE name = ? `,
+  [singular],
+);
+
+if (!categories.length) {
+  return [];
+}
+
+const data = await this.settingGroupRepository.find({
   relations: {
     settings: true,
   },
   where: {
     status: true,
+      settings: {
+    category_id: categories[0].id
+      }
   },
   order: {
-    sort_order: 'ASC',
+    sort_order: "ASC",
     settings: {
-      sort_order: 'ASC',
+      sort_order: "ASC",
     },
   },
 });
+
 
 return data;
    

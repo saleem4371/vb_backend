@@ -29,6 +29,7 @@ export class Setting {
   @Column({ unique: true })
   key?: string;
 
+
   @Column()
   label?: string;
 
@@ -67,6 +68,9 @@ export class Setting {
 
   @Column({ default: true })
   status?: boolean;
+  
+  @Column({ default: 0 })
+  category_id?: number;
 
   @OneToMany(() => VenueSetting, (venueSetting) => venueSetting.setting)
   venueSettings?: VenueSetting[];

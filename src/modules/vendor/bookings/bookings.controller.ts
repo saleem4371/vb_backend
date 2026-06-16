@@ -54,4 +54,10 @@ export class BookingsController {
   async globalSetting(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.globalSetting( user?.id,body);
   }
+  
+  @UseGuards(JwtAuthGuard)
+  @Post('booking_create')
+  async booking_create(@Body() body: any, @CurrentUser() user: any) {
+    return await this.bookingsService.booking_create(body, user?.id);
+  }
 }

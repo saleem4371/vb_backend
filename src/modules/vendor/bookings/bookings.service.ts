@@ -9,6 +9,10 @@ import { VenueSetting } from './entity/venue-setting.entity';
 
 import { PackageCategory } from '../../vendor/packages/entity/package-category.entity'; //entity/package-category.entity
 
+// import { PushService } from '../../push/push.service'
+
+
+import { v4 as uuidv4 } from 'uuid';
 //categoryRepository
 
 @Injectable()
@@ -16,6 +20,7 @@ export class BookingsService {
   constructor(
     private dataSource: DataSource,
     private storageService: StorageService,
+    //  private readonly pushService: PushService,
     @InjectRepository(SettingGroup)
       private readonly settingGroupRepository: Repository<SettingGroup>,
 
@@ -78,8 +83,8 @@ async availableVenues(body: any, id: number) {
   } = body;
 
   // Dates
-  const from = selectionMode === "single" ? date : startDate;
-  const to = selectionMode === "single" ? date : endDate;
+  const from = selectionMode === "single" ? startDate : startDate;
+  const to = selectionMode === "single" ? startDate : endDate;
 
   // Shift Mapping
   const shiftMap: Record<string, number> = {
@@ -115,40 +120,39 @@ async availableVenues(body: any, id: number) {
 
   const placeholders = shiftIds.map(() => "?").join(",");
 
-  const sql = `
+ const sql = `
 SELECT
-    vc.child_venue_id,
-    vc.parent_venue_id,
-    vc.child_auto_no,
-    vc.guest_rooms,
-    vc.child_venue_name,
-    vc.venue_category_id,
+vc.child_venue_id,
+vc.parent_venue_id,
+vc.child_auto_no,
+vc.guest_rooms,
+vc.child_venue_name,
+vc.venue_category_id,
 
-    GROUP_CONCAT(
-        DISTINCT vsh.name
-        ORDER BY vsh.shift_type
-        SEPARATOR ', '
-    ) AS shift_names,
+GROUP_CONCAT(
+    DISTINCT vsh.name
+    ORDER BY vsh.shift_type
+    SEPARATOR ', '
+) AS shift_names,
 
-    GROUP_CONCAT(
-        DISTINCT CONCAT(vsh.from_time,' - ',vsh.to_time)
-        ORDER BY vsh.shift_type
-        SEPARATOR ', '
-    ) AS shift_timings,
+GROUP_CONCAT(
+    DISTINCT CONCAT(vsh.from_time,' - ',vsh.to_time)
+    ORDER BY vsh.shift_type
+    SEPARATOR ', '
+) AS shift_timings,
 
-    CONCAT(
-    '[',
-    GROUP_CONCAT(
-        DISTINCT JSON_OBJECT(
-            'key', vcs.key,
-            'value', vcs.value
-        )
-        ORDER BY vcs.group
-    ),
-    ']'
+CONCAT(
+'[',
+GROUP_CONCAT(
+    DISTINCT JSON_OBJECT(
+        'key', vcs.key,
+        'value', vcs.value
+    )
+),
+']'
 ) AS child_setting,
 
-    SUM(DISTINCT cvs.price) AS per_day_price
+SUM(DISTINCT cvs.price) AS per_day_price
 
 FROM venue_child vc
 
@@ -164,47 +168,58 @@ LEFT JOIN venue_child_settings vcs
     ON vcs.child_id = vc.child_venue_id
 
 WHERE
-    vc.created_by = ?
-    AND cvs.shift_type IN (${placeholders})
+vc.created_by = ?
+AND cvs.shift_type IN (${placeholders})
 
-    AND NOT EXISTS (
-        SELECT 1
-        FROM bookings b
-        INNER JOIN booking_shift bs
-            ON bs.booking_id = b.booking_id
-        WHERE
-            b.child_venue_id = vc.child_venue_id
-            AND b.from_date <= ?
-            AND b.to_date >= ?
-            AND bs.shift_id IN (${placeholders})
-    )
+-- =====================================================
+-- ✅ FIXED MULTI-DAY + SHIFT CONFLICT LOGIC
+-- =====================================================
+AND NOT EXISTS (
+    SELECT 1
+    FROM bookings b
 
-GROUP BY
-    vc.child_venue_id
+    INNER JOIN booking_shift bs
+        ON bs.booking_id = b.booking_id
 
-HAVING
-    COUNT(DISTINCT cvs.shift_type) = ?
+    WHERE
+        EXISTS (
+            SELECT 1
+            FROM booking_child_venue bcv
+            WHERE bcv.booking_id = b.booking_id
+            AND bcv.child_venue_id = vc.child_venue_id
+        )
 
-ORDER BY
-    vc.child_venue_name
+        -- ✅ FIXED DATE OVERLAP (STRICT)
+        AND b.from_date <= ?
+        AND b.to_date >= ?
+
+        -- ✅ SHIFT MUST MATCH (STRICT CONFLICT)
+        AND bs.shift_id IN (${placeholders})
+)
+
+GROUP BY vc.child_venue_id
+
+HAVING COUNT(DISTINCT cvs.shift_type) = ?
+
+ORDER BY vc.child_venue_id;
 `;
+  const venues = await this.dataSource.query(sql, [
+  id,
 
-  const venues: any[] = await this.dataSource.query(sql, [
-    id,
+  // venue shifts
+  ...shiftIds,
 
-    // selected shifts
-    ...shiftIds,
+  // date overlap (IMPORTANT ORDER)
+   from,
+  to,
+ 
 
-    // booking overlap
-    to,
-    from,
+  // booked shifts
+  ...shiftIds,
 
-    // booked shifts
-    ...shiftIds,
-
-    // venue must contain all selected shifts
-    shiftIds.length,
-  ]);
+  // full shift match
+  shiftIds.length,
+]);
 
  
   return venues.map((venue) => {
@@ -234,7 +249,7 @@ if (timings.length > 0) {
       ? venue.shift_names.split(",")
       : [],
 
-      child_setting: venue.child_setting
+    child_setting: venue.child_setting
     ? JSON.parse(venue.child_setting)
     : [],
 
@@ -389,6 +404,173 @@ async loadAllAddons(body: any, id: number) {
 
   return data;
 }
+async booking_create(dto: any, id: number) {
+  
+  const bookingUuid = uuidv4();
+  const result: any = await this.dataSource.query(
+    `
+    INSERT INTO bookings
+    (
+      booking_id,
+      auto_increment,
+      booking_type,
+      booking_event_type_id,
+      child_venue_id,
+      from_date,
+      to_date,
+      booked_shift_type,
+      booked_no_of_people,
+      guest_capacity,
+      total_booking_price,
+      base_amount_of_hall,
+      security_deposit,
+      pax_tax,
+      special_request,
+      billing_first_name,
+      billing_phone,
+      billing_email,
+      created_at,
+      updated_at,
+      created_by_,
+      created_under_by
+    )
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `,
+    [
+      bookingUuid,
+      dto.invoice_no,
+      dto.booking_type == 'book' ? 1 : 2,
+      dto.event?.event_type || null, // FIX 1
 
+      dto.venues?.[0]?.child_venue_id || null,
+
+      dto.event?.selection_mode === 'single'
+        ? dto.event?.event_date
+        : dto.event?.date_range?.start_date || null,
+
+      dto.event?.selection_mode === 'single'
+        ? dto.event?.event_date
+        : dto.event?.date_range?.end_date || null,
+
+      0,
+
+      dto.pricing?.total_guests || 0,
+      dto.event?.guest_capacity || 0,
+
+      dto.pricing?.grand_total || 0,
+      dto.pricing?.base_amount || 0,
+      dto.pricing?.security_deposit || 0,
+      dto.pricing?.pax_gst || 0,
+
+      dto.special_request || null,
+
+      dto.customer?.name || null,
+      dto.customer?.phone || null,
+      dto.customer?.email || null,
+      new Date(),
+      new Date(),
+      id,
+      id,
+    ],
+  );
+
+  // const bookingId = result.insertId;
+
+  // =========================
+  // VENUES
+  // =========================
+  if (dto.venues?.length) {
+    for (const venue of dto.venues) {
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_child_venue
+        (booking_id, child_venue_id)
+        VALUES (?,?)
+        `,
+        [bookingUuid, venue.child_venue_id],
+      );
+    }
+  }
+
+  // =========================
+  // SHIFTS (FIXED STRING SAFE)
+  // =========================
+  if (dto.event?.shift?.length) {
+    for (const shift of dto.event.shift) {
+      const SHIFT_MAP = {
+  morning: 1,
+  afternoon: 2,
+  evening: 3,
+};
+
+const shiftId = SHIFT_MAP[shift.toLowerCase()];
+
+    if (!shiftId) continue; // skip invalid values
+
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_shift
+        (booking_id, shift_id)
+        VALUES (?,?)
+        `,
+        [
+          bookingUuid,
+          shiftId, 
+        ],
+      );
+    }
+  }
+
+  // =========================
+  // ADDONS
+  // =========================
+  if (dto.addons?.length) {
+    for (const addon of dto.addons) {
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_addon
+        (booking_id, qty, price, total)
+        VALUES (?,?,?,?)
+        `,
+        [
+          bookingUuid,
+          addon.qty,
+          addon.unit_price,
+          addon.amount,
+        ],
+      );
+    }
+  }
+
+  // =========================
+  // SERVICE PROVIDERS
+  // =========================
+  if (dto.service_providers) {
+    for (const [type, value] of Object.entries(dto.service_providers)) {
+      if (!value) continue;
+
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_service_provider
+        (booking_id, provider_type, provider_name)
+        VALUES (?,?,?)
+        `,
+        [bookingUuid, type, value],
+      );
+    }
+  }
+
+//   await this.pushService.sendToUser(
+//     id,
+//     'Booking Confirmed',
+//     'Your booking has been confirmed.',
+//     '/bookings/' + id,
+// );
+
+  return {
+    success: true,
+    booking_id: bookingUuid,
+  };
+}
 
 }

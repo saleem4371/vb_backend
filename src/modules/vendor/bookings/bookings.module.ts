@@ -8,6 +8,8 @@ import { VenueSetting } from './entity/venue-setting.entity';
 import { PackageCategory } from '../../vendor/packages/entity/package-category.entity'; //entity/package-category.entity
 import { TypeOrmModule } from "@nestjs/typeorm";
 
+
+
 @Module({
   controllers: [BookingsController],
   providers: [BookingsService],
