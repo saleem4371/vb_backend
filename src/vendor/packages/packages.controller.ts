@@ -13,8 +13,8 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
-import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
-import { CurrentUser } from '../../../common/decorators/user.decorator';
+import { JwtAuthGuard } from '../../modules/auth/strategies/jwt-auth.guard';
+import { CurrentUser } from '../../common/decorators/user.decorator';
 import { PackagesService } from './packages.service';
 
 @Controller('packages')
