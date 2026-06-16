@@ -14,7 +14,9 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
-import { JwtAuthGuard } from '../../modules/auth/strategies/jwt-auth.guard';
+// import { JwtAuthGuard } from '../../modules/auth/strategies/jwt-auth.guard';
+
+import { JwtAuthGuard } from '../auth/strategies/jwt-auth.guard';
 import { CurrentUser } from '../../common/decorators/user.decorator';
 import { PushService } from './push.service';
 import { RegisterPushDto } from './dto/register-push.dto';
