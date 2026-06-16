@@ -11,8 +11,8 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
-import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
-import { CurrentUser } from '../../../common/decorators/user.decorator';
+import { JwtAuthGuard } from '../../modules/auth/strategies/jwt-auth.guard';
+import { CurrentUser } from '../../common/decorators/user.decorator';
 import { ParentListingService } from './parent-listing.service';
 
 @Controller('parent-listing')
