@@ -137,7 +137,8 @@ if (data.body.parent_venue_id) {
       venueCountry: data.body.country,
       lat: Number(data.body.lat || 0),
       lng: Number(data.body.lng || 0),
-      propetyCategory: data.body.category
+      propetyCategory: data.body.category,
+      
     });
 
     savedVenue = await this.parentRepo.save(existingVenue);
@@ -166,6 +167,7 @@ if (!savedVenue) {
     userRatingsTotal: 1,
     publishStatus: '0',
     propetyCategory: data.body.category,
+    child_count:1
   });
 
   savedVenue = await this.parentRepo.save(parentVenue);
@@ -587,6 +589,30 @@ async listing_sub_check(id: any, type: any) {
     LIMIT 1
     `,
     [id, categorys.id],
+  );
+
+  return parent;
+}
+
+async child_of_category(id: any, type: any) {
+
+   const singular = type.endsWith("s")
+  ? type.slice(0, -1)
+  : type;
+
+    const [categorys] = await this.dataSource.query(
+  `SELECT id FROM category WHERE name = ? limit 1`,
+  [singular],
+); 
+
+  const parent = await this.dataSource.query(
+    `
+    SELECT *
+    FROM venue_child 
+    LEFT JOIN venue_parent ON venue_parent.parent_venue_id = venue_child.parent_venue_id
+    WHERE venue_child.created_by = ? AND propety_category = ?
+    `,
+    [id, singular],
   );
 
   return parent;

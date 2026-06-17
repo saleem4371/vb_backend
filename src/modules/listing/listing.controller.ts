@@ -34,6 +34,12 @@ export class ListingController {
   @Put('parent_of_category/:id')
   async parent_of_category(@CurrentUser() user: any,@Param('id') id: string) {
     return this.listingService.parent_of_category(user?.id,id);
+  }  
+  
+  @UseGuards(JwtAuthGuard)
+  @Put('child_of_category/:id')
+  async child_of_category(@CurrentUser() user: any,@Param('id') id: string) {
+    return this.listingService.child_of_category(user?.id,id);
   }
   
   @UseGuards(JwtAuthGuard)
