@@ -63,7 +63,7 @@ export class BookingsController {
   } 
   
   @UseGuards(JwtAuthGuard)
-  @Post('all_reservations')
+  @Get('all_reservations')
   async all_reservations(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any) {
     return await this.bookingsService.all_reservations(category, country, user?.id);
   }
