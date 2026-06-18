@@ -39,7 +39,7 @@ export class BookingsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Post('Load_all_packages')
+  @Get('Load_all_packages')
   async Load_all_packages(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.Load_all_packages(body, user?.id);
   }
