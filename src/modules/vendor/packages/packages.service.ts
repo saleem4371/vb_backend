@@ -394,4 +394,112 @@ const packageData = await this.dataSource.query(
       [body.status, body.id],
     );
   }
+  
+  async packages_uploads(items: any ,id:any) 
+  {
+ const rows = items.slice(1); // Skip header row
+
+for (const row of rows) {
+  const [, category, itemName, amount, type] = row;
+
+  const categoryType = Number(type) === 1 ? 1 : 0;
+
+  // Check category
+  const categoryResult: any = await this.dataSource.query(
+    `
+    SELECT id
+    FROM package_items_category
+    WHERE item_category = ?
+      AND created_by = ?
+      AND types = ?
+    LIMIT 1
+    `,
+    [category, id, categoryType]
+  );
+
+  let categoryId;
+
+  if (categoryResult.length > 0) {
+    categoryId = categoryResult[0].id;
+  } else {
+    const insertCategory: any = await this.dataSource.query(
+      `
+      INSERT INTO package_items_category
+      (
+        item_category,
+        created_by,
+        types,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, NOW(), NOW())
+      `,
+      [category, id, categoryType]
+    );
+
+    categoryId = insertCategory.insertId;
+  }
+
+  // Check item
+  const itemResult: any = await this.dataSource.query(
+    `
+    SELECT id
+    FROM package_items_list
+    WHERE cat_id = ?
+      AND item_name = ?
+      AND created_by = ?
+    LIMIT 1
+    `,
+    [categoryId, itemName, id]
+  );
+
+  if (itemResult.length > 0) {
+    // Update existing item
+    await this.dataSource.query(
+      `
+      UPDATE package_items_list
+      SET
+          item_price = ?,
+          food_pre = ?,
+          updated_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        amount,
+        1,
+        itemResult[0].id,
+      ]
+    );
+  } else {
+    // Insert new item
+    await this.dataSource.query(
+      `
+      INSERT INTO package_items_list
+      (
+          cat_id,
+          item_name,
+          item_price,
+          item_price_1,
+          created_by,
+          image,
+          food_pre,
+          created_at,
+          updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `,
+      [
+        categoryId,
+        itemName,
+        amount,
+        0,
+        id,
+        '',
+        1,
+      ]
+    );
+  }
+}
+    
+  }
 }

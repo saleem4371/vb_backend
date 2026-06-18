@@ -78,6 +78,11 @@ export class PackagesController {
   @Post('publish_packages')
   publish_packages(@Body() body: any) {
     return this.packagesService.publish_packages(body);
+  } 
+  @UseGuards(JwtAuthGuard)
+  @Post('packages_uploads')
+  packages_uploads(@Body() body: any, @CurrentUser() user: any) {
+    return this.packagesService.packages_uploads(body,user?.id);
   }
 
   //Packages publish_packages
