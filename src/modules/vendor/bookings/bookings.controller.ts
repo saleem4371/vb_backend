@@ -51,7 +51,7 @@ export class BookingsController {
   } 
   
   @UseGuards(JwtAuthGuard)
-  @Post('globalSetting')
+  @Get('globalSetting')
   async globalSetting(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.globalSetting( user?.id,body);
   }
