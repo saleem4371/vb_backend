@@ -706,7 +706,7 @@ export class VenueService {
       params.push(south, north, west, east);
     }
 
-     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     /* ======================
      REGISTERED VENUES
@@ -776,6 +776,20 @@ export class VenueService {
      UNREGISTERED (PAGINATED)
   ====================== */
 
+   const wheres: string[] = [];
+    const paramss: any[] = [];
+
+   if (mapBounds) {
+      wheres.push(`
+      uv.lat BETWEEN ? AND ?
+      AND uv.lng BETWEEN ? AND ?
+    `);
+
+      paramss.push(south, north, west, east);
+    }
+
+    const whereClauses = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
+
     const unsql = `
   SELECT
     uv.id AS childVenueId,
@@ -785,7 +799,6 @@ export class VenueService {
     uv.lat,
     uv.lng,
 
-    /* COVER IMAGE */
     (
       SELECT ug.images
       FROM unrigistered_gallery ug
@@ -794,18 +807,20 @@ export class VenueService {
       LIMIT 1
     ) AS coverImage,
 
-    /* GALLERY IMAGES (SAFE JSON) */
     (
       SELECT JSON_ARRAYAGG(ug.images)
       FROM unrigistered_gallery ug
       WHERE ug.unreg_id = uv.id
     ) AS images
 
-
   FROM unrigistered_venues uv
+  ${whereClauses}
+  LIMIT ? OFFSET ?
 `;
 
-    const unregistered = await this.dataSource.query(unsql, [limit, offset]);
+paramss.push(limit, offset);
+
+const unregistered = await this.dataSource.query(unsql, paramss);
 
     /* ======================
      MERGE RESULT (FIXED)
