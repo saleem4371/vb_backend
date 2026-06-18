@@ -11,7 +11,8 @@ import { PackageCategory } from '../../vendor/packages/entity/package-category.e
 
 // import { PushService } from '../../push/push.service'
 
-import { generateCode , total_code_generating } from 'src/common/utils/code-generator';
+// import { generateCode , total_code_generating } from 'src/common/utils/code-generator';
+import { generateCode ,  total_code_generating} from '../common/utils/code-generator';
 
 
 import { v4 as uuidv4 } from 'uuid';
