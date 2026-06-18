@@ -11,6 +11,8 @@ import { PackageCategory } from '../../vendor/packages/entity/package-category.e
 
 // import { PushService } from '../../push/push.service'
 
+import { generateCode , total_code_generating } from 'src/common/utils/code-generator';
+
 
 import { v4 as uuidv4 } from 'uuid';
 //categoryRepository
@@ -405,13 +407,42 @@ async loadAllAddons(body: any, id: number) {
   return data;
 }
 async booking_create(dto: any, id: number) {
-  
+
+  // 
+  const singular = dto.category.endsWith("s") ? dto.category.slice(0, -1) : dto.category;
+  const [categorys] = await this.dataSource.query(`SELECT id FROM category WHERE name = ? limit 1`,[singular]); 
   const bookingUuid = uuidv4();
+  //const code = generateCode();
+
+   let code = generateCode();
+   let code_total = total_code_generating();
+
+
+while (true) {
+  const rows = await this.dataSource.query(
+    `SELECT 1 FROM bookings WHERE booking_auto_id = ? LIMIT 1`,
+    [code],
+  );
+
+  if (rows.length === 0) {
+    break; // Unique code found
+  }
+
+  code = generateCode(); // Generate another code
+}
+
+ const crows = await this.dataSource.query(
+  `SELECT COUNT(*) AS total FROM bookings`
+);
+
+const generated_code = Number(crows[0].total);
+
   const result: any = await this.dataSource.query(
     `
     INSERT INTO bookings
     (
       booking_id,
+      booking_auto_id,
       auto_increment,
       booking_type,
       booking_event_type_id,
@@ -432,12 +463,15 @@ async booking_create(dto: any, id: number) {
       created_at,
       updated_at,
       created_by_,
-      created_under_by
+      created_under_by,
+      category_id,
+      booking_types
     )
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `,
     [
       bookingUuid,
+      code,
       dto.invoice_no,
       dto.booking_type == 'book' ? 1 : 2,
       dto.event?.event_type || null, // FIX 1
@@ -471,6 +505,8 @@ async booking_create(dto: any, id: number) {
       new Date(),
       id,
       id,
+      categorys.id,
+      dto.reserveType
     ],
   );
 
@@ -570,7 +606,115 @@ const shiftId = SHIFT_MAP[shift.toLowerCase()];
   return {
     success: true,
     booking_id: bookingUuid,
+    code_total:code_total,
+    code_completed:generated_code,
+    code_pending:code_total-generated_code,
   };
 }
+
+
+async all_reservations(category: any,country: any, id: number) 
+{
+    const singular = category.endsWith("s") ? category.slice(0, -1) : category;
+  const [categorys] = await this.dataSource.query(`SELECT id FROM category WHERE name = ? limit 1`,[singular]); 
+
+ const rows = await this.dataSource.query(`
+SELECT
+    b.booking_id AS id,
+    b.booking_auto_id AS refNo,
+    b.booking_type AS type,
+
+    CASE
+        WHEN b.status = '2' THEN 'CANCELLED'
+        WHEN b.booking_type = 2 THEN 'RESERVED'
+        WHEN b.booking_type = 4 THEN 'NEW'
+        WHEN b.status = '1' THEN 'CONFIRMED'
+        WHEN b.status = '0' THEN 'PENDING'
+        ELSE 'NEW'
+    END AS workflowState,
+
+    b.billing_first_name AS name,
+    b.billing_email AS email,
+    b.billing_phone AS phone,
+
+    GROUP_CONCAT(
+        DISTINCT vc.child_venue_name
+        ORDER BY vc.child_venue_name
+        SEPARATOR ', '
+    ) AS venue,
+
+    b.booked_no_of_people AS guests,
+    b.total_booking_price AS amountNum,
+    b.total_booking_price AS amount,
+    b.from_date AS eventDate,
+    b.created_at AS orderDate,
+
+    GROUP_CONCAT(
+        DISTINCT CASE
+            WHEN s.shift_id = 1 THEN 'Morning'
+            WHEN s.shift_id = 2 THEN 'Afternoon'
+            WHEN s.shift_id = 3 THEN 'Evening'
+        END
+        ORDER BY s.shift_id
+        SEPARATOR ', '
+    ) AS shift,
+
+    b.booking_auto_id AS source,
+    b.booking_auto_id AS caterer,
+    b.booking_auto_id AS decorator,
+    b.booking_auto_id AS paymentStatus,
+    b.booking_auto_id AS assignedStaff,
+
+    bet.event_name AS eventType,
+
+    CASE
+        WHEN b.status = '2' THEN 'bg-red-500'
+        WHEN b.booking_type = 2 THEN 'bg-pink-500'
+        WHEN b.booking_type = 4 THEN 'bg-blue-500'
+        WHEN b.status = '1' THEN 'bg-emerald-500'
+        WHEN b.status = '0' THEN 'bg-amber-500'
+        ELSE 'bg-violet-500'
+    END AS avatarColor,
+
+    b.booking_auto_id AS tag
+
+FROM bookings b
+
+LEFT JOIN booking_event_types bet
+    ON bet.id = b.booking_event_type_id
+
+LEFT JOIN booking_child_venue bcv
+    ON bcv.booking_id = b.booking_id
+
+LEFT JOIN venue_child vc
+    ON vc.child_venue_id = bcv.child_venue_id
+
+LEFT JOIN booking_shift s
+    ON s.booking_id = b.booking_id
+
+WHERE b.created_under_by = ?
+  AND b.category_id = ?
+
+GROUP BY
+    b.booking_id,
+    b.booking_auto_id,
+    b.booking_type,
+    b.status,
+    b.billing_first_name,
+    b.billing_email,
+    b.billing_phone,
+    b.booked_no_of_people,
+    b.total_booking_price,
+    b.from_date,
+    b.created_at,
+    bet.event_name
+
+ORDER BY b.created_at DESC
+`, [id, categorys.id]);
+
+  return rows;
+}
+
+
 
 }

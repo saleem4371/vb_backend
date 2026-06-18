@@ -10,6 +10,7 @@ import {
   Body,
   Query,
   Delete,
+  Headers
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
@@ -59,5 +60,15 @@ export class BookingsController {
   @Post('booking_create')
   async booking_create(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.booking_create(body, user?.id);
+  } 
+  
+  @UseGuards(JwtAuthGuard)
+  @Post('all_reservations')
+  async all_reservations(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any) {
+    return await this.bookingsService.all_reservations(category, country, user?.id);
   }
+
+  
+
+
 }
