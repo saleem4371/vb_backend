@@ -629,6 +629,7 @@ SELECT
     CASE
         WHEN b.status = '2' THEN 'CANCELLED'
         WHEN b.booking_type = 2 THEN 'RESERVED'
+        
         WHEN b.booking_type = 4 THEN 'NEW'
         WHEN b.status = '1' THEN 'CONFIRMED'
         WHEN b.status = '0' THEN 'PENDING'
@@ -916,6 +917,159 @@ ORDER BY b.created_at DESC
 
 return rows[0];
 }
+
+async Load_all_venues(id: any) 
+{
+   const rows = await this.dataSource.query(
+    `
+    SELECT *
+    FROM venue_child vc
+    LEFT JOIN venue_parent vp ON vp.parent_venue_id = vc.parent_venue_id
+    WHERE vc.created_by = ?  AND vp.propety_category = ? AND vc.publish_status = 0
+    `,
+    [id,'venue']
+  );
+  return rows;
+}
+
+async leads_create(dto:any,id: any) 
+{
+
+ //const singular = dto.category.endsWith("s") ? dto.category.slice(0, -1) : dto.category;
+  //const [categorys] = await this.dataSource.query(`SELECT id FROM category WHERE name = ? limit 1`,[singular]); 
+  const bookingUuid = uuidv4();
+  //const code = generateCode();
+
+   let code = generateCode();
+   let code_total = total_code_generating();
+
+
+while (true) {
+  const rows = await this.dataSource.query(
+    `SELECT 1 FROM bookings WHERE booking_auto_id = ? LIMIT 1`,
+    [code],
+  );
+
+  if (rows.length === 0) {
+    break; // Unique code found
+  }
+
+  code = generateCode(); // Generate another code
+}
+
+ const crows = await this.dataSource.query(
+  `SELECT COUNT(*) AS total FROM bookings`
+);
+
+const generated_code = Number(crows[0].total);
+
+  const result: any = await this.dataSource.query(
+    `
+    INSERT INTO bookings
+    (
+      booking_id,
+      booking_auto_id,
+      auto_increment,
+      booking_type,
+      booking_event_type_id,
+      child_venue_id,
+      from_date,
+      to_date,
+      booked_shift_type,
+      booked_no_of_people,
+      guest_capacity,
+      total_booking_price,
+      base_amount_of_hall,
+      security_deposit,
+      pax_tax,
+      special_request,
+      billing_first_name,
+      billing_phone,
+      billing_email,
+      created_at,
+      updated_at,
+      created_by_,
+      created_under_by,
+      category_id,
+      booking_types,
+      billing_address
+    )
+    VALUES (?,?,?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    `,
+    [
+      bookingUuid,
+      code,
+      0,
+      '0',
+      dto.eventType || null, // FIX 1
+
+      dto.venue || null,
+
+      dto?.eventDate || null,
+
+      dto?.eventDate,
+
+      0,
+
+      dto.guestCount || 0,
+      dto.guestCount || 0,
+
+      dto.budget || 0,
+      dto.budget || 0,
+       0,
+       0,
+
+      dto.notes || null,
+
+      dto?.name || null,
+      dto?.phone || null,
+      dto?.email || null,
+      new Date(),
+      new Date(),
+      id,
+      id,
+      1,
+      3,
+      dto?.address || null,
+    ],
+  );
+
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_child_venue
+        (booking_id, child_venue_id)
+        VALUES (?,?)
+        `,
+        [bookingUuid, dto.venue],
+      );
+    
+  
+
+  // =========================
+  // SHIFTS (FIXED STRING SAFE)
+  // =========================
+      const SHIFT_MAP = {
+  morning: 1,
+  afternoon: 2,
+  evening: 3,
+};
+
+const shiftId = SHIFT_MAP[dto.shift.toLowerCase()];
+
+
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_shift
+        (booking_id, shift_id)
+        VALUES (?,?)
+        `,
+        [
+          bookingUuid,
+          shiftId, 
+        ],
+      );
+    }
+  
 
 
 }

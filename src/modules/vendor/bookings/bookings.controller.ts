@@ -77,6 +77,18 @@ export class BookingsController {
     return await this.bookingsService.reservation_manage(id);
   }
 
+   @UseGuards(JwtAuthGuard)
+  @Get('Load_all_venues')
+  async Load_all_venues(@CurrentUser() user: any) {
+    return await this.bookingsService.Load_all_venues(user?.id);
+  }
+
+     @UseGuards(JwtAuthGuard)
+  @Post('leads_create')
+  async leads_create(@Body() body: any,@CurrentUser() user: any) {
+    return await this.bookingsService.leads_create(body,user?.id);
+  }
+
   
 
 
