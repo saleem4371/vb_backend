@@ -12,8 +12,8 @@ import { PackageCategory } from '../../vendor/packages/entity/package-category.e
 // import { PushService } from '../../push/push.service'
 
 // import { generateCode , total_code_generating } from 'src/common/utils/code-generator';
-import { generateCode , total_code_generating } from '../../../common/utils/code-generator';
 
+import { generateCode , total_code_generating } from '../../../common/utils/code-generator';
 
 
 import { v4 as uuidv4 } from 'uuid';
@@ -666,6 +666,7 @@ SELECT
     b.booking_auto_id AS decorator,
     b.booking_auto_id AS paymentStatus,
     b.booking_auto_id AS assignedStaff,
+    b.base_amount_of_hall AS base_amt,
 
     bet.event_name AS eventType,
 
@@ -717,6 +718,204 @@ ORDER BY b.created_at DESC
   return rows;
 }
 
+
+async reservation_invoice(id: any) 
+{
+  const rows = await this.dataSource.query(`
+SELECT
+    b.booking_id AS id,
+    b.booking_auto_id AS refNo,
+    b.booking_type AS type,
+
+    CASE
+        WHEN b.status = '2' THEN 'CANCELLED'
+        WHEN b.booking_type = 2 THEN 'RESERVED'
+        WHEN b.booking_type = 4 THEN 'NEW'
+        WHEN b.status = '1' THEN 'CONFIRMED'
+        WHEN b.status = '0' THEN 'PENDING'
+        ELSE 'NEW'
+    END AS workflowState,
+
+    b.billing_first_name AS name,
+    b.billing_email AS email,
+    b.billing_phone AS phone,
+
+    GROUP_CONCAT(
+        DISTINCT vc.child_venue_name
+        ORDER BY vc.child_venue_name
+        SEPARATOR ', '
+    ) AS venue,
+
+    b.booked_no_of_people AS guests,
+    b.total_booking_price AS amountNum,
+    b.total_booking_price AS amount,
+    b.from_date AS eventDate,
+    b.created_at AS orderDate,
+b.base_amount_of_hall AS base_amt,
+
+    GROUP_CONCAT(
+        DISTINCT CASE
+            WHEN s.shift_id = 1 THEN 'Morning'
+            WHEN s.shift_id = 2 THEN 'Afternoon'
+            WHEN s.shift_id = 3 THEN 'Evening'
+        END
+        ORDER BY s.shift_id
+        SEPARATOR ', '
+    ) AS shift,
+
+    b.booking_auto_id AS source,
+    b.booking_auto_id AS caterer,
+    b.booking_auto_id AS decorator,
+    b.booking_auto_id AS paymentStatus,
+    b.booking_auto_id AS assignedStaff,
+
+    bet.event_name AS eventType,
+
+    CASE
+        WHEN b.status = '2' THEN 'bg-red-500'
+        WHEN b.booking_type = 2 THEN 'bg-pink-500'
+        WHEN b.booking_type = 4 THEN 'bg-blue-500'
+        WHEN b.status = '1' THEN 'bg-emerald-500'
+        WHEN b.status = '0' THEN 'bg-amber-500'
+        ELSE 'bg-violet-500'
+    END AS avatarColor,
+
+    b.booking_auto_id AS tag
+
+FROM bookings b
+
+LEFT JOIN booking_event_types bet
+    ON bet.id = b.booking_event_type_id
+
+LEFT JOIN booking_child_venue bcv
+    ON bcv.booking_id = b.booking_id
+
+LEFT JOIN venue_child vc
+    ON vc.child_venue_id = bcv.child_venue_id
+
+LEFT JOIN booking_shift s
+    ON s.booking_id = b.booking_id
+
+WHERE b.booking_id = ?
+
+GROUP BY
+    b.booking_id,
+    b.booking_auto_id,
+    b.booking_type,
+    b.status,
+    b.billing_first_name,
+    b.billing_email,
+    b.billing_phone,
+    b.booked_no_of_people,
+    b.total_booking_price,
+    b.from_date,
+    b.created_at,
+    bet.event_name
+
+ORDER BY b.created_at DESC
+`, [id]);
+
+return rows[0];
+}
+
+async reservation_manage(id: any) 
+{
+  const rows = await this.dataSource.query(`
+SELECT
+    b.booking_id AS id,
+    b.booking_auto_id AS refNo,
+    b.booking_type AS type,
+
+    CASE
+        WHEN b.status = '2' THEN 'CANCELLED'
+        WHEN b.booking_type = 2 THEN 'RESERVED'
+        WHEN b.booking_type = 4 THEN 'NEW'
+        WHEN b.status = '1' THEN 'CONFIRMED'
+        WHEN b.status = '0' THEN 'PENDING'
+        ELSE 'NEW'
+    END AS workflowState,
+
+    b.billing_first_name AS name,
+    b.billing_email AS email,
+    b.billing_phone AS phone,
+
+    GROUP_CONCAT(
+        DISTINCT vc.child_venue_name
+        ORDER BY vc.child_venue_name
+        SEPARATOR ', '
+    ) AS venue,
+
+    b.booked_no_of_people AS guests,
+    b.total_booking_price AS amountNum,
+    b.total_booking_price AS amount,
+    b.from_date AS eventDate,
+    b.created_at AS orderDate,
+b.base_amount_of_hall AS base_amt,
+
+    GROUP_CONCAT(
+        DISTINCT CASE
+            WHEN s.shift_id = 1 THEN 'Morning'
+            WHEN s.shift_id = 2 THEN 'Afternoon'
+            WHEN s.shift_id = 3 THEN 'Evening'
+        END
+        ORDER BY s.shift_id
+        SEPARATOR ', '
+    ) AS shift,
+
+    b.booking_auto_id AS source,
+    b.booking_auto_id AS caterer,
+    b.booking_auto_id AS decorator,
+    b.booking_auto_id AS paymentStatus,
+    b.booking_auto_id AS assignedStaff,
+
+    bet.event_name AS eventType,
+
+    CASE
+        WHEN b.status = '2' THEN 'bg-red-500'
+        WHEN b.booking_type = 2 THEN 'bg-pink-500'
+        WHEN b.booking_type = 4 THEN 'bg-blue-500'
+        WHEN b.status = '1' THEN 'bg-emerald-500'
+        WHEN b.status = '0' THEN 'bg-amber-500'
+        ELSE 'bg-violet-500'
+    END AS avatarColor,
+
+    b.booking_auto_id AS tag
+
+FROM bookings b
+
+LEFT JOIN booking_event_types bet
+    ON bet.id = b.booking_event_type_id
+
+LEFT JOIN booking_child_venue bcv
+    ON bcv.booking_id = b.booking_id
+
+LEFT JOIN venue_child vc
+    ON vc.child_venue_id = bcv.child_venue_id
+
+LEFT JOIN booking_shift s
+    ON s.booking_id = b.booking_id
+
+WHERE b.booking_id = ?
+
+GROUP BY
+    b.booking_id,
+    b.booking_auto_id,
+    b.booking_type,
+    b.status,
+    b.billing_first_name,
+    b.billing_email,
+    b.billing_phone,
+    b.booked_no_of_people,
+    b.total_booking_price,
+    b.from_date,
+    b.created_at,
+    bet.event_name
+
+ORDER BY b.created_at DESC
+`, [id]);
+
+return rows[0];
+}
 
 
 }

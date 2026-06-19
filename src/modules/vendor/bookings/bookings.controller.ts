@@ -39,7 +39,7 @@ export class BookingsController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('Load_all_packages')
+  @Post('Load_all_packages')
   async Load_all_packages(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.Load_all_packages(body, user?.id);
   }
@@ -51,7 +51,7 @@ export class BookingsController {
   } 
   
   @UseGuards(JwtAuthGuard)
-  @Get('globalSetting')
+  @Post('globalSetting')
   async globalSetting(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.globalSetting( user?.id,body);
   }
@@ -66,6 +66,15 @@ export class BookingsController {
   @Get('all_reservations')
   async all_reservations(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any) {
     return await this.bookingsService.all_reservations(category, country, user?.id);
+  }
+  
+  @Put('reservation_invoice/:id')
+  async reservation_invoice(@Param('id') id: any) {
+    return await this.bookingsService.reservation_invoice(id);
+  }
+ @Put('reservation_manage/:id')
+  async reservation_manage(@Param('id') id: any) {
+    return await this.bookingsService.reservation_manage(id);
   }
 
   
