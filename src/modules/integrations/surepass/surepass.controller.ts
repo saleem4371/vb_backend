@@ -33,9 +33,20 @@ verifyBank(@Body() body: string) {
 verifyAdhar(@Body() body: string) {
   return this.surepassService.verifyAdhar(body);
 }
-@Post('digilocker/callback')
-callback(@Body() body: string) {
-  return this.surepassService.callback(body);
+// @Post('digilocker/callback')
+// callback(@Body() body: string) {
+//   return this.surepassService.callback(body);
+// }
+  @Post('callback')
+async callback(
+  @Body() body: any,
+  @Headers() headers: any,
+) {
+  console.log('Webhook Received');
+  console.log(headers);
+  console.log(body);
+
+   return this.surepassService.callback(body);
 }
 
 }
