@@ -10,6 +10,7 @@ import {
   Body,
   Query,
   Delete,
+  Headers
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
