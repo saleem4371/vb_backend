@@ -150,44 +150,51 @@ export class SurepassService {
   //   //user_kyc_bank_details
   // }
 
-  async verifyBank(body: any, id: any) {
-    const config =
-      await this.integrationService.getIntegrationConfig('surepass');
+  async verifyBank(body: any, userId: number) {
+  const config = await this.integrationService.getIntegrationConfig('surepass');
+  const configData =
+    typeof config === 'string' ? JSON.parse(config) : config;
 
-    const [existingBank] = await this.dataSource.query(
-      `SELECT * FROM user_kyc_bank_details
-     WHERE account_number = ?
-     LIMIT 1`,
-      [body.acct],
+  // Check if account already exists
+  const [existingBank] = await this.dataSource.query(
+    `
+      SELECT *
+      FROM user_kyc_bank_details
+      WHERE account_number = ?
+      LIMIT 1
+    `,
+    [body.acct],
+  );
+
+  if (existingBank) {
+    return existingBank;
+  }
+
+  try {
+    const { data } = await this.http.axiosRef.post(
+      `${configData.base_url}/api/v1/bank-verification/pennyless`,
+      {
+        id_number: body.acct,
+        ifsc: body.cleanIFSC,
+        ifsc_details: true,
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${configData.api_key}`,
+          'Content-Type': 'application/json',
+        },
+      },
     );
 
-    if (existingBank) {
-      return existingBank;
+    const apiData = data?.data;
+
+    if (!apiData) {
+      throw new Error('Invalid response from Surepass');
     }
 
-    const configData = typeof config === 'string' ? JSON.parse(config) : config;
-
-    try {
-      const response = await this.http.axiosRef.post(
-        `${configData.base_url}/api/v1/bank-verification/pennyless`,
-        {
-          id_number: body.acct,
-          ifsc: body.cleanIFSC,
-          ifsc_details: true,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${configData.api_key}`,
-          },
-        },
-      );
-
-      const apiData = response.data?.data;
-
-      await this.dataSource.query(
-        `
-      INSERT INTO user_kyc_bank_details
-      (
+    await this.dataSource.query(
+      `
+      INSERT INTO user_kyc_bank_details (
         user_id,
         bank_name,
         account_number,
@@ -199,30 +206,36 @@ export class SurepassService {
         created_at,
         updated_at
       )
-      VALUES
-      (
-        ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
-      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
       `,
-        [
-          id,
-          apiData?.ifsc_details?.bank_name || null,
-          apiData?.account_number || body.acct,
-          apiData?.ifsc_details?.ifsc || body.cleanIFSC,
-          body.accountType || 'SAVINGS',
-          apiData?.full_name || null,
-          apiData?.ifsc_details?.branch || null,
-          body.businessType || null,
-        ],
-      );
+      [
+        userId,
+        apiData.ifsc_details?.bank_name ?? null,
+        apiData.account_number ?? body.acct,
+        apiData.ifsc_details?.ifsc ?? body.cleanIFSC,
+        body.accountType ?? 'SAVINGS',
+        apiData.full_name ?? null,
+        apiData.ifsc_details?.branch ?? null,
+        body.businessType ?? null,
+      ],
+    );
 
-      return apiData;
-    } catch (error) {
-      console.error('Bank Verification Error:');
+    return {
+      success: true,
+      message: 'Bank verified successfully.',
+      data: apiData,
+    };
+  } catch (error: any) {
+    console.error(
+      'Bank Verification Error:',
+      error.response?.data || error.message,
+    );
 
-      throw new Error('Bank verification failed');
-    }
+    throw new BadRequestException(
+      error.response?.data?.message || 'Bank verification failed',
+    );
   }
+}
 
   async verifyAdhar(body: any) {
     const config =
