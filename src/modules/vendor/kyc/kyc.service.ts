@@ -11,147 +11,175 @@ export class KycService {
     private storageService: StorageService,
   ) {}
 
-  async updateKyc(userId: any, body: any, files: any) {
-    const {
-      pan,
-      bankName,
-      accountNo,
-      ifsc,
-      accountType,
-      bizName,
-      bizType,
-      gst,
-      bizAddress,
-    } = body;
+  // async updateKyc(userId: any, body: any, files: any) {
+  //   const {
+  //     pan,
+  //     bankName,
+  //     accountNo,
+  //     ifsc,
+  //     accountType,
+  //     bizName,
+  //     bizType,
+  //     gst,
+  //     bizAddress,
+  //   } = body;
 
-    // upload files
-    const panFileUrl = files?.panFile
-      ? await this.storageService.upload(files.panFile, 'uploads/kyc/pan')
-      : null;
+  //   // upload files
+  //   const panFileUrl = files?.panFile
+  //     ? await this.storageService.upload(files.panFile, 'uploads/kyc/pan')
+  //     : null;
 
-    const aadhaarFileUrl = files?.aadhaarFile
-      ? await this.storageService.upload(
-          files.aadhaarFile,
-          'uploads/kyc/aadhaar',
-        )
-      : null;
+  //   const aadhaarFileUrl = files?.aadhaarFile
+  //     ? await this.storageService.upload(
+  //         files.aadhaarFile,
+  //         'uploads/kyc/aadhaar',
+  //       )
+  //     : null;
 
-    const bizRegFileUrl = files?.bizRegFile
-      ? await this.storageService.upload(
-          files.bizRegFile,
-          'uploads/kyc/business',
-        )
-      : null;
+  //   const bizRegFileUrl = files?.bizRegFile
+  //     ? await this.storageService.upload(
+  //         files.bizRegFile,
+  //         'uploads/kyc/business',
+  //       )
+  //     : null;
 
-    const chequeFileUrl = files?.chequeFile
-      ? await this.storageService.upload(files.chequeFile, 'uploads/kyc/cheque')
-      : null;
+  //   const chequeFileUrl = files?.chequeFile
+  //     ? await this.storageService.upload(files.chequeFile, 'uploads/kyc/cheque')
+  //     : null;
 
-    // PAN
-    if (panFileUrl) {
-      await this.dataSource.query(
-        `
-        INSERT INTO user_kyc_documents
-        (
-          user_id,
-          document_type,
-          document_number,
-          file_url,
-          verification_status,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, NOW())
-      `,
-        [userId, 'pan', pan, panFileUrl, 'pending'],
-      );
-    }
-    //ABCDE1234F 'pan','aadhar','bank_proof','gst','other'
-    // Aadhaar
-    if (aadhaarFileUrl) {
-      await this.dataSource.query(
-        `
-        INSERT INTO user_kyc_documents
-        (
-          user_id,
-          document_type,
-          document_number,
-          file_url,
-          verification_status,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, NOW())
-      `,
-        [userId, 'aadhar', '', aadhaarFileUrl, 'pending'],
-      );
-    }
+  //   // PAN
+  //   if (panFileUrl) {
+  //     await this.dataSource.query(
+  //       `
+  //       INSERT INTO user_kyc_documents
+  //       (
+  //         user_id,
+  //         document_type,
+  //         document_number,
+  //         file_url,
+  //         verification_status,
+  //         created_at
+  //       )
+  //       VALUES (?, ?, ?, ?, ?, NOW())
+  //     `,
+  //       [userId, 'pan', pan, panFileUrl, 'pending'],
+  //     );
+  //   }
+  //   //ABCDE1234F 'pan','aadhar','bank_proof','gst','other'
+  //   // Aadhaar
+  //   if (aadhaarFileUrl) {
+  //     await this.dataSource.query(
+  //       `
+  //       INSERT INTO user_kyc_documents
+  //       (
+  //         user_id,
+  //         document_type,
+  //         document_number,
+  //         file_url,
+  //         verification_status,
+  //         created_at
+  //       )
+  //       VALUES (?, ?, ?, ?, ?, NOW())
+  //     `,
+  //       [userId, 'aadhar', '', aadhaarFileUrl, 'pending'],
+  //     );
+  //   }
 
-    // Business Doc
-    if (bizRegFileUrl) {
-      await this.dataSource.query(
-        `
-        INSERT INTO user_kyc_documents
-        (
-          user_id,
-          document_type,
-          document_number,
-          file_url,
-          verification_status,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, NOW())
-      `,
-        [userId, 'other', gst || '', bizRegFileUrl, 'pending'],
-      );
-    }
+  //   // Business Doc
+  //   if (bizRegFileUrl) {
+  //     await this.dataSource.query(
+  //       `
+  //       INSERT INTO user_kyc_documents
+  //       (
+  //         user_id,
+  //         document_type,
+  //         document_number,
+  //         file_url,
+  //         verification_status,
+  //         created_at
+  //       )
+  //       VALUES (?, ?, ?, ?, ?, NOW())
+  //     `,
+  //       [userId, 'other', gst || '', bizRegFileUrl, 'pending'],
+  //     );
+  //   }
 
-    // Cheque
-    if (chequeFileUrl) {
-      await this.dataSource.query(
-        `
-        INSERT INTO user_kyc_documents
-        (
-          user_id,
-          document_type,
-          document_number,
-          file_url,
-          verification_status,
-          created_at
-        )
-        VALUES (?, ?, ?, ?, ?, NOW())
-      `,
-        [userId, 'bank_proof', accountNo, chequeFileUrl, 'pending'],
-      );
-    }
+  //   // Cheque
+  //   if (chequeFileUrl) {
+  //     await this.dataSource.query(
+  //       `
+  //       INSERT INTO user_kyc_documents
+  //       (
+  //         user_id,
+  //         document_type,
+  //         document_number,
+  //         file_url,
+  //         verification_status,
+  //         created_at
+  //       )
+  //       VALUES (?, ?, ?, ?, ?, NOW())
+  //     `,
+  //       [userId, 'bank_proof', accountNo, chequeFileUrl, 'pending'],
+  //     );
+  //   }
 
-    // optional bank/business table save
+  //   // optional bank/business table save
+  //   await this.dataSource.query(
+  //     `
+  //     INSERT INTO user_kyc_bank_details
+  //     (
+  //       user_id,
+  //       bank_name,
+  //       account_number,
+  //       ifsc,
+  //       account_type,
+  //       business_name,
+  //       business_type,
+  //       gst_number,
+  //       business_address,
+  //       created_at
+  //     )
+  //     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+  //   `,
+  //     [
+  //       userId,
+  //       bankName,
+  //       accountNo,
+  //       ifsc,
+  //       accountType,
+  //       bizName,
+  //       bizType,
+  //       gst,
+  //       bizAddress,
+  //     ],
+  //   );
+
+  //   return {
+  //     success: true,
+  //     message: 'KYC submitted successfully',
+  //   };
+  // }
+   async updateKyc(userId: any, body: any, files: any) {
+
+
     await this.dataSource.query(
       `
-      INSERT INTO user_kyc_bank_details
-      (
-        user_id,
-        bank_name,
-        account_number,
-        ifsc,
-        account_type,
-        business_name,
-        business_type,
-        gst_number,
-        business_address,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+    UPDATE user_kyc_documents
+    SET
+      verification_status = 'review'
+    WHERE user_id = ?
     `,
-      [
-        userId,
-        bankName,
-        accountNo,
-        ifsc,
-        accountType,
-        bizName,
-        bizType,
-        gst,
-        bizAddress,
-      ],
+      [userId],
+    );
+
+     await this.dataSource.query(
+      `
+    UPDATE user_kyc_bank_details
+    SET
+      verification_status = 'review'
+    WHERE user_id = ?
+    `,
+      [userId],
     );
 
     return {
