@@ -26,26 +26,26 @@ export class ListingController {
   constructor(private readonly listingService: ListingService) {}
   @UseGuards(JwtAuthGuard)
   @Put('last_parent_id/:id')
-  async parent_last_create_id(@CurrentUser() user: any,@Param('id') id: string) {
-    return this.listingService.parent_last_create_id(user?.id,id);
+  async parent_last_create_id(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
+    return this.listingService.parent_last_create_id(user?.id,id,Country);
   } 
   
   @UseGuards(JwtAuthGuard)
   @Put('parent_of_category/:id')
-  async parent_of_category(@CurrentUser() user: any,@Param('id') id: string) {
-    return this.listingService.parent_of_category(user?.id,id);
+  async parent_of_category(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
+    return this.listingService.parent_of_category(user?.id,id,Country);
   }  
   
   @UseGuards(JwtAuthGuard)
   @Put('child_of_category/:id')
-  async child_of_category(@CurrentUser() user: any,@Param('id') id: string) {
-    return this.listingService.child_of_category(user?.id,id);
+  async child_of_category(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
+    return this.listingService.child_of_category(user?.id,id,Country);
   }
   
   @UseGuards(JwtAuthGuard)
   @Put('listing_sub_check/:id')
-  async listing_sub_check(@CurrentUser() user: any,@Param('id') id: string) {
-    return this.listingService.listing_sub_check(user?.id,id);
+  async listing_sub_check(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
+    return this.listingService.listing_sub_check(user?.id,id,Country);
   }
 
   @UseGuards(JwtAuthGuard)
