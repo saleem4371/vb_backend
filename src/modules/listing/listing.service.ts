@@ -134,7 +134,7 @@ if (data.body.parent_venue_id) {
       venueState: data.body.state || '',
       venueCity: data.body.city,
       venuePincode: data.body.pincode || '',
-      venueCountry: data.body.country,
+      venueCountry: data.body.country=== 'IN' ? '2':'3',
       lat: Number(data.body.lat || 0),
       lng: Number(data.body.lng || 0),
       propetyCategory: data.body.category,
@@ -156,7 +156,7 @@ if (!savedVenue) {
     venueState: data.body.state || '',
     venueCity: data.body.city,
     venuePincode: data.body.pincode || '',
-    venueCountry: data.body.country,
+    venueCountry: data.body.country=== 'IN' ? '2':'3',
     district: '',
     rating: 0,
     lat: Number(data.body.lat || 0),
@@ -619,4 +619,3 @@ async child_of_category(id: any, type: any, Country:any) {
   return parent;
 }
 }
-
