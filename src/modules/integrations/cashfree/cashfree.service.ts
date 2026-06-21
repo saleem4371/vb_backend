@@ -276,8 +276,9 @@ await Promise.all(
       (
         user_id,
         category_id,
-        country_id,
         plan_id,
+        country_id,
+        
         subscription_code,
         subscription_id,
         start_date,
