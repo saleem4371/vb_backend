@@ -1,4 +1,4 @@
-import { Controller, Get , UseGuards } from '@nestjs/common';
+import { Controller, Get , UseGuards ,Headers} from '@nestjs/common';
 import { HomeService } from './home.service';
 
 import { JwtAuthGuard } from '../../modules/auth/strategies/jwt-auth.guard';
@@ -21,8 +21,9 @@ export class HomeController {
 
    @UseGuards(JwtAuthGuard)
   @Get('vendor_category')
-  vendor_category(@CurrentUser() user: any) {
+  vendor_category(
+    @CurrentUser() user: any,@Headers('x-country') country : any) {
     const userId = user?.id;
-    return this.homeService.vendor_category(userId);
+    return this.homeService.vendor_category(userId,country);
   }
 }

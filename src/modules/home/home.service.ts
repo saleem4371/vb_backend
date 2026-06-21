@@ -57,17 +57,36 @@ export class HomeService {
 
     return result;
   }
-async vendor_category(userId: any) {
+// async vendor_category(userId: any , country :any) {
+//   const categories = await this.dataSource.query(
+//     `SELECT propety_category
+//      FROM venue_parent
+//      WHERE created_by = ?
+//        AND propety_category IS NOT NULL
+//        AND propety_category != '' AND venue_country = ? GROUP BY propety_category`,
+//     [userId,country]
+//   );
+
+//   return categories.map(item => `${item.propety_category}s`);
+// }
+async vendor_category(userId: number, country: string) {
   const categories = await this.dataSource.query(
-    `SELECT propety_category
-     FROM venue_parent
-     WHERE created_by = ?
-       AND propety_category IS NOT NULL
-       AND propety_category != ''`,
-    [userId]
+    `
+    SELECT DISTINCT propety_category
+    FROM venue_parent
+    WHERE created_by = ?
+      AND venue_country = ?
+      AND propety_category IS NOT NULL
+      AND TRIM(propety_category) <> ''
+    `,
+    [userId, country],
   );
 
-  return categories.map(item => `${item.propety_category}s`);
+  return categories.map(({ propety_category }) => {
+    return propety_category.endsWith('s')
+      ? propety_category
+      : `${propety_category}s`;
+  });
 }
   
 }
