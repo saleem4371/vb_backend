@@ -33,7 +33,7 @@ export class VenueListingController {
     @Headers('x-category') category:any 
 
 ) {
-    const normalizedCategory = id.replace(/s$/, "");
+    const normalizedCategory = category.replace(/s$/, "");
     return this.venueListingService.getListData(
       user?.id , normalizedCategory,
       country
