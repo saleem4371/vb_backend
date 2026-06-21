@@ -89,6 +89,22 @@ export class BookingsController {
     return await this.bookingsService.leads_create(body,user?.id);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('all_other_reserve')
+  async all_other_reserve(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any) {
+    return await this.bookingsService.all_other_reserve(category, country, user?.id);
+  }
+  @UseGuards(JwtAuthGuard)
+  @Post('historical_reserve')
+  async historical_reserve(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any) {
+    return await this.bookingsService.historical_reserve(category, country, user?.id);
+  }  
+  @UseGuards(JwtAuthGuard)
+  @Post('historical_upload')
+  async historical_upload(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any,@Body() body: any) {
+    return await this.bookingsService.historical_upload(category, country, user?.id,body);
+  }
+
   
 
 

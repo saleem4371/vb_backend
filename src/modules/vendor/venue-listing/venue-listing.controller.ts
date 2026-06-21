@@ -9,7 +9,8 @@ import {
   Post,
   Body,
   Query,
-  Delete
+  Delete,
+  Headers
 } from '@nestjs/common';
 import type {
   FastifyRequest,
@@ -18,6 +19,7 @@ import type {
 import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/user.decorator';
 import { VenueListingService } from './venue-listing.service';
+import { Category } from 'src/modules/admin/property-tag/entities/property-tag.entity';
 
 @Controller('venue-listing')
 export class VenueListingController {
@@ -25,9 +27,17 @@ export class VenueListingController {
 
   @UseGuards(JwtAuthGuard)
   @Get('venues/:id')
-  getUserRecentViews(@CurrentUser() user: any,@Param('id') id: string) {
+  getUserRecentViews(
+    @CurrentUser() user: any,@Param('id') id: string, 
+    @Headers('x-country') country:any,
+    @Headers('x-category') category:any 
+
+) {
     const normalizedCategory = id.replace(/s$/, "");
-    return this.venueListingService.getListData(user?.id , normalizedCategory);
+    return this.venueListingService.getListData(
+      user?.id , normalizedCategory,
+      country
+    );
   }
 
   @Get('venue/:id')

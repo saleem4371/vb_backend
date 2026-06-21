@@ -20,7 +20,7 @@ export class VenueListingService {
     private storageService: StorageService,
   ) {}
 
-  async getListData(userId: any, id: any) {
+  async getListData(userId: any, id: any, country: any) {
     const result = await this.dataSource.query(
       `
     SELECT 
@@ -44,9 +44,9 @@ export class VenueListingService {
         ON vg.child_venue_id = cv.child_venue_id
         AND vg.image_type = 1
 
-    WHERE cv.created_by = ? AND propety_category = ?
+    WHERE cv.created_by = ? AND propety_category = ? AND  venue_country = ?
     `,
-      [userId, id],
+      [userId, id, country],
     );
 
     return result;
