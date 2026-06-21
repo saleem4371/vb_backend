@@ -134,7 +134,7 @@ if (data.body.parent_venue_id) {
       venueState: data.body.state || '',
       venueCity: data.body.city,
       venuePincode: data.body.pincode || '',
-      venueCountry: data.body.country === 'IN' ? '2' : '3',
+      venueCountry: data.body.country,
       lat: Number(data.body.lat || 0),
       lng: Number(data.body.lng || 0),
       propetyCategory: data.body.category,
@@ -156,7 +156,7 @@ if (!savedVenue) {
     venueState: data.body.state || '',
     venueCity: data.body.city,
     venuePincode: data.body.pincode || '',
-    venueCountry: data.body.country === 'IN' ? '2' : '3',
+    venueCountry: data.body.country,
     district: '',
     rating: 0,
     lat: Number(data.body.lat || 0),
@@ -539,38 +539,39 @@ let uploaded = '';
     return savedVenue.parent_venue_id;
   }
 
-async parent_last_create_id(id: any, type: any) {
+async parent_last_create_id(id: any, type: any, Country:any) {
   const parent = await this.dataSource.query(
     `
     SELECT parent_venue_id
     FROM venue_parent
     WHERE created_by = ?
       AND (propety_category = ? OR propety_category IS NULL OR propety_category = '')
+      AND venue_country = ? 
     ORDER BY parent_venue_id DESC
     LIMIT 1
     `,
-    [id, type],
+    [id, type,Country],
   );
 
   return parent?.[0]?.parent_venue_id ?? null;
 }
 
-async parent_of_category(id: any, type: any) {
+async parent_of_category(id: any, type: any, country: any) {
 
   const parent = await this.dataSource.query(
     `
     SELECT *
     FROM venue_parent
-    WHERE created_by = ? AND propety_category = ?
+    WHERE created_by = ? AND propety_category = ? AND venue_country = ?
     LIMIT 1
     `,
-    [id, type],
+    [id, type,country],
   );
 
   return parent;
 }
 
-async listing_sub_check(id: any, type: any) {
+async listing_sub_check(id: any, type: any,country:any) {
 
    const singular = type.endsWith("s")
   ? type.slice(0, -1)
@@ -585,18 +586,18 @@ async listing_sub_check(id: any, type: any) {
     `
     SELECT *
     FROM user_subscriptions
-    WHERE user_id = ? AND category_id = ?
+    WHERE user_id = ? AND category_id = ? AND country_id = ?
     LIMIT 1
     `,
-    [id, categorys.id],
+    [id, categorys.id,country],
   );
 
   return parent;
 }
 
-async child_of_category(id: any, type: any) {
+async child_of_category(id: any, type: any, Country:any) {
 
-   const singular = type.endsWith("s")
+  const singular = type.endsWith("s")
   ? type.slice(0, -1)
   : type;
 
@@ -610,9 +611,9 @@ async child_of_category(id: any, type: any) {
     SELECT *
     FROM venue_child 
     LEFT JOIN venue_parent ON venue_parent.parent_venue_id = venue_child.parent_venue_id
-    WHERE venue_child.created_by = ? AND propety_category = ?
+    WHERE venue_child.created_by = ? AND propety_category = ? AND venue_country = ?
     `,
-    [id, singular],
+    [id, singular,Country],
   );
 
   return parent;
