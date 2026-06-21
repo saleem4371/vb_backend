@@ -276,9 +276,8 @@ await Promise.all(
       (
         user_id,
         category_id,
-        plan_id,
         country_id,
-        
+        plan_id,
         subscription_code,
         subscription_id,
         start_date,
@@ -299,8 +298,9 @@ await Promise.all(
         [
           id, // user_id
           categorys.id || 0, // category_id
-          body.selectedPlan, // category_id
           Country,
+          body.selectedPlan, // category_id
+          
           subscriptionCode, // local subscription code
           data.subscription_id || subscriptionCode,
           startDate, // start_date
