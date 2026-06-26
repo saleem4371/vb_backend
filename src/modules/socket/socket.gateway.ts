@@ -30,7 +30,17 @@ export class SocketGateway
   private onlineUsers = new Map<string, string>();
 
   handleConnection(client: Socket) {
-    console.log('Client connected:', client.id);
+    // console.log('Client connected:', client.id);
+     const userId = client.handshake.query.userId as string;
+
+  console.log("User connected:", userId);
+  console.log("Socket ID:", client.id);
+
+  if (userId) {
+    this.onlineUsers.set(userId, client.id);
+  }
+
+  console.log(this.onlineUsers);
   }
 
   handleDisconnect(client: Socket) {
@@ -67,4 +77,28 @@ export class SocketGateway
       status: 'offline',
     });
   }
+
+  realtimeApplication(userId: string) {
+  const socketId = this.onlineUsers.get(userId);
+
+  console.log("User:", userId);
+  console.log("Socket:", socketId);
+
+  if (socketId !== undefined) {
+  console.log("Connected:", this.server.sockets.sockets.has(socketId));
+}
+
+  if (!socketId || !this.server.sockets.sockets.has(socketId)) {
+    console.log("User is offline");
+    return;
+  }
+
+  this.server.to(socketId).emit("realtime-status", {
+    userId,
+    status: "loading",
+  });
+}
+
+
+
 }

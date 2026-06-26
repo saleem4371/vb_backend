@@ -12,4 +12,8 @@ export class SocketService {
   offline(userId: string) {
     this.gateway.markOffline(userId);
   }
+  
+  realtime(userId: string) {
+  this.gateway.realtimeApplication(userId);
+}
 }
