@@ -7,6 +7,8 @@ import { Setting } from './entity/setting.entity';
 import { VenueSetting } from './entity/venue-setting.entity';
 import { PackageCategory } from '../../vendor/packages/entity/package-category.entity'; //entity/package-category.entity
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { SocketModule } from '../../socket/socket.module'
+import { InvoiceModule } from '../../invoice/invoice.module'
 
 
 
@@ -20,6 +22,8 @@ import { TypeOrmModule } from "@nestjs/typeorm";
         PackageCategory,
         Setting
       ]),
+      SocketModule,
+      InvoiceModule
     ]
 })
 export class BookingsModule {}

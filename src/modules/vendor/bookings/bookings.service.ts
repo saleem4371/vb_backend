@@ -13,6 +13,9 @@ import { PackageCategory } from '../../vendor/packages/entity/package-category.e
 
 // import { generateCode , total_code_generating } from 'src/common/utils/code-generator';
 
+import { InvoiceService } from '../../invoice/invoice.service'
+import { SocketService } from '../../socket/socket.service';
+
 import {
   generateCode,
   total_code_generating,
@@ -26,6 +29,8 @@ export class BookingsService {
   constructor(
     private dataSource: DataSource,
     private storageService: StorageService,
+    private socketService: SocketService,
+    private invoiceService: InvoiceService,
     //  private readonly pushService: PushService,
     @InjectRepository(SettingGroup)
     private readonly settingGroupRepository: Repository<SettingGroup>,
@@ -37,10 +42,10 @@ export class BookingsService {
   async invoice_number(user_id: number, id: any) {
     const rows = await this.dataSource.query(
       `
-    SELECT auto_increment
+    SELECT invoice_number
     FROM bookings
-    WHERE created_under_by = ?
-      AND auto_increment IS NOT NULL
+    WHERE vendor_id = ?
+      AND invoice_number IS NOT NULL
     ORDER BY created_at DESC
     LIMIT 1
     `,
@@ -51,7 +56,7 @@ export class BookingsService {
       return 'INV00001';
     }
 
-    const lastNumber = parseInt(rows[0].auto_increment.replace('INV', ''), 10);
+    const lastNumber = parseInt(rows[0].invoice_number.replace('INV', ''), 10);
 
     return `INV${String(lastNumber + 1).padStart(5, '0')}`;
   }
@@ -75,64 +80,87 @@ export class BookingsService {
     return rows;
   }
 
-  async availableVenues(body: any, id: number) {
-    const { selectionMode, date, startDate, endDate, shifts = [] } = body;
+async availableVenues(body: any, id: number, country: any) {
+  const { selectionMode, startDate, endDate, shifts = [], category } = body;
 
-    // Dates
-    const from = selectionMode === 'single' ? startDate : startDate;
-    const to = selectionMode === 'single' ? startDate : endDate;
+   const singular = category?.endsWith('s')
+    ? category.slice(0, -1)
+    : category;
 
-    // Shift Mapping
-    const shiftMap: Record<string, number> = {
-      morning: 1,
-      afternoon: 2,
-      evening: 3,
-      'full day': 4,
-    };
+  const noShiftCategories = [
+  'farmstay',
+  'farm stay',
+  'resort',
+  'villa',
+];
 
-    let shiftIds: number[] = [];
+const isDateOnly =
+  noShiftCategories.includes(
+    singular.toLowerCase(),
+  );
+  // -----------------------------
+  // 1. DATE HANDLING
+  // -----------------------------
+  const from = startDate;
+  const to = selectionMode === 'single' ? startDate : endDate;
 
-    if (shifts.includes('full day')) {
-      shiftIds = [1, 2, 3, 4];
-    } else {
-      shiftIds = shifts.map((s: string) => shiftMap[s]).filter(Boolean);
-    }
+  const start = new Date(from);
+  const end = new Date(to);
 
-    if (!shiftIds.length) {
-      return [];
-    }
+  const totalDays =
+    Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-    // Total Days
-    const start = new Date(from);
-    const end = new Date(to);
+  // -----------------------------
+  // 2. SHIFT MAP
+  // -----------------------------
+  const shiftMap: Record<string, number> = {
+    morning: 1,
+    afternoon: 2,
+    evening: 3,
+    'full day': 4,
+  };
 
-    const totalDays =
-      Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const shiftIds: number[] =
+    shifts.includes('full day')
+      ? [1, 2, 3, 4]
+      : shifts
+          .map((s: string) => shiftMap[s?.toLowerCase()])
+          .filter(Boolean);
 
-    const placeholders = shiftIds.map(() => '?').join(',');
+  // ❗ if no shift selected, still show venues
+  // const useShiftFilter = shiftIds.length > 0;
+  const useShiftFilter =
+  !isDateOnly && shiftIds.length > 0;
 
-    const sql = `
-SELECT
-vc.child_venue_id,
-vc.parent_venue_id,
-vc.child_auto_no,
-vc.guest_rooms,
-vc.child_venue_name,
-vc.venue_category_id,
+  const shiftPlaceholders = shiftIds.map(() => '?').join(',');
 
-GROUP_CONCAT(
-    DISTINCT vsh.name
-    ORDER BY vsh.shift_type
-    SEPARATOR ', '
-) AS shift_names,
+  // -----------------------------
+  // 3. MAIN QUERY (SAFE + NO EMPTY RESULT BUG)
+  // -----------------------------
 
-GROUP_CONCAT(
-    DISTINCT CONCAT(vsh.from_time,' - ',vsh.to_time)
-    ORDER BY vsh.shift_type
-    SEPARATOR ', '
-) AS shift_timings,
+  
+  const sql = `
+    SELECT
+      vc.child_venue_id,
+      vc.parent_venue_id,
+      vc.child_auto_no,
+      vc.guest_rooms,
+      vc.child_venue_name,
+      vc.venue_category_id,
 
-CONCAT(
+      GROUP_CONCAT(
+        DISTINCT vsh.name
+        ORDER BY vsh.shift_type
+        SEPARATOR ', '
+      ) AS shift_names,
+
+      GROUP_CONCAT(
+        DISTINCT CONCAT(vsh.from_time,' - ',vsh.to_time)
+        ORDER BY vsh.shift_type
+        SEPARATOR ', '
+      ) AS shift_timings,
+
+      CONCAT(
 '[',
 GROUP_CONCAT(
     DISTINCT JSON_OBJECT(
@@ -143,111 +171,235 @@ GROUP_CONCAT(
 ']'
 ) AS child_setting,
 
-SUM(DISTINCT cvs.price) AS per_day_price
+      CASE
+    WHEN vp.propety_category = 'farmstay'
+    THEN MAX(
+        CASE
+            WHEN pp.pricing_key = 'nightly'
+            THEN pp.amount
+        END
+    )
+    ELSE SUM(DISTINCT cvs.price)
+END AS per_day_price,
 
-FROM venue_child vc
+      GROUP_CONCAT(
+  DISTINCT CASE
+    WHEN bed.event_date IS NOT NULL
+    THEN JSON_OBJECT(
+      'booking_id', b.id,
+      'status', b.status,
+      'date', bed.event_date,
+      'shift', IFNULL(bs.shift_name, ''),
+      'child_id', vc.child_venue_id
+    )
+  END
+) AS booking_conflicts
 
-INNER JOIN venue_shift_timing cvs
-    ON cvs.child_venue_id = vc.child_venue_id
+    FROM venue_child vc
 
-INNER JOIN venue_shift_header vsh
-    ON vsh.child_id = vc.child_venue_id
-    AND vsh.shift_type = cvs.shift_type
-    AND vsh.publish = 1
+    INNER JOIN venue_parent vp
+      ON vp.parent_venue_id = vc.parent_venue_id
 
-LEFT JOIN venue_child_settings vcs
+    LEFT JOIN venue_shift_timing cvs
+      ON cvs.child_venue_id = vc.child_venue_id
+
+    LEFT JOIN venue_shift_header vsh
+      ON vsh.child_id = vc.child_venue_id
+      AND vsh.shift_type = cvs.shift_type
+      AND vsh.publish = 1
+
+    LEFT JOIN booking_venues bv
+      ON bv.child_venue_id = vc.child_venue_id  
+      
+    LEFT JOIN venue_child_settings vcs
     ON vcs.child_id = vc.child_venue_id
 
-WHERE
-vc.created_by = ?
-AND cvs.shift_type IN (${placeholders})
+    LEFT JOIN bookings b
+      ON b.id = bv.booking_id
 
--- =====================================================
--- ✅ FIXED MULTI-DAY + SHIFT CONFLICT LOGIC
--- =====================================================
-AND NOT EXISTS (
-    SELECT 1
-    FROM bookings b
+    LEFT JOIN booking_event_dates bed
+      ON bed.booking_id = b.id
+      AND bed.event_date BETWEEN ? AND ?
 
-    INNER JOIN booking_shift bs
-        ON bs.booking_id = b.booking_id
+    LEFT JOIN booking_shifts bs
+      ON bs.booking_id = b.id
+      AND bs.event_date_id = bed.id
+
+      LEFT JOIN property_pricing pp
+  ON pp.child_venue_id = vc.child_venue_id
+  AND pp.enabled = 1
 
     WHERE
-        EXISTS (
-            SELECT 1
-            FROM booking_child_venue bcv
-            WHERE bcv.booking_id = b.booking_id
-            AND bcv.child_venue_id = vc.child_venue_id
+      vc.created_by = ?
+      AND vp.venue_country = ?
+      AND vc.publish_status = 1
+      AND vp.propety_category = ?
+      ${useShiftFilter ? `AND cvs.shift_type IN (${shiftPlaceholders})` : ''}
+
+    GROUP BY vc.child_venue_id
+    ORDER BY vc.child_venue_id;
+  `;
+
+  // -----------------------------
+  // 4. PARAMS (SAFE ORDER)
+  // -----------------------------
+  const params: any[] = [
+    from,
+    to,
+    id,
+    country,
+    singular,
+    ...(useShiftFilter ? shiftIds : []),
+  ];
+
+  const venues = await this.dataSource.query(sql, params);
+
+  // -----------------------------
+  // 5. SAFE PARSER (NO NULLS)
+  // -----------------------------
+ const safeParse = (data: any) => {
+  if (!data) return [];
+
+  try {
+    return JSON.parse(`[${data}]`).filter(
+      (x: any) =>
+        x &&
+        x.date !== null
+    );
+  } catch {
+    return [];
+  }
+};
+
+  // -----------------------------
+  // 6. RESPONSE MAP
+  // -----------------------------
+  // -----------------------------
+// 6. RESPONSE MAP
+// -----------------------------
+return venues.map((venue: any) => {
+  const bookingConflicts = safeParse(venue.booking_conflicts);
+
+  // Remove duplicates
+  const uniqueConflicts = Array.from(
+    new Map(
+      bookingConflicts.map((b: any) => [
+        `${b.date}_${b.shift}`,
+        b,
+      ]),
+    ).values(),
+  );
+
+  // Filter only selected shifts
+  const selectedShiftNames = shifts.map((s: string) =>
+    s.toLowerCase(),
+  );
+
+  // const filteredConflicts = uniqueConflicts.filter(
+  //   (conflict: any) => {
+  //     if (!conflict.date || !conflict.shift) return false;
+
+  //     return (
+  //       conflict.date >= from &&
+  //       conflict.date <= to &&
+  //       (
+  //         selectedShiftNames.length === 0 ||
+  //         selectedShiftNames.includes(
+  //           String(conflict.shift).toLowerCase(),
+  //         )
+  //       )
+  //     );
+  //   },
+  // );
+let filteredConflicts:any = [];
+
+if (isDateOnly) {
+  // Farmstay -> only date matters
+  filteredConflicts = uniqueConflicts.filter((conflict: any) => {
+    if (!conflict.date) return false;
+
+    return (
+      conflict.date >= from &&
+      conflict.date <= to
+    );
+  });
+} else {
+  // Venue -> date + shift
+  const selectedShiftNames = shifts.some(
+    (s: string) => s.toLowerCase() === 'full day'
+  )
+    ? ['morning', 'afternoon', 'evening', 'full day']
+    : shifts.map((s: string) => s.toLowerCase());
+
+  filteredConflicts = uniqueConflicts.filter((conflict: any) => {
+    if (!conflict.date || !conflict.shift) return false;
+
+    return (
+      conflict.date >= from &&
+      conflict.date <= to &&
+      (
+        selectedShiftNames.length === 0 ||
+        selectedShiftNames.includes(
+          conflict.shift.toLowerCase()
         )
+      )
+    );
+  });
+}
+  // const totalSlots =
+  //   Math.max(selectedShiftNames.length, 1) * totalDays;
+  const totalSlots = isDateOnly
+  ? totalDays
+  : Math.max(selectedShiftNames.length, 1) * totalDays;
 
-        -- ✅ FIXED DATE OVERLAP (STRICT)
-        AND b.from_date <= ?
-        AND b.to_date >= ?
+  let availability_status:
+    | 'available'
+    | 'partial'
+    | 'booked' = 'available';
 
-        -- ✅ SHIFT MUST MATCH (STRICT CONFLICT)
-        AND bs.shift_id IN (${placeholders})
-)
+  if (filteredConflicts.length === 0) {
+    availability_status = 'available';
+  } else if (filteredConflicts.length >= totalSlots) {
+    availability_status = 'booked';
+  } else {
+    availability_status = 'partial';
+  }
 
-GROUP BY vc.child_venue_id
+  return {
+    ...venue,
 
-HAVING COUNT(DISTINCT cvs.shift_type) = ?
+    total_days: totalDays,
 
-ORDER BY vc.child_venue_id;
-`;
-    const venues = await this.dataSource.query(sql, [
-      id,
+    per_day_price: Number(
+      venue.per_day_price || 0,
+    ),
 
-      // venue shifts
-      ...shiftIds,
+    total_price:
+      Number(venue.per_day_price || 0) *
+      totalDays,
 
-      // date overlap (IMPORTANT ORDER)
-      from,
-      to,
+    shift_names: venue.shift_names
+      ? venue.shift_names
+          .split(',')
+          .map((s: string) => s.trim())
+      : [],
 
-      // booked shifts
-      ...shiftIds,
+    shift_timings: venue.shift_timings
+      ? venue.shift_timings
+          .split(',')
+          .map((s: string) => s.trim())
+      : [],
 
-      // full shift match
-      shiftIds.length,
-    ]);
+    bookingConflicts: filteredConflicts,
 
-    return venues.map((venue) => {
-      const timings = venue.shift_timings ? venue.shift_timings.split(',') : [];
-
-      let shift_timing = '';
-
-      if (timings.length > 0) {
-        const firstStart = timings[0].split(' - ')[0];
-        const lastEnd = timings[timings.length - 1].split(' - ')[1];
-
-        shift_timing = `${firstStart} to ${lastEnd}`;
-      }
-
-      return {
-        ...venue,
-
-        total_days: totalDays,
-
-        per_day_price: Number(venue.per_day_price),
-
-        total_price: Number(venue.per_day_price) * totalDays,
-
-        shift_names: venue.shift_names ? venue.shift_names.split(',') : [],
-
-        child_setting: venue.child_setting
+     child_setting: venue.child_setting
           ? JSON.parse(venue.child_setting)
           : [],
 
-        shift_timings:
-          timings.length <= 1
-            ? timings
-            : [timings[0], timings[timings.length - 1]],
-
-        shift_timing,
-      };
-    });
-  }
-
+    availability_status,
+  };
+});
+}
   async Load_all_packages(body: any, id: number) {
     const rows = await this.dataSource.query(
       `
@@ -383,209 +535,1016 @@ ORDER BY vc.child_venue_id;
       [...venue_ids],
     );
 
-    return data;
-  }
-  async booking_create(dto: any, id: number) {
-    //
-    const singular = dto.category.endsWith('s')
-      ? dto.category.slice(0, -1)
-      : dto.category;
-    const [categorys] = await this.dataSource.query(
-      `SELECT id FROM category WHERE name = ? limit 1`,
-      [singular],
-    );
-    const bookingUuid = uuidv4();
-    //const code = generateCode();
+    
+return data;
 
-    let code = generateCode();
-    let code_total = total_code_generating();
+    
+  
 
-    while (true) {
-      const rows = await this.dataSource.query(
-        `SELECT 1 FROM bookings WHERE booking_auto_id = ? LIMIT 1`,
-        [code],
-      );
+}
 
-      if (rows.length === 0) {
-        break; // Unique code found
-      }
+async loadAllSetting(body: any, id: number) {
+    const venue_ids = body; 
 
-      code = generateCode(); // Generate another code
+    if (!Array.isArray(venue_ids) || venue_ids.length === 0) {
+      return [];
     }
 
-    const crows = await this.dataSource.query(
-      `SELECT COUNT(*) AS total FROM bookings`,
+   const placeholders = venue_ids.map(() => '?').join(',');
+
+     const settings = await this.dataSource.query(
+    `
+    SELECT 
+      id,
+      child_id,
+      \`group\`,
+      \`key\`,
+      value,
+      type,
+      created_at,
+      updated_at
+    FROM venue_child_settings
+    WHERE child_id IN (${placeholders})
+    `,
+    [...venue_ids],
+  );
+return settings;
+
+    
+  }
+  // async booking_create(dto: any, id: number) {
+  //   //
+  //   const singular = dto.category.endsWith('s')
+  //     ? dto.category.slice(0, -1)
+  //     : dto.category;
+  //   const [categorys] = await this.dataSource.query(
+  //     `SELECT id FROM category WHERE name = ? limit 1`,
+  //     [singular],
+  //   );
+  //   const bookingUuid = uuidv4();
+  //   //const code = generateCode();
+
+  //   let code = generateCode();
+  //   let code_total = total_code_generating();
+
+  //   while (true) {
+  //     const rows = await this.dataSource.query(
+  //       `SELECT 1 FROM bookings WHERE invoice_number = ? LIMIT 1`,
+  //       [code],
+  //     );
+
+  //     if (rows.length === 0) {
+  //       break; // Unique code found
+  //     }
+
+  //     code = generateCode(); // Generate another code
+  //   }
+
+  //   const crows = await this.dataSource.query(
+  //     `SELECT COUNT(*) AS total FROM bookings`,
+  //   );
+
+  //   const generated_code = Number(crows[0].total);
+
+  //   const result: any = await this.dataSource.query(
+  //     `
+  //   INSERT INTO bookings
+  //   (
+  //     invoice_number,
+  //     booking_code,
+  //     booking_type,
+  //     category,
+  //     status,
+  //     total_pax,
+  //     base_amount,
+  //     discount_amount,
+  //     tax_amount,
+  //     total_amount,
+  //     notes,
+  //     vendor_id,
+  //     created_by,
+  //     updated_by,
+  //     created_at,
+  //     updated_at
+  //   )
+  //   VALUES (?,?,?, ?, ?,?,?,?,?,?,?,?,?,? ,NOW(),NOW())
+  //   `,
+  //     [
+  //       code,
+  //       dto.invoice_no,
+  //       dto.reserveType,
+  //       categorys.id,
+  //       0,
+  //       dto.event?.guest_capacity || 0,
+  //       dto.pricing?.base_amount || 0,
+  //       0,
+  //       dto.pricing?.pax_gst || 0,
+  //       dto.special_request || null,
+  //       id,
+  //       id,
+  //       0,
+
+  //       // dto.event?.event_type || null, // FIX 1
+
+  //       // dto.venues?.[0]?.child_venue_id || null,
+
+  //       // dto.event?.selection_mode === 'single'
+  //       //   ? dto.event?.event_date
+  //       //   : dto.event?.date_range?.start_date || null,
+
+  //       // dto.event?.selection_mode === 'single'
+  //       //   ? dto.event?.event_date
+  //       //   : dto.event?.date_range?.end_date || null,
+
+  //       // 0,
+
+  //       // dto.pricing?.total_guests || 0,
+  //       // dto.event?.guest_capacity || 0,
+
+  //       // dto.pricing?.grand_total || 0,
+  //       // dto.pricing?.base_amount || 0,
+  //       // dto.pricing?.security_deposit || 0,
+  //       // dto.pricing?.pax_gst || 0,
+
+  //       // dto.special_request || null,
+
+  //       // dto.customer?.name || null,
+  //       // dto.customer?.phone || null,
+  //       // dto.customer?.email || null,
+  //       // new Date(),
+  //       // new Date(),
+  //       // id,
+  //       // id,
+  //       // categorys.id,
+  //       // dto.reserveType,
+  //     ],
+  //   );
+
+  //   const bookingId = result.insertId;
+
+  //   // =========================
+  //   // VENUES
+  //   // =========================
+  //   await this.dataSource.query(
+  //     `
+  //       INSERT INTO booking_venues
+  //       (booking_id, parent_venue_id,child_venue_id,venue_name_snapshot)
+  //       VALUES (?,? ,?,?)
+  //       `,
+  //     [
+  //       bookingId,
+  //       dto.venues?.[0]?.child_venue_id || null,
+  //       dto.venues?.[0]?.child_venue_id || null,
+  //       dto.venues?.[0]?.child_venue_name || null,
+  //     ],
+  //   );
+
+  //   // =========================
+  //   // EVENT DATE
+  //   // =========================
+
+  //   const event_date = await this.dataSource.query(
+  //     `
+  //       INSERT INTO booking_event_dates
+  //       (booking_id, event_date)
+  //       VALUES (?,?)
+  //       `,
+  //     [bookingId, dto.event?.event_date],
+  //   );
+
+  //   const event_date_id = event_date.insertId;
+
+  //   // =========================
+  //   // SHIFTS
+  //   // =========================
+
+  //   if (dto.event?.shift?.length) {
+  //     for (const shift of dto.event.shift) {
+  //       const SHIFT_MAP = {
+  //         morning: 1,
+  //         afternoon: 2,
+  //         evening: 3,
+  //       };
+
+  //       const shiftId = SHIFT_MAP[shift.toLowerCase()];
+
+  //       if (!shiftId) continue; // skip invalid values
+
+  //       await this.dataSource.query(
+  //         `
+  //       INSERT INTO booking_shifts
+  //       (booking_id, event_date_id,venue_id,shift_name , start_time,	end_time,	pax,	price,	status)
+  //       VALUES (?,? ,?,?, ? , ?,? ,?,?)
+  //       `,
+  //         [
+  //           bookingId,
+  //           event_date_id,
+  //           dto.venues?.[0]?.child_venue_id || null,
+  //           shift.toLowerCase(),
+  //           '0',
+  //           '0',
+  //           '0',
+  //           '0',
+  //           'active',
+  //         ],
+  //       );
+  //     }
+  //   }
+
+  //   // =========================
+  //   // CUSTOMERS & EVENT MANAGEMENT
+  //   // =========================
+
+  //   await this.dataSource.query(
+  //     `
+  //       INSERT INTO booking_parties
+  //       (booking_id, party_type,party_id,name , phone,	email,	role_note)
+  //       VALUES (?,? ,?,?, ? , ?,? )
+  //       `,
+  //     [
+  //       bookingId,
+  //       'Customer',
+  //       0,
+  //       dto.customer?.name || null,
+  //       dto.customer?.phone || null,
+  //       dto.customer?.email || null,
+  //       '0',
+  //     ],
+  //   );
+
+  //   if (dto.service_providers?.caterer) {
+  //     await this.dataSource.query(
+  //       `
+  //           INSERT INTO booking_parties
+  //           (booking_id, party_type,party_id,name , phone,	email,	role_note)
+  //           VALUES (?,? ,?,?, ? , ?,? )
+  //       `,
+  //       [
+  //         bookingId,
+  //         'Caterer',
+  //         0,
+  //         dto.service_providers?.caterer || null,
+  //         0,
+  //         0,
+  //         '0',
+  //       ],
+  //     );
+  //   }
+
+  //   if (dto.service_providers?.decorator) {
+  //     await this.dataSource.query(
+  //       `
+  //           INSERT INTO booking_parties
+  //           (booking_id, party_type,party_id,name , phone,	email,	role_note)
+  //           VALUES (?,? ,?,?, ? , ?,? )
+  //       `,
+  //       [
+  //         bookingId,
+  //         'Decorator',
+  //         0,
+  //         dto.service_providers?.decorator || null,
+  //         0,
+  //         0,
+  //         '0',
+  //       ],
+  //     );
+  //   }
+
+  //   if (dto.service_providers?.music_troupe) {
+  //     await this.dataSource.query(
+  //       `
+  //           INSERT INTO booking_parties
+  //           (booking_id, party_type,party_id,name , phone,	email,	role_note)
+  //           VALUES (?,? ,?,?, ? , ?,? )
+  //       `,
+  //       [
+  //         bookingId,
+  //         'Music troupe',
+  //         0,
+  //         dto.service_providers?.music_troupe || null,
+  //         0,
+  //         0,
+  //         '0',
+  //       ],
+  //     );
+  //   }
+
+  //   if (dto.service_providers?.sound_system) {
+  //     await this.dataSource.query(
+  //       `
+  //           INSERT INTO booking_parties
+  //           (booking_id, party_type,party_id,name , phone,	email,	role_note)
+  //           VALUES (?,? ,?,?, ? , ?,? )
+  //       `,
+  //       [
+  //         bookingId,
+  //         'sound system',
+  //         0,
+  //         dto.service_providers?.sound_system || null,
+  //         0,
+  //         0,
+  //         '0',
+  //       ],
+  //     );
+  //   }
+
+  //   //BASE PRICE
+
+  //   await this.dataSource.query(
+  //     `
+  //       INSERT INTO booking_charges
+  //       (booking_id, charge_type , title, quantity, unit_price,total_price)
+  //       VALUES (?,?,?,? ,? , ?)
+  //       `,
+  //     [
+  //       bookingId,
+  //       'base',
+  //       'Base Amount',
+  //       1,
+  //       dto.pricing?.base_amount,
+  //       dto.pricing?.base_amount,
+  //     ],
+  //   );
+
+  //   if (dto.venues?.[0]?.security_amount != 0) {
+  //     await this.dataSource.query(
+  //       `
+  //       INSERT INTO booking_charges
+  //       (booking_id, charge_type , title, quantity, unit_price,total_price)
+  //       VALUES (?,?,?,? ,? , ?)
+  //       `,
+  //       [
+  //         bookingId,
+  //         'security',
+  //         'Security Amount',
+  //         1,
+  //         dto.venues?.[0]?.security_amount,
+  //         dto.venues?.[0]?.security_amount,
+  //       ],
+  //     );
+  //   }
+
+  //   if (dto.addons?.length) {
+  //     for (const addon of dto.addons) {
+  //       await this.dataSource.query(
+  //         `
+  //       INSERT INTO booking_charges
+  //       (booking_id, charge_type , title, quantity, unit_price,total_price)
+  //       VALUES (?,?,?,? ,? , ?)
+  //       `,
+  //         [
+  //           bookingId,
+  //           'addon',
+  //           addon.addon_name,
+  //           addon.qty,
+  //           addon.unit_price,
+  //           addon.amount,
+  //         ],
+  //       );
+  //     }
+  //   }
+
+  //   // =========================
+  //   // VENUES
+  //   // =========================
+  //   // if (dto.venues?.length) {
+  //   //   for (const venue of dto.venues) {
+  //   //     await this.dataSource.query(
+  //   //       `
+  //   //     INSERT INTO booking_event_dates
+  //   //     (booking_id, event_date)
+  //   //     VALUES (?,?)
+  //   //     `,
+  //   //       [bookingId, venue.child_venue_id],
+  //   //     );
+  //   //   }
+  //   // }
+
+  //   // =========================
+  //   // SHIFTS (FIXED STRING SAFE)
+  //   // =========================
+  //   // if (dto.event?.shift?.length) {
+  //   //   for (const shift of dto.event.shift) {
+  //   //     const SHIFT_MAP = {
+  //   //       morning: 1,
+  //   //       afternoon: 2,
+  //   //       evening: 3,
+  //   //     };
+
+  //   //     const shiftId = SHIFT_MAP[shift.toLowerCase()];
+
+  //   //     if (!shiftId) continue; // skip invalid values
+
+  //   //     await this.dataSource.query(
+  //   //       `
+  //   //     INSERT INTO booking_shift
+  //   //     (booking_id, shift_id)
+  //   //     VALUES (?,?)
+  //   //     `,
+  //   //       [bookingUuid, shiftId],
+  //   //     );
+  //   //   }
+  //   // }
+
+  //   // =========================
+  //   // ADDONS
+  //   // =========================
+  //   // if (dto.addons?.length) {
+  //   //   for (const addon of dto.addons) {
+  //   //     await this.dataSource.query(
+  //   //       `
+  //   //     INSERT INTO booking_addon
+  //   //     (booking_id, addon_id , qty, price, total)
+  //   //     VALUES (?,?,?,? ,?)
+  //   //     `,
+  //   //       [bookingUuid, addon.addon_id,addon.qty, addon.unit_price, addon.amount],
+  //   //     );
+  //   //   }
+  //   // }
+
+  //   // =========================
+  //   // SERVICE PROVIDERS
+  //   // =========================
+  //   // if (dto.service_providers) {
+  //   //   for (const [type, value] of Object.entries(dto.service_providers)) {
+  //   //     if (!value) continue;
+
+  //   //     await this.dataSource.query(
+  //   //       `
+  //   //     INSERT INTO booking_service_provider
+  //   //     (booking_id, provider_type, provider_name)
+  //   //     VALUES (?,?,?)
+  //   //     `,
+  //   //       [bookingUuid, type, value],
+  //   //     );
+  //   //   }
+  //   // }
+
+  //   //   await this.pushService.sendToUser(
+  //   //     id,
+  //   //     'Booking Confirmed',
+  //   //     'Your booking has been confirmed.',
+  //   //     '/bookings/' + id,
+  //   // );
+
+  //   return {
+  //     success: true,
+  //     booking_id: bookingId,
+  //     code_total: code_total,
+  //     code_completed: generated_code,
+  //     code_pending: code_total - generated_code,
+  //   };
+  // }
+
+
+  async booking_create(dto: any, id: number , country:any) {
+
+  // -----------------------------
+  // 1. CATEGORY
+  // -----------------------------
+  const singular = dto.category?.endsWith('s')
+    ? dto.category.slice(0, -1)
+    : dto.category;
+
+  const [category] = await this.dataSource.query(
+    `SELECT id FROM category WHERE name = ? LIMIT 1`,
+    [singular],
+  );
+
+  // -----------------------------
+  // 2. IDS
+  // -----------------------------
+  const bookingUuid = uuidv4();
+
+  let code = generateCode();
+
+  while (true) {
+    const rows = await this.dataSource.query(
+      `SELECT 1 FROM bookings WHERE invoice_number = ? LIMIT 1`,
+      [code],
     );
 
-    const generated_code = Number(crows[0].total);
+    if (rows.length === 0) break;
+    code = generateCode();
+  }
+//book
+  const reserveType = dto.reserveType ==  "book" ? ( dto.booking_type == 'book' ? 'booked':'reserve'):dto.reserveType;
 
-    const result: any = await this.dataSource.query(
-      `
+  // -----------------------------
+  // 3. MAIN BOOKING INSERT (FIXED)
+  // -----------------------------
+  const result: any = await this.dataSource.query(
+    `
     INSERT INTO bookings
     (
-      booking_id,
-      booking_auto_id,
-      auto_increment,
+    booking_code,
+      invoice_number,
+      
       booking_type,
-      booking_event_type_id,
-      child_venue_id,
-      from_date,
-      to_date,
-      booked_shift_type,
-      booked_no_of_people,
-      guest_capacity,
-      total_booking_price,
-      base_amount_of_hall,
-      security_deposit,
-      pax_tax,
-      special_request,
-      billing_first_name,
-      billing_phone,
-      billing_email,
+      category,
+      country_id,
+      status,
+      total_pax,
+      base_amount,
+      discount_amount,
+      tax_amount,
+      total_amount,
+      notes,
+      vendor_id,
+      created_by,
+      updated_by,
       created_at,
       updated_at,
-      created_by_,
-      created_under_by,
-      category_id,
-      booking_types
+      booking_event_type_id,
+      selection_mode,
+      selection_type
     )
-    VALUES (?,?,?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `,
+    [
+      code,
+      dto.invoice_no || null,
+      reserveType || 'draft',
+      category?.id || null,
+      country,
+      'active',
+
+      dto.event?.guest_capacity || 0,
+      dto.pricing?.base_amount || 0,
+      0,
+      dto.pricing?.pax_gst || 0,
+      dto.pricing?.final_total || 0,
+
+      dto.special_request || null,
+
+      id,
+      id,
+      id,
+              new Date(),
+        new Date(),
+         dto.event?.event_type || null,
+         dto.event?.selection_type || null,
+         dto.event?.selection_mode || null
+    ],
+  );
+
+  const bookingId = result.insertId;
+
+if(dto.event?.selection_type ==='pax')
+{
+    await this.insertPaxPackages(bookingId,dto);
+}
+
+ 
+
+  // -----------------------------
+  // 4. VENUES
+  // -----------------------------
+ if (dto.venues?.length) {
+  const venueValues = dto.venues.map((venue: any) => [
+    bookingId,
+    venue.parent_venue_id || null,
+    venue.child_venue_id || null,
+    venue.child_venue_name || null,
+  ]);
+
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_venues
+    (booking_id, parent_venue_id, child_venue_id, venue_name_snapshot)
+    VALUES ?
+    `,
+    [venueValues],
+  );
+}
+
+  // -----------------------------
+  // 5. EVENT DATE
+  // -----------------------------
+let eventDates: string[] = [];
+
+// -----------------------------
+// RANGE CASE (YOUR CURRENT PAYLOAD)
+// -----------------------------
+if (dto.event?.date_range?.start_date && dto.event?.date_range?.end_date) {
+  eventDates = getDatesBetween(
+    dto.event.date_range.start_date,
+    dto.event.date_range.end_date,
+  );
+}
+
+// -----------------------------
+// ARRAY CASE
+// -----------------------------
+else if (Array.isArray(dto.event?.event_date)) {
+  eventDates = dto.event.event_date;
+}
+
+// -----------------------------
+// SINGLE DATE CASE
+// -----------------------------
+else if (dto.event?.event_date) {
+  eventDates = [dto.event.event_date];
+}
+
+const eventDateResult: any[] = [];
+
+for (const date of eventDates) {
+  const res = await this.dataSource.query(
+    `INSERT INTO booking_event_dates (booking_id, event_date) VALUES (?,?)`,
+    [bookingId, date],
+  );
+
+  eventDateResult.push({
+    id: res.insertId,
+    date,
+  });
+}
+
+  // const eventDateId = event.insertId;
+
+  // -----------------------------
+  // 6. SHIFTS (FIXED)
+  // -----------------------------
+  const SHIFT_MAP: any = {
+  morning: 1,
+  afternoon: 2,
+  evening: 3,
+};
+
+const shifts = dto.event?.shift || [];
+const shiftValues: any[] = [];
+
+for (const ed of eventDateResult) {
+  for (const shift of shifts) {
+    const shiftId = SHIFT_MAP[shift.toLowerCase()];
+    if (!shiftId) continue;
+
+    shiftValues.push([
+      bookingId,
+      ed.id,
+      0,
+      shift,
+      'active',
+    ]);
+  }
+}
+
+if (shiftValues.length) {
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_shifts
+    (booking_id, event_date_id, venue_id, shift_name, status)
+    VALUES ?
+    `,
+    [shiftValues],
+  );
+}
+
+  // -----------------------------
+  // 7. CUSTOMER
+  // -----------------------------
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_parties
+    (
+      booking_id,
+      party_type,
+      party_id,
+      name,
+      phone,
+      email
+    )
+    VALUES (?,?,?,?,?,?)
+    `,
+    [
+      bookingId,
+      'customer',
+      0,
+      dto.customer?.name || null,
+      dto.customer?.phone || null,
+      dto.customer?.email || null,
+    ],
+  );
+
+  // -----------------------------
+  // 8. SERVICE PROVIDERS
+  // -----------------------------
+const providers = dto.service_providers || {};
+
+const providerValues = Object.entries(providers)
+  .filter(([_, value]) => value)
+  .map(([type, value]: any) => [
+    bookingId,
+    type,
+    0,
+    value,
+  ]);
+
+if (providerValues.length) {
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_parties
+    (booking_id, party_type, party_id, name)
+    VALUES ?
+    `,
+    [providerValues],
+  );
+}
+
+  // -----------------------------
+  // 9. CHARGES
+  // -----------------------------
+  const chargeValues: any[] = [];
+
+// --------------------
+// 1. BASE AMOUNT
+// --------------------
+chargeValues.push([
+  bookingId,
+  'base',
+  'Base Amount',
+  1,
+  dto.pricing?.base_amount || 0,
+  dto.pricing?.base_amount || 0,
+]);
+
+// --------------------
+// 2. ADDONS
+// --------------------
+if (dto.addons?.length) {
+  for (const addon of dto.addons) {
+    chargeValues.push([
+      bookingId,
+      'addon',
+      addon.name,
+      addon.qty,
+      addon.unit_price,
+      addon.amount,
+    ]);
+  }
+}
+/* 
+ venue_gst: summary.venueGST,
+    pax_gst: summary.paxGST, 
+
+    dto.pricing?.venue_gst
+    dto.pricing?.paxGST
+    
+    */
+// --------------------
+// 3. SECURITY DEPOSIT
+// --------------------
+if (dto.pricing?.security_deposit) {
+  chargeValues.push([
+    bookingId,
+    'security_deposit',
+    'Security Deposit',
+    1,
+    dto.pricing.security_deposit,
+    dto.pricing.security_deposit,
+  ]);
+}
+
+// --------------------
+// 4. ADVANCE PAYMENT
+// --------------------
+if (dto.pricing?.advance_amount) {
+  chargeValues.push([
+    bookingId,
+    'advance',
+    'Advance Payment',
+    1,
+    dto.pricing.advance_amount,
+    dto.pricing.advance_amount,
+  ]);
+}
+
+// --------------------
+// 5. RESERVATION AMOUNT
+// --------------------
+if (dto.pricing?.reservation_amount) {
+  chargeValues.push([
+    bookingId,
+    'reservation',
+    'Reservation Amount',
+    1,
+    dto.pricing.reservation_amount,
+    dto.pricing.reservation_amount,
+  ]);
+}
+
+// --------------------
+// 6. DISCOUNT (optional but important)
+// --------------------
+if (dto.pricing?.discount_amount) {
+  chargeValues.push([
+    bookingId,
+    'discount',
+    'Discount',
+    1,
+    -dto.pricing.discount_percent,
+    -dto.pricing.discount_amount,
+  ]);
+}
+
+// --------------------
+// INSERT ALL
+// --------------------
+await this.dataSource.query(
+  `
+  INSERT INTO booking_charges
+  (booking_id, charge_type, title, quantity, unit_price, total_price)
+  VALUES ?
+  `,
+  [chargeValues],
+);
+
+
+const taxes : any[] = [];
+
+if (dto.pricing?.gst_total > 0) {
+  taxes.push([
+    bookingId,
+    'Venue GST',
+    18,
+    0,
+    dto.pricing.gst_total,
+  ]);
+}
+
+if (dto.pricing?.pax_gst > 0) {
+  taxes.push([
+    bookingId,
+    'PAX GST',
+    5,
+    0,
+    dto.pricing.pax_gst,
+  ]);
+}
+
+if (taxes.length) {
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_taxes
+    (booking_id, tax_name, tax_percent, taxable_amount, tax_amount)
+    VALUES ?
+    `,
+    [taxes]
+  );
+}
+
+
+  // -----------------------------
+  // 10. RESPONSE
+  // ----------------------------- 
+  // 
+   // -----------------------------
+  // 11. LOGS
+  // -----------------------------
+
+  await this.createLog(
+  'booking',
+  bookingId,
+  'created',
+  `Booking ${code} created`,
+  id,
+  null,
+  {
+    booking_type: reserveType,
+    customer: dto.customer?.name,
+    total_amount: dto.pricing?.grand_total,
+  }
+);
+
+//Realtime
+this.socketService.realtime(id.toString());
+
+//email
+const data = {
+  email:dto.customer?.email,
+  id:bookingId
+}
+this.invoiceService.sendInvoice(data)
+
+
+  return {
+    success: true,
+    booking_id: bookingId,
+    invoice_number: code,
+  };
+}
+
+//only if package
+async insertPaxPackages(bookingId: number, dto: any) {
+
+  for (const pkg of dto.pax_packages || []) {
+
+    const paxCount = dto.event?.guest_capacity || 0;
+
+    // =========================
+    // 1. booking_pax
+    // =========================
+    const paxResult: any = await this.dataSource.query(
+      `
+      INSERT INTO booking_pax
+      (booking_id, package_id, package_name, pax_count, price_per_pax, total)
+      VALUES (?,?,?,?,?,?)
+      `,
       [
-        bookingUuid,
-        code,
-        dto.invoice_no,
-        dto.booking_type == 'book' ? 1 : 2,
-        dto.event?.event_type || null, // FIX 1
-
-        dto.venues?.[0]?.child_venue_id || null,
-
-        dto.event?.selection_mode === 'single'
-          ? dto.event?.event_date
-          : dto.event?.date_range?.start_date || null,
-
-        dto.event?.selection_mode === 'single'
-          ? dto.event?.event_date
-          : dto.event?.date_range?.end_date || null,
-
-        0,
-
-        dto.pricing?.total_guests || 0,
-        dto.event?.guest_capacity || 0,
-
-        dto.pricing?.grand_total || 0,
-        dto.pricing?.base_amount || 0,
-        dto.pricing?.security_deposit || 0,
-        dto.pricing?.pax_gst || 0,
-
-        dto.special_request || null,
-
-        dto.customer?.name || null,
-        dto.customer?.phone || null,
-        dto.customer?.email || null,
-        new Date(),
-        new Date(),
-        id,
-        id,
-        categorys.id,
-        dto.reserveType,
-      ],
+        bookingId,
+        pkg.package_id,
+        pkg.package_name,
+        paxCount,
+        pkg.price_per_pax,
+        paxCount * pkg.price_per_pax
+      ]
     );
 
-    // const bookingId = result.insertId;
+    const bookingPaxId = paxResult.insertId;
 
     // =========================
-    // VENUES
+    // TEMP ARRAYS
     // =========================
-    if (dto.venues?.length) {
-      for (const venue of dto.venues) {
-        await this.dataSource.query(
-          `
-        INSERT INTO booking_child_venue
-        (booking_id, child_venue_id)
-        VALUES (?,?)
-        `,
-          [bookingUuid, venue.child_venue_id],
-        );
+    const categoryRows: any[] = [];
+    const itemRows: any[] = [];
+    const snapshotRows: any[] = [];
+
+    // =========================
+    // LOOP SELECTIONS
+    // =========================
+    for (const sel of pkg.selections || []) {
+
+      // CATEGORY
+      categoryRows.push([
+        bookingPaxId,
+        sel.category_id,
+        sel.category_name
+      ]);
+
+      // ITEMS (FIX HERE)
+      for (const item of sel.item_ids || []) {
+
+        itemRows.push([
+          bookingPaxId,
+          sel.category_id,
+          item.id   // ✅ FIXED
+        ]);
+
+        snapshotRows.push([
+          bookingPaxId,
+          item.id,
+          item.name,   // ✅ FIXED
+          0            // price (or item.price if available)
+        ]);
       }
     }
 
     // =========================
-    // SHIFTS (FIXED STRING SAFE)
+    // INSERT CATEGORIES
     // =========================
-    if (dto.event?.shift?.length) {
-      for (const shift of dto.event.shift) {
-        const SHIFT_MAP = {
-          morning: 1,
-          afternoon: 2,
-          evening: 3,
-        };
-
-        const shiftId = SHIFT_MAP[shift.toLowerCase()];
-
-        if (!shiftId) continue; // skip invalid values
-
-        await this.dataSource.query(
-          `
-        INSERT INTO booking_shift
-        (booking_id, shift_id)
-        VALUES (?,?)
+    if (categoryRows.length) {
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_pax_categories
+        (booking_pax_id, category_id, category_name)
+        VALUES ?
         `,
-          [bookingUuid, shiftId],
-        );
-      }
+        [categoryRows]
+      );
     }
 
     // =========================
-    // ADDONS
+    // INSERT ITEMS
     // =========================
-    if (dto.addons?.length) {
-      for (const addon of dto.addons) {
-        await this.dataSource.query(
-          `
-        INSERT INTO booking_addon
-        (booking_id, qty, price, total)
-        VALUES (?,?,?,?)
+    if (itemRows.length) {
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_pax_items
+        (booking_pax_id, category_id, item_id)
+        VALUES ?
         `,
-          [bookingUuid, addon.qty, addon.unit_price, addon.amount],
-        );
-      }
+        [itemRows]
+      );
     }
 
     // =========================
-    // SERVICE PROVIDERS
+    // INSERT SNAPSHOT
     // =========================
-    if (dto.service_providers) {
-      for (const [type, value] of Object.entries(dto.service_providers)) {
-        if (!value) continue;
-
-        await this.dataSource.query(
-          `
-        INSERT INTO booking_service_provider
-        (booking_id, provider_type, provider_name)
-        VALUES (?,?,?)
+    if (snapshotRows.length) {
+      await this.dataSource.query(
+        `
+        INSERT INTO booking_pax_item_snapshot
+        (booking_pax_id, item_id, item_name, price)
+        VALUES ?
         `,
-          [bookingUuid, type, value],
-        );
-      }
+        [snapshotRows]
+      );
     }
-
-    //   await this.pushService.sendToUser(
-    //     id,
-    //     'Booking Confirmed',
-    //     'Your booking has been confirmed.',
-    //     '/bookings/' + id,
-    // );
-
-    return {
-      success: true,
-      booking_id: bookingUuid,
-      code_total: code_total,
-      code_completed: generated_code,
-      code_pending: code_total - generated_code,
-    };
   }
 
+  return true;
+}
   async all_reservations(category: any, country: any, id: number) {
     const singular = category.endsWith('s') ? category.slice(0, -1) : category;
     const [categorys] = await this.dataSource.query(
@@ -593,151 +1552,107 @@ ORDER BY vc.child_venue_id;
       [singular],
     );
 
-    const rows = await this.dataSource.query(
-      `
+   const rows = await this.dataSource.query(
+`
 SELECT
-    b.booking_id AS id,
-    b.booking_auto_id AS refNo,
-    b.booking_type AS type,
+    b.id,
 
-CASE
-    WHEN b.status = '2' THEN 'CANCELLED'
+    MAX(b.invoice_number) AS refNo,
+    MAX(b.booking_type) AS type,
 
-    WHEN  b.booking_types = 3 THEN 'lead'
+    CASE
+        WHEN MAX(b.status) = 'cancelled' THEN 'CANCELLED'
+        WHEN MAX(b.booking_type) = 'lead' THEN 'LEAD'
+        WHEN MAX(b.booking_type) = 'reserve' THEN 'RESERVED'
+        WHEN MAX(b.booking_type) = 'expired' THEN 'EXPIRED'
+        WHEN MAX(b.booking_type) = 'draft' THEN 'PENDING'
+        WHEN MAX(b.booking_type) = 'booked' THEN 'CONFIRMED'
+        ELSE 'NEW'
+    END AS workflowState,
 
-    WHEN b.status IN ('0', '1')
-         AND b.booking_type = '2'
-         AND b.booking_types = 1
-    THEN 'RESERVED'
-
-    WHEN b.status IN ('0', '1')
-         AND b.booking_type = '4'
-         AND b.booking_types = 1
-    THEN 'EXPIRED'
-
-    WHEN b.status = '0'
-         AND b.booking_type = '1'
-         AND b.booking_types = 1
-    THEN 'PENDING'
-
-    WHEN b.status = '1'
-         AND b.booking_type = '1'
-         AND b.booking_types = 1
-    THEN 'CONFIRMED' 
-    
-    
-
-    ELSE 'NEW'
-END AS workflowState,
-
-    b.billing_first_name AS name,
-    b.billing_email AS email,
-    b.billing_phone AS phone,
+    MAX(bp.name) AS name,
+    MAX(bp.email) AS email,
+    MAX(bp.phone) AS phone,
 
     GROUP_CONCAT(
-        DISTINCT vc.child_venue_name
-        ORDER BY vc.child_venue_name
+        DISTINCT bv.venue_name_snapshot
+        ORDER BY bv.venue_name_snapshot
         SEPARATOR ', '
     ) AS venue,
 
-    b.booked_no_of_people AS guests,
-    b.total_booking_price AS amountNum,
-    b.total_booking_price AS amount,
-    b.from_date AS eventDate,
-    b.created_at AS orderDate,
+    MAX(b.total_pax) AS guests,
+
+    MAX(b.total_amount) AS amountNum,
+    MAX(b.total_amount) AS amount,
+
+    MIN(bed.event_date) AS eventDate,
+
+    MAX(b.created_at) AS orderDate,
 
     GROUP_CONCAT(
-        DISTINCT CASE
-            WHEN s.shift_id = 1 THEN 'Morning'
-            WHEN s.shift_id = 2 THEN 'Afternoon'
-            WHEN s.shift_id = 3 THEN 'Evening'
-        END
-        ORDER BY s.shift_id
+        DISTINCT bs.shift_name
+        ORDER BY bs.shift_name
         SEPARATOR ', '
     ) AS shift,
 
-    b.booking_auto_id AS source,
-    b.booking_auto_id AS caterer,
-    b.booking_auto_id AS decorator,
-    b.booking_auto_id AS paymentStatus,
-    b.booking_auto_id AS assignedStaff,
-    b.base_amount_of_hall AS base_amt,
+    MAX(b.invoice_number) AS source,
+    MAX(b.invoice_number) AS caterer,
+    MAX(b.invoice_number) AS decorator,
+    MAX(b.invoice_number) AS paymentStatus,
+    MAX(b.invoice_number) AS assignedStaff,
 
-    bet.event_name AS eventType,
-
+    MAX(b.base_amount) AS base_amt,
 
     CASE
-    WHEN b.status = '2' THEN 'bg-red-500'
+        WHEN MAX(b.status) = 'cancelled' THEN 'bg-red-500'
+        WHEN MAX(b.booking_type) = 'lead' THEN 'bg-green-500'
+        WHEN MAX(b.booking_type) = 'reserve' THEN 'bg-pink-500'
+        WHEN MAX(b.booking_type) = 'expired' THEN 'bg-blue-500'
+        WHEN MAX(b.booking_type) = 'draft' THEN 'bg-emerald-500'
+        WHEN MAX(b.booking_type) = 'booked' THEN 'bg-amber-500'
+        ELSE 'bg-violet-500'
+    END AS avatarColor,
 
-    WHEN  b.booking_types = 3 THEN 'bg-green-500'
-
-    WHEN b.status IN ('0', '1')
-         AND b.booking_type = '2'
-         AND b.booking_types = 1
-    THEN 'bg-pink-500'
-
-    WHEN b.status IN ('0', '1')
-         AND b.booking_type = '4'
-         AND b.booking_types = 1
-    THEN 'bg-blue-500'
-
-    WHEN b.status = '0'
-         AND b.booking_type = '1'
-         AND b.booking_types = 1
-    THEN 'bg-emerald-500'
-
-    WHEN b.status = '1'
-         AND b.booking_type = '1'
-         AND b.booking_types = 1
-    THEN 'bg-amber-500' 
-    
-    
-
-    ELSE 'bg-violet-500'
-END AS avatarColor,
-
-    b.booking_auto_id AS tag
+    MAX(b.invoice_number) AS tag
 
 FROM bookings b
 
-LEFT JOIN booking_event_types bet
-    ON bet.id = b.booking_event_type_id
+LEFT JOIN booking_parties bp
+    ON bp.booking_id = b.id
+    AND bp.party_type = 'Customer'
 
-LEFT JOIN booking_child_venue bcv
-    ON bcv.booking_id = b.booking_id
+LEFT JOIN booking_venues bv
+    ON bv.booking_id = b.id
 
-LEFT JOIN venue_child vc
-    ON vc.child_venue_id = bcv.child_venue_id
+LEFT JOIN booking_event_dates bed
+    ON bed.booking_id = b.id
 
-LEFT JOIN booking_shift s
-    ON s.booking_id = b.booking_id
+LEFT JOIN booking_shifts bs
+    ON bs.booking_id = b.id
 
-WHERE b.created_under_by = ?
-  AND b.category_id = ? AND b.booking_types in (1,3)
+WHERE
+    b.created_by = ?
+    AND b.category = ?
+    AND b.country_id = ?
+    AND b.booking_type IN (
+        'lead',
+        'reserve',
+        'draft',
+        'booked',
+        'expired'
+    )
 
-GROUP BY
-    b.booking_id,
-    b.booking_auto_id,
-    b.booking_type,
-    b.status,
-    b.billing_first_name,
-    b.billing_email,
-    b.billing_phone,
-    b.booked_no_of_people,
-    b.total_booking_price,
-    b.from_date,
-    b.created_at,
-    bet.event_name
+GROUP BY b.id
 
-ORDER BY b.created_at DESC
+ORDER BY MAX(b.created_at) DESC
 `,
-      [id, categorys.id],
-    );
+[id, categorys.id , country],
+);
 
     return rows;
-}  
+  }
 
-async all_other_reserve(category: any, country: any, id: number) {
+  async all_other_reserve(category: any, country: any, id: number) {
     const singular = category.endsWith('s') ? category.slice(0, -1) : category;
     const [categorys] = await this.dataSource.query(
       `SELECT id FROM category WHERE name = ? limit 1`,
@@ -842,209 +1757,539 @@ ORDER BY b.created_at DESC
     );
 
     return rows;
+  }
+
+async reservation_invoice(id: number) {
+ const [row] = await this.dataSource.query(
+  `
+SELECT
+    b.id,
+    b.booking_code AS refNo,
+    b.booking_type AS type,
+    b.invoice_number,
+    b.booking_type,
+
+    vp.venue_name,
+    vp.parent_venue_id,
+    vp.venue_country,
+    vp.venue_address,
+    vp.venue_city,
+    vp.logo,
+    vp.phone,
+    vp.email,
+
+    CASE
+        WHEN b.status = 2 THEN 'CANCELLED'
+        WHEN b.status = 1 THEN 'CONFIRMED'
+        WHEN b.status = 0 THEN 'PENDING'
+        ELSE 'NEW'
+    END AS workflowState,
+
+    -- CUSTOMER
+    (
+        SELECT JSON_OBJECT(
+            'name', bp.name,
+            'email', bp.email,
+            'phone', bp.phone
+        )
+        FROM booking_parties bp
+        WHERE bp.booking_id = b.id
+          AND bp.party_type = 'Customer'
+        LIMIT 1
+    ) AS customer,
+
+    -- VENUE
+    (
+        SELECT GROUP_CONCAT(
+            DISTINCT bv.venue_name_snapshot
+            SEPARATOR ', '
+        )
+        FROM booking_venues bv
+        WHERE bv.booking_id = b.id
+    ) AS venue,
+
+    -- EVENT DATE
+    (
+        SELECT MIN(bed.event_date)
+        FROM booking_event_dates bed
+        WHERE bed.booking_id = b.id
+    ) AS fromDate,
+
+    (
+        SELECT MAX(bed.event_date)
+        FROM booking_event_dates bed
+        WHERE bed.booking_id = b.id
+    ) AS toDate,
+
+    -- SHIFTS
+    (
+        SELECT GROUP_CONCAT(
+            DISTINCT
+            CASE
+                WHEN bs.shift_name = 'morning' THEN 'Morning'
+                WHEN bs.shift_name = 'afternoon' THEN 'Afternoon'
+                WHEN bs.shift_name = 'evening' THEN 'Evening'
+                WHEN bs.shift_name = 'full day' THEN 'Full Day'
+                ELSE bs.shift_name
+            END
+            SEPARATOR ', '
+        )
+        FROM booking_shifts bs
+        WHERE bs.booking_id = b.id
+    ) AS shift,
+
+    -- CHARGES
+    (
+        SELECT COALESCE(SUM(bc.total_price),0)
+        FROM booking_charges bc
+        WHERE bc.booking_id = b.id
+    ) AS addon_total,
+
+    -- PAYMENTS
+    (
+        SELECT COALESCE(SUM(bp.amount_paid),0)
+        FROM booking_payments bp
+        WHERE bp.booking_id = b.id
+    ) AS paid_amount,
+
+    -- TAXES
+    (
+        SELECT COALESCE(SUM(bt.tax_amount),0)
+        FROM booking_taxes bt
+        WHERE bt.booking_id = b.id
+    ) AS tax_total,
+
+    -- DISCOUNTS
+    (
+        SELECT COALESCE(SUM(bd.amount),0)
+        FROM booking_discounts bd
+        WHERE bd.booking_id = b.id
+    ) AS discount_total,
+
+    b.base_amount AS base_amt,
+    b.total_amount AS amount,
+    b.notes,
+    b.created_at AS orderDate,
+
+    bet.event_name AS eventType,
+
+    CASE
+        WHEN b.status = 2 THEN 'bg-red-500'
+        WHEN b.status = 1 THEN 'bg-green-500'
+        WHEN b.status = 0 THEN 'bg-amber-500'
+        ELSE 'bg-gray-500'
+    END AS avatarColor
+
+FROM bookings b
+
+LEFT JOIN booking_venues bv_main
+    ON bv_main.booking_id = b.id
+
+LEFT JOIN venue_child vc
+    ON vc.child_venue_id = bv_main.child_venue_id
+
+LEFT JOIN venue_parent vp
+    ON vp.parent_venue_id = vc.parent_venue_id
+
+LEFT JOIN booking_event_types bet
+    ON bet.id = b.booking_event_type_id
+
+WHERE b.id = ?
+LIMIT 1
+`,
+  [id],
+);
+
+  row.charges = await this.dataSource.query(
+    `
+    SELECT
+        id,
+        charge_type,
+        title,
+        quantity,
+        unit_price,
+        total_price
+    FROM booking_charges
+    WHERE booking_id = ?
+    ORDER BY id
+    `,
+    [id],
+  );
+
+   row.taxes = await this.dataSource.query(
+    `
+    SELECT *
+    FROM booking_taxes
+    WHERE booking_id = ?
+    `,
+    [id],
+  );
+
+  row.pax_item_snapshot = await this.dataSource.query(
+    `
+    SELECT
+      bps.id,
+      bps.booking_pax_id,
+      bps.item_id,
+      bps.item_name,
+      bps.price,
+      bps.created_at
+    FROM booking_pax_item_snapshot bps
+    INNER JOIN booking_pax bp ON bp.id = bps.booking_pax_id
+    WHERE bp.booking_id = ?
+    `,
+    [id],
+  );
+
+
+
+  if (!row) return null;
+
+  // -------------------------
+  // SAFE CUSTOMER PARSE
+  // -------------------------
+  let customer = null;
+  try {
+    customer =
+      typeof row.customer === 'string'
+        ? JSON.parse(row.customer)
+        : row.customer;
+  } catch {
+    customer = null;
+  }
+
+  return {
+    ...row,
+    customer,
+
+    addon_total: Number(row.addon_total || 0),
+    tax_total: Number(row.tax_total || 0),
+    discount_total: Number(row.discount_total || 0),
+    paid_amount: Number(row.paid_amount || 0),
+    amount: Number(row.amount || 0),
+  };
 }
+  async reservation_manage(id: number) {
+  const [booking] = await this.dataSource.query(
+    `
+    SELECT
+        b.id,
+       b.booking_code AS refNo,
+    b.invoice_number,
+        b.booking_type,
+        b.status,
+        b.category,
 
-  async reservation_invoice(id: any) {
-    const rows = await this.dataSource.query(
-      `
-SELECT
-    b.booking_id AS id,
-    b.booking_auto_id AS refNo,
-    b.booking_type AS type,
+        MAX(bp.name) AS customer_name,
+        MAX(bp.email) AS customer_email,
+        MAX(bp.phone) AS customer_phone,
 
-    CASE
-        WHEN b.status = '2' THEN 'CANCELLED'
-        WHEN b.booking_type = 2 THEN 'RESERVED'
-        WHEN b.booking_type = 4 THEN 'NEW'
-        WHEN b.status = '1' THEN 'CONFIRMED'
-        WHEN b.status = '0' THEN 'PENDING'
-        ELSE 'NEW'
-    END AS workflowState,
+        GROUP_CONCAT(
+            DISTINCT bv.venue_name_snapshot
+            ORDER BY bv.venue_name_snapshot
+            SEPARATOR ', '
+        ) AS venues,
 
-    b.billing_first_name AS name,
-    b.billing_email AS email,
-    b.billing_phone AS phone,
+        MIN(bed.event_date) AS event_date,
+        MAX(bed.event_date) AS end_date,
 
-    GROUP_CONCAT(
-        DISTINCT vc.child_venue_name
-        ORDER BY vc.child_venue_name
-        SEPARATOR ', '
-    ) AS venue,
+        GROUP_CONCAT(
+            DISTINCT bs.shift_name
+            ORDER BY bs.shift_name
+            SEPARATOR ', '
+        ) AS shifts,
 
-    b.booked_no_of_people AS guests,
-    b.total_booking_price AS amountNum,
-    b.total_booking_price AS amount,
-    b.from_date AS eventDate,
-    b.created_at AS orderDate,
-b.base_amount_of_hall AS base_amt,
+        COALESCE(bl.logs, JSON_ARRAY()) AS logs,
+         
+        b.total_pax,
+        b.base_amount,
+        b.discount_amount,
+        b.tax_amount,
+        b.total_amount,
+        b.notes,
 
-    GROUP_CONCAT(
-        DISTINCT CASE
-            WHEN s.shift_id = 1 THEN 'Morning'
-            WHEN s.shift_id = 2 THEN 'Afternoon'
-            WHEN s.shift_id = 3 THEN 'Evening'
-        END
-        ORDER BY s.shift_id
-        SEPARATOR ', '
-    ) AS shift,
+        b.created_at,
+        b.updated_at
 
-    b.booking_auto_id AS source,
-    b.booking_auto_id AS caterer,
-    b.booking_auto_id AS decorator,
-    b.booking_auto_id AS paymentStatus,
-    b.booking_auto_id AS assignedStaff,
+    FROM bookings b
 
-    bet.event_name AS eventType,
+    LEFT JOIN booking_parties bp
+        ON bp.booking_id = b.id
+        AND bp.party_type = 'Customer'
 
-    CASE
-        WHEN b.status = '2' THEN 'bg-red-500'
-        WHEN b.booking_type = 2 THEN 'bg-pink-500'
-        WHEN b.booking_type = 4 THEN 'bg-blue-500'
-        WHEN b.status = '1' THEN 'bg-emerald-500'
-        WHEN b.status = '0' THEN 'bg-amber-500'
-        ELSE 'bg-violet-500'
-    END AS avatarColor,
+    LEFT JOIN booking_venues bv
+        ON bv.booking_id = b.id
 
-    b.booking_auto_id AS tag
+    LEFT JOIN booking_event_dates bed
+        ON bed.booking_id = b.id
 
-FROM bookings b
+    LEFT JOIN booking_shifts bs
+        ON bs.booking_id = b.id
+        
+    LEFT JOIN (
+    SELECT
+        booking_id,
+        JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'action', action,
+                'description', description,
+                'old_value', old_value,
+                'new_value', new_value,
+                'created_by', created_by,
+                'created_by_name', created_by_name,
+                'created_at', created_at
+            )
+        ) AS logs
+    FROM booking_logs
+    GROUP BY booking_id
+) bl ON bl.booking_id = b.id
 
-LEFT JOIN booking_event_types bet
-    ON bet.id = b.booking_event_type_id
+    WHERE b.id = ?
 
-LEFT JOIN booking_child_venue bcv
-    ON bcv.booking_id = b.booking_id
+    GROUP BY b.id
 
-LEFT JOIN venue_child vc
-    ON vc.child_venue_id = bcv.child_venue_id
+    LIMIT 1
+    `,
+    [id],
+  );
 
-LEFT JOIN booking_shift s
-    ON s.booking_id = b.booking_id
-
-WHERE b.booking_id = ?
-
-GROUP BY
-    b.booking_id,
-    b.booking_auto_id,
-    b.booking_type,
-    b.status,
-    b.billing_first_name,
-    b.billing_email,
-    b.billing_phone,
-    b.booked_no_of_people,
-    b.total_booking_price,
-    b.from_date,
-    b.created_at,
-    bet.event_name
-
-ORDER BY b.created_at DESC
-`,
-      [id],
-    );
-
-    return rows[0];
+  if (!booking) {
+    return null;
   }
 
-  async reservation_manage(id: any) {
-    const rows = await this.dataSource.query(
-      `
-SELECT
-    b.booking_id AS id,
-    b.booking_auto_id AS refNo,
-    b.booking_type AS type,
+  // ----------------------------------
+  // Parties
+  // ----------------------------------
+  booking.parties = await this.dataSource.query(
+    `
+    SELECT
+        id,
+        party_type,
+        party_id,
+        name,
+        phone,
+        email,
+        role_note
+    FROM booking_parties
+    WHERE booking_id = ?
+    ORDER BY id
+    `,
+    [id],
+  );
 
-    CASE
-        WHEN b.status = '2' THEN 'CANCELLED'
-        WHEN b.booking_type = 2 THEN 'RESERVED'
-        WHEN b.booking_type = 4 THEN 'NEW'
-        WHEN b.status = '1' THEN 'CONFIRMED'
-        WHEN b.status = '0' THEN 'PENDING'
-        ELSE 'NEW'
-    END AS workflowState,
+  // ----------------------------------
+  // Venues
+  // ----------------------------------
+  booking.venues = await this.dataSource.query(
+    `
+    SELECT
+        id,
+        parent_venue_id,
+        child_venue_id,
+        venue_name_snapshot
+    FROM booking_venues
+    WHERE booking_id = ?
+    `,
+    [id],
+  );
 
-    b.billing_first_name AS name,
-    b.billing_email AS email,
-    b.billing_phone AS phone,
+  // ----------------------------------
+  // Event Dates
+  // ----------------------------------
+  booking.event_dates = await this.dataSource.query(
+    `
+    SELECT
+        id,
+        event_date
+    FROM booking_event_dates
+    WHERE booking_id = ?
+    ORDER BY event_date
+    `,
+    [id],
+  );
 
-    GROUP_CONCAT(
-        DISTINCT vc.child_venue_name
-        ORDER BY vc.child_venue_name
-        SEPARATOR ', '
-    ) AS venue,
+  // ----------------------------------
+  // Shifts
+  // ----------------------------------
+  booking.shifts = await this.dataSource.query(
+    `
+    SELECT
+        id,
+        event_date_id,
+        venue_id,
+        shift_name,
+        start_time,
+        end_time,
+        pax,
+        price,
+        status
+    FROM booking_shifts
+    WHERE booking_id = ?
+    ORDER BY id
+    `,
+    [id],
+  );
 
-    b.booked_no_of_people AS guests,
-    b.total_booking_price AS amountNum,
-    b.total_booking_price AS amount,
-    b.from_date AS eventDate,
-    b.created_at AS orderDate,
-b.base_amount_of_hall AS base_amt,
+  // ----------------------------------
+  // Charges
+  // ----------------------------------
+  booking.charges = await this.dataSource.query(
+    `
+    SELECT
+        id,
+        charge_type,
+        title,
+        quantity,
+        unit_price,
+        total_price
+    FROM booking_charges
+    WHERE booking_id = ?
+    ORDER BY id
+    `,
+    [id],
+  );
 
-    GROUP_CONCAT(
-        DISTINCT CASE
-            WHEN s.shift_id = 1 THEN 'Morning'
-            WHEN s.shift_id = 2 THEN 'Afternoon'
-            WHEN s.shift_id = 3 THEN 'Evening'
-        END
-        ORDER BY s.shift_id
-        SEPARATOR ', '
-    ) AS shift,
+  // ----------------------------------
+  // Discounts
+  // ----------------------------------
+  booking.discounts = await this.dataSource.query(
+    `
+    SELECT *
+    FROM booking_discounts
+    WHERE booking_id = ?
+    `,
+    [id],
+  );
 
-    b.booking_auto_id AS source,
-    b.booking_auto_id AS caterer,
-    b.booking_auto_id AS decorator,
-    b.booking_auto_id AS paymentStatus,
-    b.booking_auto_id AS assignedStaff,
+  // ----------------------------------
+  // Taxes
+  // ----------------------------------
+  booking.taxes = await this.dataSource.query(
+    `
+    SELECT *
+    FROM booking_taxes
+    WHERE booking_id = ?
+    `,
+    [id],
+  );
 
-    bet.event_name AS eventType,
+  // ----------------------------------
+  // Payments
+  // ----------------------------------
+  booking.payments = await this.dataSource.query(
+    `
+    SELECT *
+    FROM booking_payments
+    WHERE booking_id = ?
+    ORDER BY payment_date DESC
+    `,
+    [id],
+  );
 
-    CASE
-        WHEN b.status = '2' THEN 'bg-red-500'
-        WHEN b.booking_type = 2 THEN 'bg-pink-500'
-        WHEN b.booking_type = 4 THEN 'bg-blue-500'
-        WHEN b.status = '1' THEN 'bg-emerald-500'
-        WHEN b.status = '0' THEN 'bg-amber-500'
-        ELSE 'bg-violet-500'
-    END AS avatarColor,
+  // ----------------------------------
+  // PAX PACKAGES
+  // ----------------------------------
+  booking.pax_packages = await this.dataSource.query(
+    `
+    SELECT
+      bp.id,
+      bp.package_id,
+      bp.package_name,
+      bp.pax_count,
+      bp.price_per_pax,
+      bp.total
+    FROM booking_pax bp
+    WHERE bp.booking_id = ?
+    `,
+    [id],
+  );
 
-    b.booking_auto_id AS tag
+  // ----------------------------------
+  // PAX CATEGORIES
+  // ----------------------------------
+  booking.pax_categories = await this.dataSource.query(
+    `
+    SELECT
+      bpc.id,
+      bpc.booking_pax_id,
+      bpc.category_id,
+      bpc.category_name
+    FROM booking_pax_categories bpc
+    INNER JOIN booking_pax bp ON bp.id = bpc.booking_pax_id
+    WHERE bp.booking_id = ?
+    `,
+    [id],
+  );
 
-FROM bookings b
+  // ----------------------------------
+  // PAX ITEMS
+  // ----------------------------------
+  booking.pax_items = await this.dataSource.query(
+    `
+    SELECT
+      bpi.id,
+      bpi.booking_pax_id,
+      bpi.category_id,
+      bpi.item_id
+    FROM booking_pax_items bpi
+    INNER JOIN booking_pax bp ON bp.id = bpi.booking_pax_id
+    WHERE bp.booking_id = ?
+    `,
+    [id],
+  );
 
-LEFT JOIN booking_event_types bet
-    ON bet.id = b.booking_event_type_id
+  // ----------------------------------
+  // PAX ITEM SNAPSHOT
+  // ----------------------------------
+  booking.pax_item_snapshot = await this.dataSource.query(
+    `
+    SELECT
+      bps.id,
+      bps.booking_pax_id,
+      bps.item_id,
+      bps.item_name,
+      bps.price,
+      bps.created_at
+    FROM booking_pax_item_snapshot bps
+    INNER JOIN booking_pax bp ON bp.id = bps.booking_pax_id
+    WHERE bp.booking_id = ?
+    `,
+    [id],
+  );
 
-LEFT JOIN booking_child_venue bcv
-    ON bcv.booking_id = b.booking_id
+  // ----------------------------------
+  // Totals
+  // ----------------------------------
+  booking.total_charges = booking.charges.reduce(
+    (sum: number, item: any) =>
+      sum + Number(item.total_price || 0),
+    0,
+  );
 
-LEFT JOIN venue_child vc
-    ON vc.child_venue_id = bcv.child_venue_id
+  booking.total_discount = booking.discounts.reduce(
+    (sum: number, item: any) =>
+      sum + Number(item.discount_amount || 0),
+    0,
+  );
 
-LEFT JOIN booking_shift s
-    ON s.booking_id = b.booking_id
+  booking.total_tax = booking.taxes.reduce(
+    (sum: number, item: any) =>
+      sum + Number(item.tax_amount || 0),
+    0,
+  );
 
-WHERE b.booking_id = ?
+  booking.total_paid = booking.payments.reduce(
+    (sum: number, item: any) =>
+      sum + Number(item.amount || 0),
+    0,
+  );
 
-GROUP BY
-    b.booking_id,
-    b.booking_auto_id,
-    b.booking_type,
-    b.status,
-    b.billing_first_name,
-    b.billing_email,
-    b.billing_phone,
-    b.booked_no_of_people,
-    b.total_booking_price,
-    b.from_date,
-    b.created_at,
-    bet.event_name
+  booking.balance_amount =
+    Number(booking.total_amount || 0) -
+    Number(booking.total_paid || 0);
 
-ORDER BY b.created_at DESC
-`,
-      [id],
-    );
-
-    return rows[0];
-  }
+  return booking;
+}
 
   async Load_all_venues(id: any) {
     const rows = await this.dataSource.query(
@@ -1188,12 +2433,14 @@ ORDER BY b.created_at DESC
     );
   }
 
- async historical_reserve(category: any, country: any, id: number)
- {
-   const singular = category.endsWith("s") ?category.slice(0, -1) : category;
-    const [categorys] = await this.dataSource.query(`SELECT id FROM category WHERE name = ? limit 1`,[singular]);
-   const rows = await this.dataSource.query(
-  `
+  async historical_reserve(category: any, country: any, id: number) {
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
+    const rows = await this.dataSource.query(
+      `
 SELECT
     h.id,
     CONCAT('HIS-', LPAD(h.id, 6, '0')) AS refNo,
@@ -1261,61 +2508,59 @@ WHERE h.vendor_id = ?
 
 ORDER BY h.created_at DESC
 `,
-  [id],
-);
+      [id],
+    );
 
-return rows;
- }
-
-async historical_upload(category: any, country: any, id: number, body: any) {
-  const raw = Object.keys(body)[0];
-  const payload = JSON.parse(raw);
-  const records = payload.data;
-
-  if (!Array.isArray(records) || records.length === 0) {
-    throw new BadRequestException('No data found.');
+    return rows;
   }
 
-  const queryRunner = this.dataSource.createQueryRunner();
-  await queryRunner.connect();
-  await queryRunner.startTransaction();
+  async historical_upload(category: any, country: any, id: number, body: any) {
+    const raw = Object.keys(body)[0];
+    const payload = JSON.parse(raw);
+    const records = payload.data;
 
-  
+    if (!Array.isArray(records) || records.length === 0) {
+      throw new BadRequestException('No data found.');
+    }
 
-  try {
-    for (const item of records) {
-      const [parent] = await queryRunner.query(
-        `SELECT parent_venue_id
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      for (const item of records) {
+        const [parent] = await queryRunner.query(
+          `SELECT parent_venue_id
          FROM venue_parent
          WHERE venue_name = ?
          LIMIT 1`,
-        [item.parent],
-      );
+          [item.parent],
+        );
 
-      const [child] = await queryRunner.query(
-        `SELECT child_venue_id
+        const [child] = await queryRunner.query(
+          `SELECT child_venue_id
          FROM venue_child
          WHERE child_venue_name = ?
          LIMIT 1`,
-        [item.child],
-      );
+          [item.child],
+        );
 
-      let eventId = item.event_id;
+        let eventId = item.event_id;
 
-      // If event_id contains an event name instead of an ID
-      if (isNaN(Number(item.event_id))) {
-        const [eventType] = await queryRunner.query(
-          `SELECT id
+        // If event_id contains an event name instead of an ID
+        if (isNaN(Number(item.event_id))) {
+          const [eventType] = await queryRunner.query(
+            `SELECT id
            FROM booking_event_types
            WHERE event_name = ?
            LIMIT 1`,
-          [item.event_id],
-        );
+            [item.event_id],
+          );
 
-        eventId = eventType?.id ?? null;
-      }
+          eventId = eventType?.id ?? null;
+        }
 
-      const SHIFT_MAP = {
+        const SHIFT_MAP = {
           morning: 1,
           afternoon: 2,
           evening: 3,
@@ -1323,8 +2568,8 @@ async historical_upload(category: any, country: any, id: number, body: any) {
 
         const shiftId = SHIFT_MAP[item.shift.toLowerCase()];
 
-      await queryRunner.query(
-        `
+        await queryRunner.query(
+          `
         INSERT INTO historical (
           vendor_id,
           last_uploaded,
@@ -1372,63 +2617,239 @@ async historical_upload(category: any, country: any, id: number, body: any) {
           ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
         )
         `,
-        [
-          id,
-          0,
-          item.order_date,
-          parent?.parent_venue_id ?? null,
-          child?.child_venue_id ?? null,
-          item.book_date,
-          shiftId,
-          item.from_time,
-          item.to_time,
-          eventId,
-          item.capacity,
-          item.form_no,
-          item.cust_name,
-          item.cust_address,
-          item.phone,
-          item.email,
-          item.invoice_no,
-          item.base_price,
-          item.add_on,
-          item.discount,
-          item.gst,
-          item.total,
-          item.book_type=='book' ? 1 : 2,
-          item.paymode,
-          item.areceipt_no,
-          item.a_amount,
-          item.a_pay_mode,
-          item.a_pay_date,
-          item.freceipt_no,
-          item.f_amount,
-          item.f_pay_mode,
-          item.f_pay_date,
-          item.sreceipt_no,
-          item.s_amount,
-          item.s_pay_mode,
-          item.s_pay_date,
-          item.refund_sd,
-          item.refund_date || null,
-          item.others,
-        ],
-      );
+          [
+            id,
+            0,
+            item.order_date,
+            parent?.parent_venue_id ?? null,
+            child?.child_venue_id ?? null,
+            item.book_date,
+            shiftId,
+            item.from_time,
+            item.to_time,
+            eventId,
+            item.capacity,
+            item.form_no,
+            item.cust_name,
+            item.cust_address,
+            item.phone,
+            item.email,
+            item.invoice_no,
+            item.base_price,
+            item.add_on,
+            item.discount,
+            item.gst,
+            item.total,
+            item.book_type == 'book' ? 1 : 2,
+            item.paymode,
+            item.areceipt_no,
+            item.a_amount,
+            item.a_pay_mode,
+            item.a_pay_date,
+            item.freceipt_no,
+            item.f_amount,
+            item.f_pay_mode,
+            item.f_pay_date,
+            item.sreceipt_no,
+            item.s_amount,
+            item.s_pay_mode,
+            item.s_pay_date,
+            item.refund_sd,
+            item.refund_date || null,
+            item.others,
+          ],
+        );
+      }
+
+      await queryRunner.commitTransaction();
+
+      return {
+        success: true,
+        message: `${records.length} historical records uploaded successfully.`,
+      };
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      console.error(error);
+      throw new BadRequestException(error);
+    } finally {
+      await queryRunner.release();
     }
-
-    await queryRunner.commitTransaction();
-
-    return {
-      success: true,
-      message: `${records.length} historical records uploaded successfully.`,
-    };
-  } catch (error) {
-    await queryRunner.rollbackTransaction();
-    console.error(error);
-    throw new BadRequestException(error);
-  } finally {
-    await queryRunner.release();
   }
+
+   
+
+async createLog(
+  module: string,
+  recordId: number,
+  action: string,
+  description: string,
+  userId?: number,
+  oldValue?: any,
+  newValue?: any,
+) {
+  await this.dataSource.query(
+  `
+  INSERT INTO booking_logs
+  (
+    booking_id,
+    action,
+    description,
+    old_value,
+    new_value,
+    created_by,
+    created_at
+  )
+  VALUES (?,?,?,?,?,?,?)
+  `,
+  [
+    recordId,
+     module,
+    description,
+    null,
+    JSON.stringify(newValue),
+    userId,
+    new Date(),
+  ]
+);
+
+}
+  //
+
+async add_payment(category: any, country: any, id: number, body: any) {
+  const { booking_id, payments } = body;
+
+  const rows = payments.map((payment) => [
+    booking_id,
+    payment.payment_date,
+    payment.payment_type,
+    payment.payment_method,
+    payment.transaction_id || null,
+    payment.amount_paid,
+    'paid',
+    new Date(),
+    JSON.stringify({
+      notes: payment.notes || '',
+    }),
+  ]);
+
+  const sql = `
+    INSERT INTO booking_payments (
+      booking_id,
+      payment_date,
+      payment_type,
+      payment_method,
+      transaction_id,
+      amount_paid,
+      payment_status,
+      paid_at,
+      meta
+    )
+    VALUES ?
+  `;
+
+  await this.dataSource.query(sql, [rows]);
+
+  // Create log for each payment
+  for (const payment of payments) {
+    await this.createLog(
+      'booking',
+      booking_id,
+      'payment_received',
+      `Payment received - ${payment.payment_type} ₹${Number(
+        payment.amount_paid,
+      ).toLocaleString('en-IN')}`,
+      id,
+      null,
+      {
+        payment_type: payment.payment_type,
+        payment_method: payment.payment_method,
+        amount_paid: payment.amount_paid,
+        payment_date: payment.payment_date,
+        transaction_id: payment.transaction_id || null,
+      },
+    );
+  }
+
+  return {
+    success: true,
+    message: 'Payments added successfully',
+  };
 }
   
+async all_notification(category: any, country: any, id: any) {
+
+    const singular = category?.endsWith('s')
+    ? category.slice(0, -1)
+    : category;
+
+  const [categorys] = await this.dataSource.query(
+    `SELECT id FROM category WHERE name = ? LIMIT 1`,
+    [singular],
+  );
+  const rows = await this.dataSource.query(
+    `
+    SELECT COUNT(*) AS notification_count
+    FROM bookings
+    WHERE category = ?
+      AND country_id = ?
+      AND vendor_id = ?
+    `,
+    [categorys.id, country, id],
+  );
+
+  return {
+    notification_count: Number(rows[0].notification_count),
+  };
+}
+
+async realtimes() {
+// this.socketService.realtime('56');
+const data = {
+  email:'vb.develop1@gmail.com',
+  id:45
+}
+
+this.invoiceService.sendInvoice(data)
+
+
+
+}
+
+}
+
+
+
+function getDatesBetween(startDate: string, endDate: string) {
+  const start = parseDate(startDate);
+  const end = parseDate(endDate);
+
+  const result: string[] = [];
+
+  while (start <= end) {
+    const yyyy = start.getFullYear();
+    const mm = String(start.getMonth() + 1).padStart(2, '0');
+    const dd = String(start.getDate()).padStart(2, '0');
+
+    result.push(`${yyyy}-${mm}-${dd}`);
+
+    start.setDate(start.getDate() + 1);
+  }
+
+  return result;
+}
+
+function parseDate(dateStr: string): Date {
+  if (!dateStr) throw new Error('Invalid date input');
+
+  const parts = dateStr.split('-');
+
+  // if format is DD-MM-YYYY
+  if (parts[0].length === 2) {
+    const [dd, mm, yyyy] = parts.map(Number);
+    return new Date(yyyy, mm - 1, dd);
+  }
+
+  // if format is YYYY-MM-DD
+  const [yyyy, mm, dd] = parts.map(Number);
+  return new Date(yyyy, mm - 1, dd);
 }

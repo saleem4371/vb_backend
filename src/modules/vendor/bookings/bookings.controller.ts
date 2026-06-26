@@ -34,8 +34,8 @@ export class BookingsController {
   }
   @UseGuards(JwtAuthGuard)
   @Post('available-venues')
-  async availableVenues(@Body() body: any, @CurrentUser() user: any) {
-    return await this.bookingsService.availableVenues(body, user?.id);
+  async availableVenues(@Body() body: any, @CurrentUser() user: any , @Headers('x-country') country: any) {
+    return await this.bookingsService.availableVenues(body, user?.id , country);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -50,6 +50,8 @@ export class BookingsController {
     return await this.bookingsService.loadAllAddons(body, user?.id);
   } 
   
+
+  
   @UseGuards(JwtAuthGuard)
   @Post('globalSetting')
   async globalSetting(@Body() body: any, @CurrentUser() user: any) {
@@ -58,8 +60,8 @@ export class BookingsController {
   
   @UseGuards(JwtAuthGuard)
   @Post('booking_create')
-  async booking_create(@Body() body: any, @CurrentUser() user: any) {
-    return await this.bookingsService.booking_create(body, user?.id);
+  async booking_create(@Body() body: any, @CurrentUser() user: any,@Headers('x-country') country: any) {
+    return await this.bookingsService.booking_create(body, user?.id,country);
   } 
   
   @UseGuards(JwtAuthGuard)
@@ -105,7 +107,24 @@ export class BookingsController {
     return await this.bookingsService.historical_upload(category, country, user?.id,body);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('add_payment')
+  async add_payment(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any,@Body() body: any) {
+    return await this.bookingsService.add_payment(category, country, user?.id,body);
+  }
+
   
+ @UseGuards(JwtAuthGuard)
+   @Get('all_notification')
+  async all_notification(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any) {
+    return await this.bookingsService.all_notification(category,country,user?.id);
+  } 
+  
+  
+  @Get('realtimes')
+  async realtimes() {
+    return await this.bookingsService.realtimes();
+  }
 
 
 }
