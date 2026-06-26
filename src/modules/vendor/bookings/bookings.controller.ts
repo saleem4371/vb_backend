@@ -74,7 +74,7 @@ export class BookingsController {
   async reservation_invoice(@Param('id') id: any) {
     return await this.bookingsService.reservation_invoice(id);
   }
- @Put('reservation_manage/:id')
+ @Get('reservation_manage/:id')
   async reservation_manage(@Param('id') id: any) {
     return await this.bookingsService.reservation_manage(id);
   }
