@@ -103,6 +103,7 @@ export class AuthService {
     [user.id],
   );
  this.socketService.online(user.id); //socket
+
     const token = this.jwtService.sign({
       id: user.id,
     });
@@ -390,6 +391,42 @@ export class AuthService {
 
   //   return newUser[0];
   // }
+//  async findById(id: string) {
+//   const user = await this.dataSource.query(
+//     `
+//     SELECT
+//       u.id,
+//       u.name,
+//       u.email,
+
+//       EXISTS (
+//         SELECT 1
+//         FROM user_roles ur
+//         WHERE ur.user_id = u.id
+//           AND ur.role_id = 2
+//       ) AS is_vendor,
+
+//       EXISTS (
+//         SELECT 1
+//         FROM venue_parent vp
+//         WHERE vp.created_by = u.id
+//       ) AS is_parent
+       
+//       EXISTS (
+//         SELECT 1
+//         FROM user_subscriptions us
+//         WHERE us.user_id = u.id
+//       ) AS subscribe_status
+
+//     FROM users u
+//     WHERE u.id = ?
+//     LIMIT 1
+//     `,
+//     [id],
+//   );
+
+//   return user[0];
+// }
 async findById(id: string) {
   const [user] = await this.dataSource.query(
     `
@@ -468,7 +505,6 @@ async findById(id: string) {
 
   return user;
 }
-
   async send_otp(identifier: string, otp: string) {
     const hash = await bcrypt.hash(otp, 10);
 
