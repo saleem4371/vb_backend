@@ -51,6 +51,9 @@ import { KycModule } from './modules/vendor/kyc/kyc.module';
 import { PackagesModule } from './modules/vendor/packages/packages.module';
 import { SettingsModule } from './modules/vendor/settings/settings.module';
 import { BookingsModule } from './modules/vendor/bookings/bookings.module';
+import { ChatModule } from './modules/vendor/chat/chat.module';
+
+import { InvoiceModule } from './modules/invoice/invoice.module';
 
 //Third party API
 
@@ -119,13 +122,17 @@ import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
     PackagesModule,
     SettingsModule,
     BookingsModule,
+    ChatModule,
     // CategoryPropertyModule
     // VenueTagsModule,
+
+    InvoiceModule,
 
     SurepassModule,
     CashfreeModule,
 
-    PushModule
+    PushModule,
+    
   ],
 
   /* ✅ FIX IS HERE */
