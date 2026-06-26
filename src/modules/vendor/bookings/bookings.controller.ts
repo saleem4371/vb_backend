@@ -70,7 +70,7 @@ export class BookingsController {
     return await this.bookingsService.all_reservations(category, country, user?.id);
   }
   
-  @Put('reservation_invoice/:id')
+  @Get('reservation_invoice/:id')
   async reservation_invoice(@Param('id') id: any) {
     return await this.bookingsService.reservation_invoice(id);
   }
