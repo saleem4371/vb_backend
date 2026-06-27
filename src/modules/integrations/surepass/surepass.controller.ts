@@ -42,7 +42,7 @@ verifyBank(@Body() body: string,@CurrentUser() user: any) {
 verifyAdhar(@Body() body: string) {
   return this.surepassService.verifyAdhar(body);
 }
-@Post('digilocker/callback')
+@Get('digilocker/callback')
 callback(@Body() body: string) {
   return this.surepassService.callback(body);
 }
