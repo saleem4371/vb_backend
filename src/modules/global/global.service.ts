@@ -249,7 +249,9 @@ async LoadGetAmenties(query: any) {
       c.name             AS name,
       c.image            AS image,
       c.status           AS status,
+      c.video           AS video,
       c.color           AS color
+     
 
     FROM category_country cc
     LEFT JOIN category c 
