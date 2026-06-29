@@ -382,6 +382,9 @@ aadhaar_xml:true
    * Handles Surepass webhook
    */
   async handleWebhook(body: any) {
+     console.log('===== DigiLocker Webhook =====');
+      console.log(JSON.stringify(body, null, 2));
+    
     try {
       this.logger.log('===== DigiLocker Webhook =====');
       this.logger.log(JSON.stringify(body, null, 2));
