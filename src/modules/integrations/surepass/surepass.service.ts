@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException , Logger} from '@nestjs/common';
 
 import { HttpService } from '@nestjs/axios';
 import { IntegrationService } from '../integSettings/integSettings.service';
@@ -13,7 +13,10 @@ export class SurepassService {
     private readonly http: HttpService,
     private dataSource: DataSource,
     private storageService: StorageService,
+    
   ) {}
+
+   private readonly logger = new Logger(SurepassService.name);
 
   //   async verifyPan(pan: string) {
   async verifyPan(body: any, id: any) {
@@ -52,23 +55,23 @@ export class SurepassService {
     const configData = typeof config === 'string' ? JSON.parse(config) : config;
 
     try {
-      //   const response = await this.http.axiosRef.post(
-      //     `${configData.base_url}/api/v1/pan/pan-comprehensive`,
-      //     {
-      //       id_number: body.pan,
-      //       get_address: true
-      //     },
-      //     {
-      //       headers: {
-      //         Authorization: `Bearer ${configData.api_key}`,
-      //         'Content-Type': 'application/json',
-      //       },
-      //     },
-      //   );
+        const response = await this.http.axiosRef.post(
+          `${configData.base_url}/api/v1/pan/pan-comprehensive`,
+          {
+            id_number: body.pan,
+            get_address: true
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${configData.api_key}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
 
-      //  const panData = response.data.data;
+       const panData = response.data.data;
 
-      const panData = '';
+      // const panData = '';
 
       await this.dataSource.query(
         `
@@ -150,51 +153,44 @@ export class SurepassService {
   //   //user_kyc_bank_details
   // }
 
-  async verifyBank(body: any, userId: number) {
-  const config = await this.integrationService.getIntegrationConfig('surepass');
-  const configData =
-    typeof config === 'string' ? JSON.parse(config) : config;
+  async verifyBank(body: any, id: any) {
+    const config =
+      await this.integrationService.getIntegrationConfig('surepass');
 
-  // Check if account already exists
-  const [existingBank] = await this.dataSource.query(
-    `
-      SELECT *
-      FROM user_kyc_bank_details
-      WHERE account_number = ?
-      LIMIT 1
-    `,
-    [body.acct],
-  );
-
-  if (existingBank) {
-    return existingBank;
-  }
-
-  try {
-    const { data } = await this.http.axiosRef.post(
-      `${configData.base_url}/api/v1/bank-verification/pennyless`,
-      {
-        id_number: body.acct,
-        ifsc: body.cleanIFSC,
-        ifsc_details: true,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${configData.api_key}`,
-          'Content-Type': 'application/json',
-        },
-      },
+    const [existingBank] = await this.dataSource.query(
+      `SELECT * FROM user_kyc_bank_details
+     WHERE account_number = ?
+     LIMIT 1`,
+      [body.acct],
     );
 
-    const apiData = data?.data;
-
-    if (!apiData) {
-      throw new Error('Invalid response from Surepass');
+    if (existingBank) {
+      return existingBank;
     }
 
-    await this.dataSource.query(
-      `
-      INSERT INTO user_kyc_bank_details (
+    const configData = typeof config === 'string' ? JSON.parse(config) : config;
+
+    try {
+      const response = await this.http.axiosRef.post(
+        `${configData.base_url}/api/v1/bank-verification/pennyless`,
+        {
+          id_number: body.acct,
+          ifsc: body.cleanIFSC,
+          ifsc_details: true,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${configData.api_key}`,
+          },
+        },
+      );
+
+      const apiData = response.data?.data;
+
+      await this.dataSource.query(
+        `
+      INSERT INTO user_kyc_bank_details
+      (
         user_id,
         bank_name,
         account_number,
@@ -206,36 +202,37 @@ export class SurepassService {
         created_at,
         updated_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      VALUES
+      (
+        ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+      )
       `,
-      [
-        userId,
-        apiData.ifsc_details?.bank_name ?? null,
-        apiData.account_number ?? body.acct,
-        apiData.ifsc_details?.ifsc ?? body.cleanIFSC,
-        body.accountType ?? 'SAVINGS',
-        apiData.full_name ?? null,
-        apiData.ifsc_details?.branch ?? null,
-        body.businessType ?? null,
-      ],
+        [
+          id,
+          apiData?.ifsc_details?.bank_name || null,
+          apiData?.account_number || body.acct,
+          apiData?.ifsc_details?.ifsc || body.cleanIFSC,
+          body.accountType || 'SAVINGS',
+          apiData?.full_name || null,
+          apiData?.ifsc_details?.branch || null,
+          body.businessType || null,
+        ],
+      );
+
+       const [Banks] = await this.dataSource.query(
+      `SELECT * FROM user_kyc_bank_details
+     WHERE account_number = ?
+     LIMIT 1`,
+      [body.acct],
     );
 
-    return {
-      success: true,
-      message: 'Bank verified successfully.',
-      data: apiData,
-    };
-  } catch (error: any) {
-    console.error(
-      'Bank Verification Error:',
-      error.response?.data || error.message,
-    );
+      return Banks;
+    } catch (error) {
+      console.error('Bank Verification Error:');
 
-    throw new BadRequestException(
-      error.response?.data?.message || 'Bank verification failed',
-    );
+      throw new Error('Bank verification failed');
+    }
   }
-}
 
   async verifyAdhar(body: any) {
     const config =
@@ -261,25 +258,57 @@ export class SurepassService {
     // }'
     const configData = typeof config === 'string' ? JSON.parse(config) : config;
 
-    const { data } = await this.http.axiosRef.post(
-      `${configData.base_url}/api/v1/digilocker/initialize`,
-      {
-        data: {
-          signup_flow: true,
-          webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
-          state: `user_${Date.now()}`,
-          //send_email: true,
-        },
+    try {
+  const { data } = await this.http.axiosRef.post(
+    `${configData.base_url}/api/v1/digilocker/initialize`,
+    {
+      data: {
+        // signup_flow: true,
+        // webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+        // state: `user_${Date.now()}`,
+         "signup_flow": true,
+        logo_url:'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+redirect_url:`${process.env.APP_URL}/thirdParty/digilocker/callback`,
+webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+skip_main_screen:false,
+aadhaar_xml:true
+       
       },
-      {
-        headers: {
-          Authorization: `Bearer ${configData.api_key}`,
-          'Content-Type': 'application/json',
-        },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${configData.api_key}`,
+        'Content-Type': 'application/json',
       },
-    );
+    },
+  );
 
-    return data;
+  return data;
+} catch (error) {
+  throw error;
+}
+
+    // const { data } = await this.http.axiosRef.post(
+    //   `${configData.base_url}/api/v1/digilocker/initialize`,
+    //   {
+    //     data: {
+    //       signup_flow: true,
+    //       webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+    //       state: `user_${Date.now()}`,
+    //       //send_email: true,
+    //     },
+    //   },
+    //   {
+    //     headers: {
+    //       Authorization: `Bearer ${configData.api_key}`,
+    //       'Content-Type': 'application/json',
+    //     },
+    //   },
+    // );
+
+    
+
+    // return data;
   }
   async callback(body: any) {
     console.log(body);
@@ -317,5 +346,69 @@ export class SurepassService {
 
   async verifyGST(body: any, userId: number) {
     return true;
+  }
+
+  //Digilocker
+   async handleCallback(query: any) {
+    try {
+      this.logger.log('===== DigiLocker Callback =====');
+      this.logger.log(JSON.stringify(query, null, 2));
+
+      /**
+       * Example query:
+       * {
+       *   request_id: "abc123",
+       *   status: "success",
+       *   state: "user_123",
+       *   code: "xyz"
+       * }
+       */
+
+      // TODO:
+      // 1. Validate request
+      // 2. Store request_id if required
+      // 3. Fetch DigiLocker details if Surepass requires another API call
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Handles Surepass webhook
+   */
+  async handleWebhook(body: any) {
+    try {
+      this.logger.log('===== DigiLocker Webhook =====');
+      this.logger.log(JSON.stringify(body, null, 2));
+
+      /**
+       * Example payload:
+       * {
+       *   request_id: "...",
+       *   status: "success",
+       *   aadhaar_xml: "...",
+       *   data: {...}
+       * }
+       */
+
+      if (body.status === 'success') {
+        // TODO:
+        // Save Aadhaar XML
+        // Save document details
+        // Update user KYC status
+      }
+
+      return {
+        success: true,
+      };
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 }

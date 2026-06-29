@@ -10,8 +10,10 @@ import {
   Body,
   Query,
   Delete,
+  Res
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyRequest , FastifyReply } from 'fastify';
+
 
 import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/user.decorator';
@@ -42,10 +44,52 @@ verifyBank(@Body() body: string,@CurrentUser() user: any) {
 verifyAdhar(@Body() body: string) {
   return this.surepassService.verifyAdhar(body);
 }
-@Get('digilocker/callback')
-callback(@Body() body: string) {
-  return this.surepassService.callback(body);
-}
+// @Post('digilocker/callback')
+// callback(@Body() body: string) {
+//   return this.surepassService.callback(body);
+// }
+
+// @Get('digilocker/callback')
+// async callback(@Query() query, @Res() res) {
+//   console.log(query); // <-- Is this getting called?
+
+//   // Save data...
+
+ 
+//   return res.redirect(
+//   `https://venuebook-psi.vercel.app/vendor/kyc/success`,
+// );
+// }
+
+ @Get('digilocker/callback')
+  async callback(
+    @Query() query: any,
+     @Res() reply: FastifyReply,
+  ) {
+    await this.surepassService.handleCallback(query);
+
+    return reply.send(`
+      <html>
+        <head>
+          <title>DigiLocker Success</title>
+        </head>
+        <body style="font-family:Arial;text-align:center;padding-top:100px">
+          <h2>✅ DigiLocker Verification Successful</h2>
+          <p>You can close this window now.</p>
+        </body>
+      </html>
+    `);
+  }
+
+  @Post('digilocker/webhook')
+  async webhook(@Body() body: any) {
+    await this.surepassService.handleWebhook(body);
+
+    return {
+      success: true,
+    };
+  }
+
 @Get('initializeDigilocker')
 initializeDigilocker(@Body() body: string) {
   return this.surepassService.verifyAdhar(body);
