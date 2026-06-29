@@ -68,17 +68,26 @@ verifyAdhar(@Body() body: string) {
   ) {
     await this.surepassService.handleCallback(query);
 
-    return reply.send(`
-      <html>
-        <head>
-          <title>DigiLocker Success</title>
-        </head>
-        <body style="font-family:Arial;text-align:center;padding-top:100px">
-          <h2>✅ DigiLocker Verification Successful</h2>
-          <p>You can close this window now.</p>
-        </body>
-      </html>
-    `);
+   return reply
+      .type('text/html')
+      .send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>DigiLocker Success</title>
+          </head>
+          <body style="font-family:Arial;text-align:center;padding-top:100px">
+            <h2>✅ DigiLocker Verification Successful</h2>
+            <p>You can close this window now.</p>
+
+            <script>
+              setTimeout(() => {
+                window.close();
+              }, 3000);
+            </script>
+          </body>
+        </html>
+      `);
   }
 
   @Post('digilocker/webhook')
