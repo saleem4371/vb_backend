@@ -10,7 +10,8 @@ import {
   Body,
   Query,
   Delete,
-  Res
+  Res,
+  Headers
 } from '@nestjs/common';
 import type { FastifyRequest , FastifyReply } from 'fastify';
 
@@ -26,8 +27,8 @@ export class SurepassController {
 
     @UseGuards(JwtAuthGuard)
  @Post('verifyPAN')
-pan_verify(@Body() body: string,@CurrentUser() user: any) {
-  return this.surepassService.verifyPan(body, user?.id );
+pan_verify(@Body() body: string,@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+  return this.surepassService.verifyPan(body, user?.id,category,country );
 }
  @UseGuards(JwtAuthGuard)
  @Post('verifyGST')
@@ -36,8 +37,8 @@ verifyGST(@Body() body: string,@CurrentUser() user: any) {
 }  
 @UseGuards(JwtAuthGuard)
  @Post('verifyBank')
-verifyBank(@Body() body: string,@CurrentUser() user: any) {
-  return this.surepassService.verifyBank(body,user?.id);
+verifyBank(@Body() body: string,@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+  return this.surepassService.verifyBank(body,user?.id,category,country);
 } 
 
 @Post('verifyAdhar')
@@ -68,7 +69,7 @@ verifyAdhar(@Body() body: string) {
   ) {
     await this.surepassService.handleCallback(query);
 
-   return reply
+    return reply
       .type('text/html')
       .send(`
         <!DOCTYPE html>
@@ -91,8 +92,8 @@ verifyAdhar(@Body() body: string) {
   }
 
   @Post('digilocker/webhook')
-  async webhook(@Body() body: any) {
-    await this.surepassService.handleWebhook(body);
+  async webhook(@Body() body: any ,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+    await this.surepassService.handleWebhook(body,category,country);
 
     return {
       success: true,
