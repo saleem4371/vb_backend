@@ -1,4 +1,4 @@
-import { Controller, Post, Req, UseGuards, Get } from '@nestjs/common';
+import { Controller, Post, Req, UseGuards, Get, Headers } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 
 import { KycService } from './kyc.service';
@@ -39,13 +39,13 @@ export class KycController {
   }
   @Get('kyc_status')
   @UseGuards(JwtAuthGuard)
-  async kyc_status(@CurrentUser() user: any) {
-    return this.kycService.kyc_status(user.id);
+  async kyc_status(@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+    return this.kycService.kyc_status(user.id,category,country);
   } 
   
   @Get('each_kyc_status')
   @UseGuards(JwtAuthGuard)
-  async each_kyc_status(@CurrentUser() user: any) {
-    return this.kycService.each_kyc_status(user.id);
+  async each_kyc_status(@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+    return this.kycService.each_kyc_status(user.id,category,country);
   }
 }

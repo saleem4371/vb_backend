@@ -182,87 +182,131 @@ export class KycService {
       message: 'KYC submitted successfully',
     };
   }
-  async kyc_status(userId: any) {
-    const result = await this.dataSource.query(
-      `
-  SELECT
-  CASE
-      WHEN d.rejected_count > 0
-        OR b.verification_status = 'rejected'
-      THEN 'rejected'
+  async kyc_status(userId: any, category: any, country: any) {
+  const singular = category.endsWith("s")
+    ? category.slice(0, -1)
+    : category;
 
-      WHEN d.total_docs = 0
-        AND b.id IS NULL
-      THEN 'pending'
+  const [categoryData] = await this.dataSource.query(
+    `SELECT * FROM category WHERE name = ?`,
+    [singular],
+  );
 
-      WHEN d.pending_count > 0
-        OR b.verification_status = 'pending'
-      THEN 'verification_in_progress'
-
-      WHEN d.total_docs > 0
-        AND d.total_docs = d.approved_count
-        AND b.verification_status = 'approved'
-      THEN 'approved'
-
-      ELSE 'verification_in_progress'
-  END AS kyc_status
-
-  FROM
-  (
-      SELECT
-          COUNT(*) AS total_docs,
-          SUM(CASE WHEN verification_status = 'approved' THEN 1 ELSE 0 END) AS approved_count,
-          SUM(CASE WHEN verification_status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
-          SUM(CASE WHEN verification_status = 'rejected' THEN 1 ELSE 0 END) AS rejected_count
-      FROM user_kyc_documents
-      WHERE user_id = ?
-  ) d
-
-  LEFT JOIN user_kyc_bank_details b
-    ON b.user_id = ?
-
-  LIMIT 1
-  `,
-      [userId, userId],
-    );
-    return result[0];
+  if (!categoryData) {
+    return { kyc_status: "pending" };
   }
 
-  async each_kyc_status(userId: any) {
-    const pan = await this.dataSource.query(
+  const result = await this.dataSource.query(
+    `
+    SELECT
+      CASE
+          WHEN d.rejected_count > 0
+            OR b.verification_status = 'rejected'
+          THEN 'rejected'
+
+          WHEN d.total_docs = 0
+            AND b.id IS NULL
+          THEN 'pending'
+
+          WHEN d.pending_count > 0
+            OR b.verification_status = 'pending'
+          THEN 'verification_in_progress'
+
+          WHEN d.total_docs > 0
+            AND d.total_docs = d.approved_count
+            AND b.verification_status = 'approved'
+          THEN 'approved'
+
+          ELSE 'verification_in_progress'
+      END AS kyc_status
+
+    FROM
+    (
+        SELECT
+            COUNT(*) AS total_docs,
+            SUM(CASE WHEN verification_status = 'approved' THEN 1 ELSE 0 END) AS approved_count,
+            SUM(CASE WHEN verification_status = 'pending' THEN 1 ELSE 0 END) AS pending_count,
+            SUM(CASE WHEN verification_status = 'rejected' THEN 1 ELSE 0 END) AS rejected_count
+        FROM user_kyc_documents
+        WHERE user_id = ?
+          AND category_id = ?
+          AND country_id = ?
+    ) d
+
+    LEFT JOIN user_kyc_bank_details b
+      ON b.user_id = ?
+      AND b.category_id = ?
+      AND b.country_id = ?
+
+    LIMIT 1
+    `,
+    [
+      userId,
+      categoryData.id,
+      country,
+      userId,
+      categoryData.id,
+      country,
+    ],
+  );
+
+  return result[0];
+}
+
+  async each_kyc_status(userId: any,category: any,country: any) {
+
+
+  const singular = category.endsWith("s")
+  ? category.slice(0, -1)
+  : category;
+
+  const [categories] = await this.dataSource.query(
+    `SELECT * FROM category WHERE name = ? `,
+    [singular],
+  );
+
+  const pan = await this.dataSource.query(
       `SELECT * FROM user_kyc_documents
    WHERE user_id = ?
    AND document_type = 'pan'
+   AND category_id = ?
+   AND country_id = ?
    ORDER BY id DESC
    LIMIT 1`,
-      [userId],
+      [userId,categories.id,country],
     );
 
     const aadhaar = await this.dataSource.query(
       `SELECT * FROM user_kyc_documents
    WHERE user_id = ?
    AND document_type = 'aadhar'
+   AND category_id = ?
+   AND country_id = ?
    ORDER BY id DESC
    LIMIT 1`,
-      [userId],
+      [userId,categories.id,country],
     );
 
     const business = await this.dataSource.query(
       `SELECT * FROM user_kyc_documents
    WHERE user_id = ?
    AND document_type = 'other'
+    AND category_id = ?
+   AND country_id = ?
    ORDER BY id DESC
    LIMIT 1`,
-      [userId],
+       [userId,categories.id,country],
     );
 
     const cheque = await this.dataSource.query(
       `SELECT * FROM user_kyc_documents
    WHERE user_id = ?
    AND document_type = 'bank_proof'
+    AND category_id = ?
+   AND country_id = ?
    ORDER BY id DESC
    LIMIT 1`,
-      [userId],
+       [userId,categories.id,country],
     );
 
     const bank = await this.dataSource.query(
