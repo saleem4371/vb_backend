@@ -53,12 +53,16 @@ import { SettingsModule } from './modules/vendor/settings/settings.module';
 import { BookingsModule } from './modules/vendor/bookings/bookings.module';
 import { ChatModule } from './modules/vendor/chat/chat.module';
 
+import { AgingModule } from './modules/vendor/reports/aging/aging.module';
+
 import { InvoiceModule } from './modules/invoice/invoice.module';
 
 //Third party API
 
 import { SurepassModule } from "./modules/integrations/surepass/surepass.module"
 import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
+import { StripeModule } from "./modules/integrations/stripe/Stripe.module"
+
 
 @Module({
   imports: [
@@ -130,8 +134,10 @@ import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
 
     SurepassModule,
     CashfreeModule,
+    StripeModule,
 
     PushModule,
+    AgingModule,
     
   ],
 
