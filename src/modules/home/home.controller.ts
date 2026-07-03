@@ -25,5 +25,11 @@ export class HomeController {
     @CurrentUser() user: any,@Headers('x-country') country : any) {
     const userId = user?.id;
     return this.homeService.vendor_category(userId,country);
+  }  
+  
+  @Get('recommeded')
+  recommeded_property( @Headers('x-country') country : any) {
+    // const userId = user?.id;
+    return this.homeService.recommeded_property();
   }
 }

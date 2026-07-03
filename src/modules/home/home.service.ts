@@ -88,5 +88,74 @@ async vendor_category(userId: number, country: string) {
       : `${propety_category}s`;
   });
 }
+
+async recommeded_property()
+{
+   const recommeded  = this.dataSource.query(`SELECT
+    cv.child_venue_id,
+    cv.child_venue_name as name,
+    vp.venue_city as location,
+    vp.rating as rating,
+    vp.user_ratings_total as reviews,
+
+    COUNT(DISTINCT b.id) AS total_bookings,
+
+    COALESCE(SUM(b.total_amount), 0) AS revenue,
+
+    ROUND(AVG(COALESCE(vp.rating, 5)), 1) AS rating,
+
+    MAX(b.created_at) AS last_booking,
+
+    /* Single cover image */
+    (
+        SELECT vg.attachment
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+        ORDER BY vg.id
+        LIMIT 1
+    ) AS image,
+
+    /* All gallery images */
+    (
+        SELECT JSON_ARRAYAGG(vg.attachment)
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+    ) AS gallery,
+
+    (
+        COUNT(DISTINCT b.id) * 5 +
+        (COALESCE(SUM(b.total_amount),0) / 10000) +
+        (AVG(COALESCE(vp.rating,5)) * 20) +
+        CASE
+            WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 20
+            WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN 10
+            ELSE 0
+        END
+    ) AS recommendation_score
+
+FROM venue_child cv
+
+LEFT JOIN booking_venues bv
+       ON bv.child_venue_id = cv.child_venue_id
+
+LEFT JOIN bookings b
+       ON b.id = bv.booking_id
+      AND b.status IN (0,1)
+
+LEFT JOIN venue_parent vp
+       ON vp.parent_venue_id = cv.parent_venue_id
+
+WHERE cv.publish_status = 1
+
+GROUP BY
+    cv.child_venue_id,
+    cv.child_venue_name
+
+ORDER BY recommendation_score DESC
+
+LIMIT 10`);
+
+return recommeded;
+}
   
 }
