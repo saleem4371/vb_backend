@@ -12,11 +12,12 @@ import { Amenities } from '../admin/vendor/amenities/entities/amenities.entity';
 import { AmenitiesCategory } from '../admin/vendor/amenities/entities/amenities-category.entity';
 
 import { Country } from "./entities/country.entiity";
+import { Currency } from './entities/currency.entity';
 
 @Module({
   controllers: [GlobalController],
   providers: [GlobalService],
   imports: [TypeOrmModule.forFeature([BookingEventType,VenueSubCategory,
-    VenueMainCategory,Country,Amenities,AmenitiesCategory])],
+    VenueMainCategory,Country,Amenities,AmenitiesCategory,Currency])],
 })
 export class GlobalModule {}

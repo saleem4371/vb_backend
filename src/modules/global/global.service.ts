@@ -8,6 +8,7 @@ import { BookingEventType } from './entities/venue-booking-types.entity';
 import { VenueSubCategory } from './entities/venue-sub-category.entity';
 import { VenueMainCategory } from './entities/venue-main-category.entity';
 import { Country } from './entities/country.entiity';
+import { Currency } from './entities/currency.entity';
 
 import { Amenities } from '../admin/vendor/amenities/entities/amenities.entity';
 import { AmenitiesCategory } from '../admin/vendor/amenities/entities/amenities-category.entity';
@@ -28,6 +29,9 @@ export class GlobalService {
 
     @InjectRepository(Country)
     private readonly countryRepo: Repository<Country>,
+    
+    @InjectRepository(Currency)
+    private readonly currencyRepo: Repository<Currency>,
 
     @InjectRepository(Amenities)
     private readonly amenitiesRepo: Repository<Amenities>,
@@ -161,12 +165,12 @@ export class GlobalService {
     return country;
   }
   async getAllCurrencies() {
-    const country = await this.countryRepo.find({
+    const Currencies = await this.currencyRepo.find({
       order: {
         id: 'DESC',
       },
     });
-    return country;
+    return Currencies;
   }
 
 async LoadGetAmenties(query: any) {

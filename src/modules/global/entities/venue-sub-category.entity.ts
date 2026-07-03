@@ -25,6 +25,9 @@ export class VenueSubCategory {
   icon?: string;
 
   @Column({ nullable: true })
+  style_property?: string;
+
+  @Column({ nullable: true })
   frontImage?: string;
 
   @Column({ nullable: true })

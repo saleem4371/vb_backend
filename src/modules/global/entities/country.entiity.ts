@@ -21,7 +21,7 @@ export class Country {
   phone_code?: string;
 
   @Column({ type: 'varchar', length: 10 })
-  currency_code?: string;
+  curreny_icon?: string;
 
   @Column({ type: 'text', nullable: true })
   flag?: string;

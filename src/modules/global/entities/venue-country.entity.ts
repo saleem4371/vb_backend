@@ -25,6 +25,9 @@ export class Country {
 
   @Column({ type: 'text', nullable: true })
   flag?: string;
+  
+  @Column({ type: 'text', nullable: true })
+  curreny_icon?: string;
 
   @Column({ type: 'tinyint', default: 1 })
   status?: number;
