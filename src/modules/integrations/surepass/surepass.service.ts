@@ -184,6 +184,252 @@ export class SurepassService {
 
 
 //   }
+// async verifyPan(body: any, id: any, category: any, country: any) {
+//   const config = await this.integrationService.getIntegrationConfig("surepass");
+//   const configData =
+//     typeof config === "string" ? JSON.parse(config) : config;
+
+//   const singular = category.endsWith("s")
+//     ? category.slice(0, -1)
+//     : category;
+
+//   const [categoryData] = await this.dataSource.query(
+//     `SELECT * FROM category WHERE name = ? LIMIT 1`,
+//     [singular],
+//   );
+
+//   // Check existing PAN for this user
+//   const [existingPan] = await this.dataSource.query(
+//     `
+//     SELECT *
+//     FROM user_kyc_documents
+//     WHERE user_id = ?
+//       AND document_type = 'pan'
+//     LIMIT 1
+//     `,
+//     [id],
+//   );
+
+//   if (existingPan) {
+//     const details = JSON.parse(existingPan.doc_details || "{}");
+
+//     const [gstRow] = await this.dataSource.query(
+//   `
+//   SELECT *
+//   FROM user_kyc_documents
+//   WHERE user_id = ?
+//     AND document_type = 'gst'
+//   ORDER BY id DESC
+//   LIMIT 1
+//   `,
+//   [id],
+// );
+
+// const gstDetails = gstRow
+//   ? JSON.parse(gstRow.doc_details || "{}")
+//   : null;
+
+//     return {
+//       company_name: details.full_name || "",
+//       pan_number: existingPan.document_number || "",
+//       business_category: details.category || "person",
+//       gst_number: gstRow?.document_number || "",
+//   gst_details: gstDetails,
+//       registered_address:
+//         details.address?.full ||
+//         [
+//           details.address?.city,
+//           details.address?.state,
+//           details.address?.zip,
+//         ]
+//           .filter(Boolean)
+//           .join(", "),
+//     };
+//   }
+
+//   try {
+//     // PAN Verification
+//     const panResponse = await this.http.axiosRef.post(
+//       `${configData.base_url}/api/v1/pan/pan-comprehensive`,
+//       {
+//         id_number: body.pan,
+//         get_address: true,
+//       },
+//       {
+//         headers: {
+//           Authorization: `Bearer ${configData.api_key}`,
+//           "Content-Type": "application/json",
+//         },
+//       },
+//     );
+
+//     const panData = panResponse.data.data;
+
+//     await this.dataSource.query(
+//       `
+//       INSERT INTO user_kyc_documents
+//       (
+//         category_id,
+//         country_id,
+//         user_id,
+//         document_type,
+//         document_number,
+//         file_url,
+//         verification_status,
+//         doc_details,
+//         verified_by,
+//         verified_at,
+//         created_at
+//       )
+//       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+//       `,
+//       [
+//         categoryData.id,
+//         country,
+//         id,
+//         "pan",
+//         body.pan,
+//         "",
+//         "pending",
+//         JSON.stringify(panData),
+//         0,
+//         null,
+//       ],
+//     );
+
+//     // Business GST Verification
+//     if (body.category === "business") {
+//       const gstResponse = await this.http.axiosRef.post(
+//         `${configData.base_url}/api/v1/corporate/gstin-by-pan`,
+//         {
+//           id_number: body.pan,
+//         },
+//         {
+//           headers: {
+//             Authorization: `Bearer ${configData.api_key}`,
+//             "Content-Type": "application/json",
+//           },
+//         },
+//       );
+
+//       const gstData = gstResponse.data?.data;
+
+//       if (gstData) {
+
+//         const gstin = gstData?.gstin_list?.[0]?.gstin;
+//         const [existingGST] = await this.dataSource.query(
+//           `
+//           SELECT id
+//           FROM user_kyc_documents
+//           WHERE user_id = ?
+//             AND document_type = 'gstin'
+//           LIMIT 1
+//           `,
+//           [id],
+//         );
+
+//         if (existingGST) {
+//           await this.dataSource.query(
+//             `
+//             UPDATE user_kyc_documents
+//             SET
+//               document_number = ?,
+//               verification_status = 'approved',
+//               doc_details = ?,
+//               verified_at = NOW()
+//             WHERE id = ?
+//             `,
+//             [
+//               gstin,
+//               JSON.stringify(gstData),
+//               existingGST.id,
+//             ],
+//           );
+//         } else {
+//           await this.dataSource.query(
+//             `
+//             INSERT INTO user_kyc_documents
+//             (
+//               category_id,
+//               country_id,
+//               user_id,
+//               document_type,
+//               document_number,
+//               verification_status,
+//               doc_details,
+//               created_at
+//             )
+//             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+//             `,
+//             [
+//               categoryData.id,
+//               country,
+//               id,
+//               "gst",
+//               gstin,
+//               "approved",
+//               JSON.stringify(gstData),
+//             ],
+//           );
+//         }
+//       }
+//     }
+
+//     const [dbRow] = await this.dataSource.query(
+//       `
+//       SELECT *
+//       FROM user_kyc_documents
+//       WHERE user_id = ?
+//         AND document_type = 'pan'
+//       ORDER BY id DESC
+//       LIMIT 1
+//       `,
+//       [id],
+//     );
+
+//     const details = JSON.parse(dbRow.doc_details || "{}");
+
+//     const [gstRow] = await this.dataSource.query(
+//   `
+//   SELECT *
+//   FROM user_kyc_documents
+//   WHERE user_id = ?
+//     AND document_type = 'gst'
+//   ORDER BY id DESC
+//   LIMIT 1
+//   `,
+//   [id],
+// );
+
+// const gstDetails = gstRow
+//   ? JSON.parse(gstRow.doc_details || "{}")
+//   : null;
+
+//     return {
+//       company_name: details.full_name || "",
+//       pan_number: dbRow.document_number || "",
+//       business_category: details.category || "person",
+//        gst_number: gstRow?.document_number || "",
+//   gst_details: gstDetails,
+//       registered_address:
+//         details.address?.full ||
+//         [
+//           details.address?.city,
+//           details.address?.state,
+//           details.address?.zip,
+//         ]
+//           .filter(Boolean)
+//           .join(", "),
+//     };
+//   } catch (error: any) {
+//     console.log("Status:", error?.response?.status);
+//     console.log("Data:", error?.response?.data);
+
+//     throw new BadRequestException(
+//       error?.response?.data?.message || "PAN verification failed",
+//     );
+//   }
+// }
 async verifyPan(body: any, id: any, category: any, country: any) {
   const config = await this.integrationService.getIntegrationConfig("surepass");
   const configData =
@@ -198,62 +444,115 @@ async verifyPan(body: any, id: any, category: any, country: any) {
     [singular],
   );
 
-  // Check existing PAN for this user
-  const [existingPan] = await this.dataSource.query(
+  try {
+    // PAN Verification
+   // Check if PAN already exists
+// Check if this PAN already exists for this user
+const [existingPan] = await this.dataSource.query(
+  `
+  SELECT *
+  FROM user_kyc_documents
+  WHERE user_id = ?
+    AND document_type = 'pan'
+    AND document_number = ?
+  ORDER BY id DESC
+  LIMIT 1
+  `,
+  [id, body.pan],
+);
+
+let panData: any;
+
+// If PAN exists for this user, use stored data
+if (existingPan) {
+  panData = JSON.parse(existingPan.doc_details || "{}");
+} else {
+  // Call Surepass only if PAN is not already stored for this user
+  const panResponse = await this.http.axiosRef.post(
+    `${configData.base_url}/api/v1/pan/pan-comprehensive`,
+    {
+      id_number: body.pan,
+      get_address: true,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${configData.api_key}`,
+        "Content-Type": "application/json",
+      },
+    },
+  );
+
+  panData = panResponse.data.data;
+}
+
+// ALWAYS INSERT (new auto-increment ID)
+await this.dataSource.query(
+  `
+  INSERT INTO user_kyc_documents
+  (
+    category_id,
+    country_id,
+    user_id,
+    document_type,
+    document_number,
+    file_url,
+    verification_status,
+    doc_details,
+    verified_by,
+    verified_at,
+    created_at
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+  `,
+  [
+    categoryData.id,
+    country,
+    id,
+    "pan",
+    body.pan,
+    "",
+    "pending",
+    JSON.stringify(panData),
+    0,
+    null,
+  ],
+);
+
+// ------------------------------------------------------------------
+// PAN NOT FOUND -> CALL SUREPASS API
+// ------------------------------------------------------------------
+
+
+
+    // GST Verification (Business Only)
+  // GST Verification (Business Only)
+if (body.category === "business") {
+  let gstData: any = null;
+  let gstin = "";
+
+  // Check if GST already exists for this user
+  const [existingGST] = await this.dataSource.query(
     `
     SELECT *
     FROM user_kyc_documents
     WHERE user_id = ?
-      AND document_type = 'pan'
+      AND document_type = 'gst'
+    ORDER BY id DESC
     LIMIT 1
     `,
     [id],
   );
 
-  if (existingPan) {
-    const details = JSON.parse(existingPan.doc_details || "{}");
-
-    const [gstRow] = await this.dataSource.query(
-  `
-  SELECT *
-  FROM user_kyc_documents
-  WHERE user_id = ?
-    AND document_type = 'gst'
-  ORDER BY id DESC
-  LIMIT 1
-  `,
-  [id],
-);
-
-const gstDetails = gstRow
-  ? JSON.parse(gstRow.doc_details || "{}")
-  : null;
-
-    return {
-      company_name: details.full_name || "",
-      pan_number: existingPan.document_number || "",
-      business_category: details.category || "person",
-      gst_number: gstRow?.document_number || "",
-  gst_details: gstDetails,
-      registered_address:
-        details.address?.full ||
-        [
-          details.address?.city,
-          details.address?.state,
-          details.address?.zip,
-        ]
-          .filter(Boolean)
-          .join(", "),
-    };
-  }
-
-  try {
-    // PAN Verification
-    const panResponse = await this.http.axiosRef.post(
-      `${configData.base_url}/api/v1/pan/pan-comprehensive`,
+  if (existingGST) {
+    // Use existing GST data
+    gstData = JSON.parse(existingGST.doc_details || "{}");
+    gstin = existingGST.document_number;
+  } else {
+    // Call Surepass GST API
+    const gstResponse = await this.http.axiosRef.post(
+      `${configData.base_url}/api/v1/corporate/gstin-by-pan`,
       {
         id_number: body.pan,
-        get_address: true,
       },
       {
         headers: {
@@ -263,8 +562,12 @@ const gstDetails = gstRow
       },
     );
 
-    const panData = panResponse.data.data;
+    gstData = gstResponse.data?.data;
+    gstin = gstData?.gstin_list?.[0]?.gstin || "";
+  }
 
+  // Always INSERT a new GST record
+  if (gstData) {
     await this.dataSource.query(
       `
       INSERT INTO user_kyc_documents
@@ -287,94 +590,19 @@ const gstDetails = gstRow
         categoryData.id,
         country,
         id,
-        "pan",
-        body.pan,
+        "gst",
+        gstin,
         "",
-        "pending",
-        JSON.stringify(panData),
+        "approved",
+        JSON.stringify(gstData),
         0,
         null,
       ],
     );
+  }
+}
 
-    // Business GST Verification
-    if (body.category === "business") {
-      const gstResponse = await this.http.axiosRef.post(
-        `${configData.base_url}/api/v1/corporate/gstin-by-pan`,
-        {
-          id_number: body.pan,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${configData.api_key}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
-
-      const gstData = gstResponse.data?.data;
-
-      if (gstData) {
-
-        const gstin = gstData?.gstin_list?.[0]?.gstin;
-        const [existingGST] = await this.dataSource.query(
-          `
-          SELECT id
-          FROM user_kyc_documents
-          WHERE user_id = ?
-            AND document_type = 'gstin'
-          LIMIT 1
-          `,
-          [id],
-        );
-
-        if (existingGST) {
-          await this.dataSource.query(
-            `
-            UPDATE user_kyc_documents
-            SET
-              document_number = ?,
-              verification_status = 'approved',
-              doc_details = ?,
-              verified_at = NOW()
-            WHERE id = ?
-            `,
-            [
-              gstin,
-              JSON.stringify(gstData),
-              existingGST.id,
-            ],
-          );
-        } else {
-          await this.dataSource.query(
-            `
-            INSERT INTO user_kyc_documents
-            (
-              category_id,
-              country_id,
-              user_id,
-              document_type,
-              document_number,
-              verification_status,
-              doc_details,
-              created_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-            `,
-            [
-              categoryData.id,
-              country,
-              id,
-              "gst",
-              gstin,
-              "approved",
-              JSON.stringify(gstData),
-            ],
-          );
-        }
-      }
-    }
-
+    // Fetch latest PAN
     const [dbRow] = await this.dataSource.query(
       `
       SELECT *
@@ -389,28 +617,29 @@ const gstDetails = gstRow
 
     const details = JSON.parse(dbRow.doc_details || "{}");
 
+    // Fetch latest GST
     const [gstRow] = await this.dataSource.query(
-  `
-  SELECT *
-  FROM user_kyc_documents
-  WHERE user_id = ?
-    AND document_type = 'gst'
-  ORDER BY id DESC
-  LIMIT 1
-  `,
-  [id],
-);
+      `
+      SELECT *
+      FROM user_kyc_documents
+      WHERE user_id = ?
+        AND document_type = 'gst'
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [id],
+    );
 
-const gstDetails = gstRow
-  ? JSON.parse(gstRow.doc_details || "{}")
-  : null;
+    const gstDetails = gstRow
+      ? JSON.parse(gstRow.doc_details || "{}")
+      : null;
 
     return {
       company_name: details.full_name || "",
       pan_number: dbRow.document_number || "",
       business_category: details.category || "person",
-       gst_number: gstRow?.document_number || "",
-  gst_details: gstDetails,
+      gst_number: gstRow?.document_number || "",
+      gst_details: gstDetails,
       registered_address:
         details.address?.full ||
         [
@@ -463,33 +692,134 @@ const gstDetails = gstRow
   // }
 
 
-  async verifyBank(body: any, id: any,category: any,country: any) {
+  // async verifyBank(body: any, id: any,category: any,country: any) {
 
-     const singular = category.endsWith("s")
+  //    const singular = category.endsWith("s")
+  //   ? category.slice(0, -1)
+  //   : category;
+
+  // const [categoryData] = await this.dataSource.query(
+  //   `SELECT * FROM category WHERE name = ?`,
+  //   [singular],
+  // );
+
+  //   const config =
+  //     await this.integrationService.getIntegrationConfig('surepass');
+
+  //   const [existingBank] = await this.dataSource.query(
+  //     `SELECT * FROM user_kyc_bank_details
+  //    WHERE account_number = ?
+  //    LIMIT 1`,
+  //     [body.acct],
+  //   );
+
+  //   if (existingBank) {
+  //     return existingBank;
+  //   }
+
+  //   const configData = typeof config === 'string' ? JSON.parse(config) : config;
+
+  //   try {
+  //     const response = await this.http.axiosRef.post(
+  //       `${configData.base_url}/api/v1/bank-verification/pennyless`,
+  //       {
+  //         id_number: body.acct,
+  //         ifsc: body.cleanIFSC,
+  //         ifsc_details: true,
+  //       },
+  //       {
+  //         headers: {
+  //           Authorization: `Bearer ${configData.api_key}`,
+  //         },
+  //       },
+  //     );
+
+  //     const apiData = response.data?.data;
+
+  //     await this.dataSource.query(
+  //       `
+  //     INSERT INTO user_kyc_bank_details
+  //     (
+  //       category_id,
+  //       country_id,
+  //       user_id,
+  //       bank_name,
+  //       account_number,
+  //       ifsc,
+  //       account_type,
+  //       business_name,
+  //       branch_name,
+  //       business_type,
+  //       created_at,
+  //       updated_at
+  //     )
+  //     VALUES
+  //     (
+  //       ?,?,?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+  //     )
+  //     `,
+  //       [
+  //         categoryData.id,
+  //         country,
+  //         id,
+  //         apiData?.ifsc_details?.bank_name || null,
+  //         apiData?.account_number || body.acct,
+  //         apiData?.ifsc_details?.ifsc || body.cleanIFSC,
+  //         body.accountType || 'SAVINGS',
+  //         apiData?.full_name || null,
+  //         apiData?.ifsc_details?.branch || null,
+  //         body.businessType || null,
+  //       ],
+  //     );
+
+  //      const [Banks] = await this.dataSource.query(
+  //     `SELECT * FROM user_kyc_bank_details
+  //    WHERE account_number = ?
+  //    LIMIT 1`,
+  //     [body.acct],
+  //   );
+
+  //     return Banks;
+  //   } catch (error) {
+  //     console.error('Bank Verification Error:');
+
+  //     throw new Error('Bank verification failed');
+  //   }
+  // }
+
+  async verifyBank(body: any, id: any, category: any, country: any) {
+  const singular = category.endsWith("s")
     ? category.slice(0, -1)
     : category;
 
   const [categoryData] = await this.dataSource.query(
-    `SELECT * FROM category WHERE name = ?`,
+    `SELECT * FROM category WHERE name = ? LIMIT 1`,
     [singular],
   );
 
-    const config =
-      await this.integrationService.getIntegrationConfig('surepass');
+  const config = await this.integrationService.getIntegrationConfig("surepass");
+  const configData =
+    typeof config === "string" ? JSON.parse(config) : config;
 
-    const [existingBank] = await this.dataSource.query(
-      `SELECT * FROM user_kyc_bank_details
-     WHERE account_number = ?
-     LIMIT 1`,
-      [body.acct],
-    );
+  let bankData: any;
 
-    if (existingBank) {
-      return existingBank;
-    }
+  // Check if same account already exists for this user
+  const [existingBank] = await this.dataSource.query(
+    `
+    SELECT *
+    FROM user_kyc_bank_details
+    WHERE account_number = ?
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    [body.acct],
+  );
 
-    const configData = typeof config === 'string' ? JSON.parse(config) : config;
-
+  if (existingBank) {
+    // Use existing data
+    bankData = existingBank;
+  } else {
+    // Call Surepass API
     try {
       const response = await this.http.axiosRef.post(
         `${configData.base_url}/api/v1/bank-verification/pennyless`,
@@ -505,58 +835,76 @@ const gstDetails = gstRow
         },
       );
 
-      const apiData = response.data?.data;
-
-      await this.dataSource.query(
-        `
-      INSERT INTO user_kyc_bank_details
-      (
-        category_id,
-        country_id,
-        user_id,
-        bank_name,
-        account_number,
-        ifsc,
-        account_type,
-        business_name,
-        branch_name,
-        business_type,
-        created_at,
-        updated_at
-      )
-      VALUES
-      (
-        ?,?,?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
-      )
-      `,
-        [
-          categoryData.id,
-          country,
-          id,
-          apiData?.ifsc_details?.bank_name || null,
-          apiData?.account_number || body.acct,
-          apiData?.ifsc_details?.ifsc || body.cleanIFSC,
-          body.accountType || 'SAVINGS',
-          apiData?.full_name || null,
-          apiData?.ifsc_details?.branch || null,
-          body.businessType || null,
-        ],
-      );
-
-       const [Banks] = await this.dataSource.query(
-      `SELECT * FROM user_kyc_bank_details
-     WHERE account_number = ?
-     LIMIT 1`,
-      [body.acct],
-    );
-
-      return Banks;
+      bankData = response.data?.data;
     } catch (error) {
-      console.error('Bank Verification Error:');
+      console.error("Bank Verification Error:");
 
-      throw new Error('Bank verification failed');
+      throw new Error("Bank verification failed");
     }
   }
+
+  // Always INSERT a new record
+  await this.dataSource.query(
+    `
+    INSERT INTO user_kyc_bank_details
+    (
+      category_id,
+      country_id,
+      user_id,
+      bank_name,
+      account_number,
+      ifsc,
+      account_type,
+      business_name,
+      branch_name,
+      business_type,
+      created_at,
+      updated_at
+    )
+    VALUES
+    (
+      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+    )
+    `,
+    [
+      categoryData.id,
+      country,
+      id,
+      existingBank
+        ? existingBank.bank_name
+        : bankData?.ifsc_details?.bank_name || null,
+      existingBank
+        ? existingBank.account_number
+        : bankData?.account_number || body.acct,
+      existingBank
+        ? existingBank.ifsc
+        : bankData?.ifsc_details?.ifsc || body.cleanIFSC,
+      body.accountType || existingBank?.account_type || "SAVINGS",
+      existingBank
+        ? existingBank.business_name
+        : bankData?.full_name || null,
+      existingBank
+        ? existingBank.branch_name
+        : bankData?.ifsc_details?.branch || null,
+      body.businessType || existingBank?.business_type || null,
+    ],
+  );
+
+  // Return latest inserted record
+  const [bank] = await this.dataSource.query(
+    `
+    SELECT *
+    FROM user_kyc_bank_details
+    WHERE user_id = ?
+      AND account_number = ?
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    [id, body.acct],
+  );
+
+  return bank;
+}
 
   async verifyAdhar(body: any) {
     const config =
