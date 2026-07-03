@@ -78,7 +78,7 @@ export class SocketGateway
     });
   }
 
-  realtimeApplication(userId: string) {
+  realtimeApplication(userId: string ,type :string,message:string ) {
   const socketId = this.onlineUsers.get(userId);
 
   console.log("User:", userId);
@@ -96,6 +96,8 @@ export class SocketGateway
   this.server.to(socketId).emit("realtime-status", {
     userId,
     status: "loading",
+    type: type,
+    message: message,
   });
 }
 

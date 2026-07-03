@@ -13,7 +13,7 @@ export class SocketService {
     this.gateway.markOffline(userId);
   }
   
-  realtime(userId: string) {
-  this.gateway.realtimeApplication(userId);
+  realtime(userId: string,type:string,message:string) {
+  this.gateway.realtimeApplication(userId,type,message);
 }
 }
