@@ -48,4 +48,10 @@ export class KycController {
   async each_kyc_status(@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
     return this.kycService.each_kyc_status(user.id,category,country);
   }
+  
+  @Get('suscription_detail')
+  @UseGuards(JwtAuthGuard)
+  async suscription_detail(@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+    return this.kycService.suscription_detail(user.id,category,country);
+  }
 }

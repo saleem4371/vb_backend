@@ -30,10 +30,11 @@ export class VenueListingController {
   getUserRecentViews(
     @CurrentUser() user: any,@Param('id') id: string, 
     @Headers('x-country') country:any,
-    @Headers('x-category') category:any 
+    @Headers('x-category') category:any ,
+    // @Query('category') category:any 
 
 ) {
-    const normalizedCategory = category.replace(/s$/, "");
+    const normalizedCategory = id.replace(/s$/, "");
     return this.venueListingService.getListData(
       user?.id , normalizedCategory,
       country

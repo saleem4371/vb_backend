@@ -65,4 +65,16 @@ export class ChatController {
     );
   }
   
+  @UseGuards(JwtAuthGuard)
+   @Get('all_messages')
+  async all_messages(
+     @Body() body: any,
+     @CurrentUser() user: any
+  ) {
+    return await this.chatService.all_messages(
+      body,
+      user?.id
+    );
+  }
+  
 }

@@ -15,6 +15,7 @@ import { PackageCategory } from '../../vendor/packages/entity/package-category.e
 
 import { InvoiceService } from '../../invoice/invoice.service'
 import { SocketService } from '../../socket/socket.service';
+import { NotificationService } from '../../../notifications/notification.service';
 
 import {
   generateCode,
@@ -32,6 +33,7 @@ export class BookingsService {
     private socketService: SocketService,
     private invoiceService: InvoiceService,
     //  private readonly pushService: PushService,
+    private readonly notificationService: NotificationService,
     @InjectRepository(SettingGroup)
     private readonly settingGroupRepository: Repository<SettingGroup>,
 
@@ -40,8 +42,20 @@ export class BookingsService {
   ) {}
 
   async invoice_number(user_id: number, id: any) {
-    const rows = await this.dataSource.query(
-      `
+  const settings = await this.dataSource.query(
+    `
+    SELECT setting_key, setting_value
+    FROM venue_booking_setting
+    WHERE category_id = ? AND vendor_id = ?
+    `,
+    [1, user_id],
+  );
+
+  const invoice_number_prefix =
+    settings.find((item) => item.setting_key === 'invoiceNumber')?.setting_value || 'INV';
+
+  const rows = await this.dataSource.query(
+    `
     SELECT invoice_number
     FROM bookings
     WHERE vendor_id = ?
@@ -49,17 +63,21 @@ export class BookingsService {
     ORDER BY created_at DESC
     LIMIT 1
     `,
-      [user_id],
-    );
+    [user_id],
+  );
 
-    if (!rows || rows.length === 0) {
-      return 'INV00001';
-    }
-
-    const lastNumber = parseInt(rows[0].invoice_number.replace('INV', ''), 10);
-
-    return `INV${String(lastNumber + 1).padStart(5, '0')}`;
+  if (!rows.length) {
+    return `${invoice_number_prefix}00001`;
   }
+
+  // Extract only the numeric part
+  const lastNumber =
+    parseInt(rows[0].invoice_number.replace(/\D/g, ''), 10) || 0;
+
+  return `${invoice_number_prefix}${String(lastNumber + 1).padStart(5, '0')}`;
+}
+
+
 
   async load_shift_event(user_id: number, id: any) {
     const rows = await this.dataSource.query(` 
@@ -182,17 +200,14 @@ GROUP_CONCAT(
     ELSE SUM(DISTINCT cvs.price)
 END AS per_day_price,
 
-      GROUP_CONCAT(
-  DISTINCT CASE
-    WHEN bed.event_date IS NOT NULL
-    THEN JSON_OBJECT(
-      'booking_id', b.id,
-      'status', b.status,
-      'date', bed.event_date,
-      'shift', IFNULL(bs.shift_name, ''),
-      'child_id', vc.child_venue_id
+  JSON_ARRAYAGG(
+    JSON_OBJECT(
+        'booking_id', b.id,
+        'status', b.status,
+        'date', bed.event_date,
+        'shift', IFNULL(bs.shift_name,''),
+        'child_id', vc.child_venue_id
     )
-  END
 ) AS booking_conflicts
 
     FROM venue_child vc
@@ -257,20 +272,16 @@ END AS per_day_price,
   // -----------------------------
   // 5. SAFE PARSER (NO NULLS)
   // -----------------------------
- const safeParse = (data: any) => {
+const safeParse = (data: any) => {
   if (!data) return [];
-
   try {
-    return JSON.parse(`[${data}]`).filter(
-      (x: any) =>
-        x &&
-        x.date !== null
-    );
+    const parsed = typeof data === "string" ? JSON.parse(data) : data;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((item: any) => item && item.date);
   } catch {
     return [];
   }
 };
-
   // -----------------------------
   // 6. RESPONSE MAP
   // -----------------------------
@@ -295,23 +306,10 @@ return venues.map((venue: any) => {
     s.toLowerCase(),
   );
 
-  // const filteredConflicts = uniqueConflicts.filter(
-  //   (conflict: any) => {
-  //     if (!conflict.date || !conflict.shift) return false;
-
-  //     return (
-  //       conflict.date >= from &&
-  //       conflict.date <= to &&
-  //       (
-  //         selectedShiftNames.length === 0 ||
-  //         selectedShiftNames.includes(
-  //           String(conflict.shift).toLowerCase(),
-  //         )
-  //       )
-  //     );
-  //   },
-  // );
 let filteredConflicts:any = [];
+
+const fromDate = new Date(from);
+const toDate = new Date(to);
 
 if (isDateOnly) {
   // Farmstay -> only date matters
@@ -319,8 +317,8 @@ if (isDateOnly) {
     if (!conflict.date) return false;
 
     return (
-      conflict.date >= from &&
-      conflict.date <= to
+      conflict.date >= fromDate &&
+      conflict.date <= toDate
     );
   });
 } else {
@@ -331,20 +329,36 @@ if (isDateOnly) {
     ? ['morning', 'afternoon', 'evening', 'full day']
     : shifts.map((s: string) => s.toLowerCase());
 
-  filteredConflicts = uniqueConflicts.filter((conflict: any) => {
-    if (!conflict.date || !conflict.shift) return false;
+  // filteredConflicts = uniqueConflicts.filter((conflict: any) => {
+  //   if (!conflict.date || !conflict.shift) return false;
 
-    return (
-      conflict.date >= from &&
-      conflict.date <= to &&
-      (
-        selectedShiftNames.length === 0 ||
-        selectedShiftNames.includes(
-          conflict.shift.toLowerCase()
-        )
+  //   return (
+  //     conflict.date >= fromDate &&
+  //     conflict.date <= toDate &&
+  //     (
+  //       selectedShiftNames.length === 0 ||
+  //       selectedShiftNames.includes(
+  //         conflict.shift.toLowerCase()
+  //       )
+  //     )
+  //   );
+  // });
+  filteredConflicts = uniqueConflicts.filter((conflict: any) => {
+  if (!conflict.date || !conflict.shift) return false;
+
+  const conflictDate = new Date(conflict.date);
+
+  return (
+    conflictDate >= fromDate &&
+    conflictDate <= toDate &&
+    (
+      selectedShiftNames.length === 0 ||
+      selectedShiftNames.includes(
+        String(conflict.shift).toLowerCase()
       )
-    );
-  });
+    )
+  );
+});
 }
   // const totalSlots =
   //   Math.max(selectedShiftNames.length, 1) * totalDays;
@@ -390,7 +404,9 @@ if (isDateOnly) {
           .map((s: string) => s.trim())
       : [],
 
-    bookingConflicts: filteredConflicts,
+    // bookingConflicts: filteredConflicts,
+   bookingConflicts: filteredConflicts,
+
 
      child_setting: venue.child_setting
           ? JSON.parse(venue.child_setting)
@@ -1418,14 +1434,27 @@ if (taxes.length) {
 );
 
 //Realtime
-this.socketService.realtime(id.toString());
+// this.socketService.realtime(
+//   id.toString(),
+//   'Booking',
+//   `Booking ${code} created`
+// );
+
 
 //email
 const data = {
   email:dto.customer?.email,
   id:bookingId
 }
-this.invoiceService.sendInvoice(data)
+this.invoiceService.sendInvoice(data);
+
+await this.notificationService.createNotification({
+  type: reserveType,
+  referenceId: bookingId,
+  title: `New ${reserveType}`,
+  message: `New ${reserveType} received - ${code}`,
+  createdBy: id,
+});
 
 
   return {
@@ -1556,8 +1585,10 @@ async insertPaxPackages(bookingId: number, dto: any) {
 `
 SELECT
     b.id,
-
-    MAX(b.invoice_number) AS refNo,
+    b.selection_mode,
+    b.selection_type,
+    MAX(b.booking_code) AS refNo,
+    MAX(b.invoice_number) AS invoice_number,
     MAX(b.booking_type) AS type,
 
     CASE
@@ -1585,7 +1616,11 @@ SELECT
     MAX(b.total_amount) AS amountNum,
     MAX(b.total_amount) AS amount,
 
-    MIN(bed.event_date) AS eventDate,
+    GROUP_CONCAT(
+    DISTINCT DATE_FORMAT(bed.event_date, '%Y-%m-%d')
+    ORDER BY bed.event_date
+    SEPARATOR ', '
+) AS eventDate,
 
     MAX(b.created_at) AS orderDate,
 
@@ -1602,6 +1637,7 @@ SELECT
     MAX(b.invoice_number) AS assignedStaff,
 
     MAX(b.base_amount) AS base_amt,
+    MAX(bet.event_name) AS eventType,
 
     CASE
         WHEN MAX(b.status) = 'cancelled' THEN 'bg-red-500'
@@ -1626,6 +1662,9 @@ LEFT JOIN booking_venues bv
 
 LEFT JOIN booking_event_dates bed
     ON bed.booking_id = b.id
+
+LEFT JOIN booking_event_types bet
+    ON bet.id = b.booking_event_type_id
 
 LEFT JOIN booking_shifts bs
     ON bs.booking_id = b.id
@@ -1765,6 +1804,7 @@ async reservation_invoice(id: number) {
 SELECT
     b.id,
     b.booking_code AS refNo,
+    b.invoice_g_id,
     b.booking_type AS type,
     b.invoice_number,
     b.booking_type,
@@ -1976,6 +2016,7 @@ LIMIT 1
         b.id,
        b.booking_code AS refNo,
     b.invoice_number,
+    b.invoice_g_id,
         b.booking_type,
         b.status,
         b.category,
@@ -1990,8 +2031,12 @@ LIMIT 1
             SEPARATOR ', '
         ) AS venues,
 
-        MIN(bed.event_date) AS event_date,
         MAX(bed.event_date) AS end_date,
+         GROUP_CONCAT(
+    DISTINCT DATE_FORMAT(bed.event_date, '%Y-%m-%d')
+    ORDER BY bed.event_date
+    SEPARATOR ', '
+) AS event_date,
 
         GROUP_CONCAT(
             DISTINCT bs.shift_name
@@ -2009,7 +2054,10 @@ LIMIT 1
         b.notes,
 
         b.created_at,
-        b.updated_at
+        b.updated_at,
+
+          MAX(bet.event_name) AS eventType
+        
 
     FROM bookings b
 
@@ -2025,6 +2073,9 @@ LIMIT 1
 
     LEFT JOIN booking_shifts bs
         ON bs.booking_id = b.id
+
+       LEFT JOIN booking_event_types bet
+      ON bet.id = b.booking_event_type_id
         
     LEFT JOIN (
     SELECT
@@ -2297,7 +2348,7 @@ LIMIT 1
     SELECT *
     FROM venue_child vc
     LEFT JOIN venue_parent vp ON vp.parent_venue_id = vc.parent_venue_id
-    WHERE vc.created_by = ?  AND vp.propety_category = ? AND vc.publish_status = 0
+    WHERE vc.created_by = ?  AND vp.propety_category = ? AND vc.publish_status = 1
     `,
       [id, 'venue'],
     );
@@ -2315,7 +2366,7 @@ LIMIT 1
 
     while (true) {
       const rows = await this.dataSource.query(
-        `SELECT 1 FROM bookings WHERE booking_auto_id = ? LIMIT 1`,
+        `SELECT 1 FROM bookings WHERE invoice_number = ? LIMIT 1`,
         [code],
       );
 
@@ -2333,104 +2384,143 @@ LIMIT 1
     const generated_code = Number(crows[0].total);
 
     const result: any = await this.dataSource.query(
-      `
-    INSERT INTO bookings
-    (
-      booking_id,
-      booking_auto_id,
-      auto_increment,
-      booking_type,
-      booking_event_type_id,
-      child_venue_id,
-      from_date,
-      to_date,
-      booked_shift_type,
-      booked_no_of_people,
-      guest_capacity,
-      total_booking_price,
-      base_amount_of_hall,
-      security_deposit,
-      pax_tax,
-      special_request,
-      billing_first_name,
-      billing_phone,
-      billing_email,
-      created_at,
-      updated_at,
-      created_by_,
-      created_under_by,
-      category_id,
-      booking_types,
-      billing_address
-    )
-    VALUES (?,?,?, ?, ?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-    `,
-      [
-        bookingUuid,
-        code,
-        0,
-        '0',
-        dto.eventType || null, // FIX 1
+  `
+  INSERT INTO bookings (
+    invoice_number,
+    booking_code,
+    booking_type,
+    category,
+    country_id,
+    booking_event_type_id,
+    status,
+    total_amount,
+    notes,
+    total_pax,
+    vendor_id,
+    created_by,
+    created_at,
+    updated_at
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `,
+  [
+    0,                   
+    code,                      
+    "lead", 
+    1,
+    2,                
+    dto.eventType || null,   
+    0,                       
+    dto.budget || 0,         
+    dto.notes || null,       
+    dto.total_pax || 0,     
+    id,                      
+    id,                      
+    new Date(),              
+    new Date(),              
+  ]
+);
+ const bookingId = result.insertId;
+   // -----------------------------
+// 4. VENUE
+// -----------------------------
+await this.dataSource.query(
+  `
+  INSERT INTO booking_venues
+  (
+    booking_id,
+    parent_venue_id,
+    child_venue_id,
+    venue_name_snapshot
+  )
+  VALUES (?,?,?,?)
+  `,
+  [
+    bookingId,
+    null,
+    dto.venue || null,
+    null,
+  ],
+);
 
-        dto.venue || null,
+   // -----------------------------
+// 5. EVENT DATE
+// -----------------------------
+const eventDateResult: any = await this.dataSource.query(
+  `
+  INSERT INTO booking_event_dates
+  (
+    booking_id,
+    event_date
+  )
+  VALUES (?,?)
+  `,
+  [
+    bookingId,
+    dto.eventDate || null,
+  ],
+);
 
-        dto?.eventDate || null,
+const eventDateId = eventDateResult.insertId;
 
-        dto?.eventDate,
+// -----------------------------
+// 6. SHIFT
+// -----------------------------
+await this.dataSource.query(
+  `
+  INSERT INTO booking_shifts
+  (
+    booking_id,
+    event_date_id,
+    venue_id,
+    shift_name,
+    status
+  )
+  VALUES (?,?,?,?,?)
+  `,
+  [
+    bookingId,
+    eventDateId,
+     0,
+    dto.shift || null,
+    "active",
+  ],
+);
 
-        0,
+// -----------------------------
+// 7. CUSTOMER
+// -----------------------------
+await this.dataSource.query(
+  `
+  INSERT INTO booking_parties
+  (
+    booking_id,
+    party_type,
+    party_id,
+    name,
+    phone,
+    email
+  )
+  VALUES (?,?,?,?,?,?)
+  `,
+  [
+    bookingId,
+    "customer",
+    0,
+    dto.name || null,
+    dto.phone || null,
+    dto.email || null,
+  ],
+);
+ 
 
-        dto.guestCount || 0,
-        dto.guestCount || 0,
-
-        dto.budget || 0,
-        dto.budget || 0,
-        0,
-        0,
-
-        dto.notes || null,
-
-        dto?.name || null,
-        dto?.phone || null,
-        dto?.email || null,
-        new Date(),
-        new Date(),
-        id,
-        id,
-        1,
-        3,
-        dto?.address || null,
-      ],
-    );
-
-    await this.dataSource.query(
-      `
-        INSERT INTO booking_child_venue
-        (booking_id, child_venue_id)
-        VALUES (?,?)
-        `,
-      [bookingUuid, dto.venue],
-    );
-
-    // =========================
-    // SHIFTS (FIXED STRING SAFE)
-    // =========================
-    const SHIFT_MAP = {
-      morning: 1,
-      afternoon: 2,
-      evening: 3,
-    };
-
-    const shiftId = SHIFT_MAP[dto.shift.toLowerCase()];
-
-    await this.dataSource.query(
-      `
-        INSERT INTO booking_shift
-        (booking_id, shift_id)
-        VALUES (?,?)
-        `,
-      [bookingUuid, shiftId],
-    );
+await this.notificationService.createNotification({
+  type: 'Lead',
+  referenceId: bookingId,
+  title: `New Lead`,
+  message: `New Lead received - ${code}`,
+  createdBy: id,
+});
   }
 
   async historical_reserve(category: any, country: any, id: number) {
@@ -2770,6 +2860,21 @@ async add_payment(category: any, country: any, id: number, body: any) {
     );
   }
 
+
+
+// this.socketService.realtime(
+//   id.toString(),
+//   'Payment',
+//   `Payment received `
+// );
+await this.notificationService.createNotification({
+  type: 'Payment',
+  referenceId: booking_id,
+  title: `New Payment`,
+  message: `New Payment received`,
+  createdBy: id,
+});
+
   return {
     success: true,
     message: 'Payments added successfully',
@@ -2814,6 +2919,121 @@ this.invoiceService.sendInvoice(data)
 
 
 }
+
+async refundSecurityDeposit(
+  category: any,
+  country: any,
+  id: number,
+  body: any,
+) {
+  const { booking_id, payments } = body;
+
+  if (!booking_id) {
+    throw new Error("Booking ID is required");
+  }
+
+  if (!payments || !Array.isArray(payments) || payments.length === 0) {
+    throw new Error("Payments are required");
+  }
+
+  const rows = payments.map((payment: any) => [
+    booking_id,
+    payment.payment_date,
+    "refund",
+    payment.payment_method,
+    payment.transaction_id || null,
+    payment.amount_paid,
+    "paid",
+    new Date(),
+    JSON.stringify({
+      notes: payment.notes || "",
+    }),
+  ]);
+
+  await this.dataSource.query(
+    `
+      INSERT INTO booking_payments (
+        booking_id,
+        payment_date,
+        payment_type,
+        payment_method,
+        transaction_id,
+        amount_paid,
+        payment_status,
+        paid_at,
+        meta
+      )
+      VALUES ?
+    `,
+    [rows],
+  );
+
+  // Create log for each refund
+  for (const payment of payments) {
+    await this.createLog(
+      "booking",
+      booking_id,
+      "security_deposit_refund",
+      `Security deposit refunded ₹${Number(
+        payment.amount_paid,
+      ).toLocaleString("en-IN")}`,
+      id,
+      null,
+      {
+        payment_type: payment.payment_type || "security_deposit_refund",
+        payment_method: payment.payment_method,
+        amount_paid: payment.amount_paid,
+        payment_date: payment.payment_date,
+        transaction_id: payment.transaction_id || null,
+        notes: payment.notes || "",
+      },
+    );
+  }
+
+  return {
+    success: true,
+    message: "Security deposit refunded successfully",
+  };
+}
+async handlGenerateInvoice(
+  category: any,
+  country: any,
+  id: number,
+  body: any,
+) {
+
+
+const invoiceId = `INV-${Date.now()}`;
+const invoiceDate = new Date();
+
+await this.dataSource.query(
+  `
+  UPDATE bookings
+  SET invoice_g_id = ?, invoice_date = ?
+  WHERE id = ?
+  `,
+  [invoiceId, invoiceDate, body.booking_id],
+);
+
+await this.createLog(
+  "booking",
+  body.booking_id,
+  "invoice_generated",
+  `Invoice generated for booking #${body.booking_id}`,
+  id,
+  null,
+  {
+    invoice_id: invoiceId,
+    invoice_date: invoiceDate,
+  },
+);
+
+  return {
+    success: true,
+    message: "Invoice Generated successfully",
+  };
+}
+
 
 }
 

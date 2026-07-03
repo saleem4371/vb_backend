@@ -9,6 +9,7 @@ import { PackageCategory } from '../../vendor/packages/entity/package-category.e
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { SocketModule } from '../../socket/socket.module'
 import { InvoiceModule } from '../../invoice/invoice.module'
+import { NotificationModule } from '../../../notifications/notification.module'
 
 
 
@@ -23,7 +24,8 @@ import { InvoiceModule } from '../../invoice/invoice.module'
         Setting
       ]),
       SocketModule,
-      InvoiceModule
+      InvoiceModule,
+      NotificationModule
     ]
 })
 export class BookingsModule {}

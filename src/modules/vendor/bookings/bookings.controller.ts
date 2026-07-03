@@ -17,9 +17,13 @@ import type { FastifyRequest } from 'fastify';
 import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/user.decorator';
 import { BookingsService } from './bookings.service';
+import { NotificationService } from '../../../notifications/notification.service';
+
 @Controller('booking')
 export class BookingsController {
-  constructor(private readonly bookingsService: BookingsService) {}
+  constructor(private readonly bookingsService: BookingsService,
+     private readonly notificationService: NotificationService
+  ) {}
 
   @UseGuards(JwtAuthGuard)
   @Get('InvoiceNOAPI')
@@ -43,7 +47,7 @@ export class BookingsController {
   async Load_all_packages(@Body() body: any, @CurrentUser() user: any) {
     return await this.bookingsService.Load_all_packages(body, user?.id);
   }
-   
+  
   @UseGuards(JwtAuthGuard)
   @Post('loadAllAddons')
   async loadAllAddons(@Body() body: any, @CurrentUser() user: any) {
@@ -111,6 +115,17 @@ export class BookingsController {
   @Post('add_payment')
   async add_payment(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any,@Body() body: any) {
     return await this.bookingsService.add_payment(category, country, user?.id,body);
+  } 
+  
+  @UseGuards(JwtAuthGuard)
+  @Post('refundSecurityDeposit')
+  async refundSecurityDeposit(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any,@Body() body: any) {
+    return await this.bookingsService.refundSecurityDeposit(category, country, user?.id,body);
+  }
+ @UseGuards(JwtAuthGuard)
+  @Post('handlGenerateInvoice')
+  async handlGenerateInvoice(@Headers('x-category') category: any, @Headers('x-country') country: any,@CurrentUser() user: any,@Body() body: any) {
+    return await this.bookingsService.handlGenerateInvoice(category, country, user?.id,body);
   }
 
   

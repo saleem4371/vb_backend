@@ -7,6 +7,8 @@ import { SettingGroup } from './entity/setting-group.entity';
 import { Setting } from './entity/setting.entity';
 import { VenueSetting } from './entity/venue-setting.entity';
 
+import { SocketService } from '../../socket/socket.service';
+
 //categoryRepository
 
 @Injectable()
@@ -14,6 +16,7 @@ export class SettingsService {
   constructor(
     private dataSource: DataSource,
     private storageService: StorageService,
+     private socketService: SocketService,
     @InjectRepository(SettingGroup)
       private readonly settingGroupRepository: Repository<SettingGroup>,
   ) {}
@@ -99,6 +102,14 @@ async saveSettingsAPI(user_id: number, body: any) {
       values.flat(),
     );
   });
+
+//Realtime
+this.socketService.realtime(
+  user_id.toString(),
+  'Setting',
+  `Setting Updated`
+);
+
 
   return {
     success: true,

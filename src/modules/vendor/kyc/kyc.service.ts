@@ -253,7 +253,7 @@ export class KycService {
   return result[0];
 }
 
-  async each_kyc_status(userId: any,category: any,country: any) {
+async each_kyc_status(userId: any,category: any,country: any) {
 
 
   const singular = category.endsWith("s")
@@ -269,6 +269,17 @@ export class KycService {
       `SELECT * FROM user_kyc_documents
    WHERE user_id = ?
    AND document_type = 'pan'
+   AND category_id = ?
+   AND country_id = ?
+   ORDER BY id DESC
+   LIMIT 1`,
+      [userId,categories.id,country],
+    );
+
+     const GST = await this.dataSource.query(
+      `SELECT * FROM user_kyc_documents
+   WHERE user_id = ?
+   AND document_type = 'gst'
    AND category_id = ?
    AND country_id = ?
    ORDER BY id DESC
@@ -319,10 +330,38 @@ export class KycService {
 
     return {
       pan: pan[0] || null,
+      gst: GST[0] || null,
       aadhaar: aadhaar[0] || null,
       business: business[0] || null,
       cheque: cheque[0] || null,
       bank: bank[0] || null,
     };
   }
+
+
+async suscription_detail(userId: any,category: any,country: any) {
+
+   const singular = category.endsWith("s")
+  ? category.slice(0, -1)
+  : category;
+
+  const [categories] = await this.dataSource.query(
+    `SELECT * FROM category WHERE name = ? `,
+    [singular],
+  );
+
+ const subscription = await this.dataSource.query(
+      `SELECT * FROM user_subscriptions us
+      LEFT JOIN plans ON plans.id = us.plan_id
+   WHERE user_id = ? AND country_id = ? AND us.category_id = ?
+   ORDER BY us.id DESC
+   LIMIT 1`,
+      [userId,country,categories.id],
+    );
+
+    return subscription;
+}
+
+
+  
 }
