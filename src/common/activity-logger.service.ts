@@ -51,13 +51,6 @@ export class ActivityLoggerService {
     );
 
     // 🔔 Notify only if required
-    if (notify) {
-      await this.notificationService.createNotification({
-        user_id,
-        title,
-        message,
-        type,
-      });
-    }
+   
   }
 }
