@@ -457,7 +457,7 @@ const [existingPan] = await this.dataSource.query(
   ORDER BY id DESC
   LIMIT 1
   `,
-  [id, body.pan],
+  [body.pan],
 );
 
 let panData: any;
@@ -534,11 +534,11 @@ if (body.category === "business") {
     `
     SELECT *
     FROM user_kyc_documents
-    WHERE document_type = 'gst'
+    WHERE  document_type = 'gst' AND user_id = ?
     ORDER BY id DESC
     LIMIT 1
     `,
-    [id],
+    [existingPan.user_id],
   );
 
   if (existingGST) {
