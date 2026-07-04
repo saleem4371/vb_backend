@@ -535,8 +535,7 @@ if (body.category === "business") {
     `
     SELECT *
     FROM user_kyc_documents
-    WHERE user_id = ?
-      AND document_type = 'gst'
+    WHERE document_type = 'gst'
     ORDER BY id DESC
     LIMIT 1
     `,
