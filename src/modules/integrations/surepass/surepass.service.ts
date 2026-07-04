@@ -452,8 +452,7 @@ const [existingPan] = await this.dataSource.query(
   `
   SELECT *
   FROM user_kyc_documents
-  WHERE user_id = ?
-    AND document_type = 'pan'
+  WHERE document_type = 'pan'
     AND document_number = ?
   ORDER BY id DESC
   LIMIT 1
