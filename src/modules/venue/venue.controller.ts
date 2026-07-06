@@ -73,7 +73,7 @@ export class VenueController {
   } 
   
   @UseGuards(JwtAuthGuard)
-  @Post('removeCompareAPI')
+  @Post('removeCompare')
   async removeCompareAPI(@Body() body: any,@CurrentUser() user: any) {
     const userId = user?.id;
 
@@ -86,5 +86,26 @@ export class VenueController {
     const userId = user?.id;
 
     return this.venueService.userRecentViewsAPI(body,userId);
+  } 
+  
+  @UseGuards(JwtAuthGuard)
+  @Get('likedProperty')
+  async likedProperty(@CurrentUser() user: any) {
+    const userId = user?.id;
+
+    return this.venueService.likedProperty(userId);
+  }  
+  
+  @UseGuards(JwtAuthGuard)
+  @Post('addLikedProperty')
+  async addLikedProperty(@Body() body: any,@CurrentUser() user: any) {
+    const userId = user?.id;
+
+    return this.venueService.addLikedProperty(body,userId);
+  }  
+  
+  @Get('totalLikedProperty')
+  async totalLikedProperty() {
+    return this.venueService.totalLikedProperty();
   }
 }

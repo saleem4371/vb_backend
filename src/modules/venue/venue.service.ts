@@ -664,6 +664,12 @@ export class VenueService {
     const where: string[] = [];
     const params: any[] = [];
 
+    const bucketUrl = process.env.PUBLIC_AWS_BUCKET_URL;
+
+   params.push(bucketUrl);
+    
+
+
     if (query.search) {
       where.push(`
       (
@@ -708,19 +714,38 @@ export class VenueService {
 
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+    
+
     /* ======================
      REGISTERED VENUES
   ====================== */
 
+  
+
+
     const sql = `
     SELECT
       cv.child_venue_id AS childVenueId,
+      cv.parent_venue_id AS parentVenueId,
       cv.child_venue_name AS venueName,
+      cv.guest_rooms AS maxGuests,
       pv.venue_city AS city,
       pv.venue_state AS state,
+      pv.venue_state AS venueType,
+      pv.venue_name AS parentVenueName,
+      pv.venue_country AS country,
+      pv.rating AS rating,
+      pv.user_ratings_total AS reviewCount,
+      pv.user_ratings_total AS featured,
       pv.lat,
       pv.lng,
       pv.propety_category AS category,
+      CASE
+    WHEN pv.reel_video IS NOT NULL AND pv.reel_video <> ''
+    THEN CONCAT(TRIM(TRAILING '/' FROM ?), '/', TRIM(LEADING '/' FROM pv.reel_video))
+    ELSE NULL
+END AS videoUrl,
+
        /* COVER IMAGE */
       (
         SELECT vg.attachment
@@ -739,20 +764,24 @@ export class VenueService {
         LIMIT 1
       ) AS coverImage,
 
-      /* GALLERY */
+      /* GALLERY  
+            'id', vg.id,  AND vg.image_type = 3*/
       (
         SELECT JSON_ARRAYAGG(
           JSON_OBJECT(
-            'id', vg.id,
             'image', vg.attachment
           )
         )
         FROM venue_gallery vg
         WHERE vg.child_venue_id = cv.child_venue_id
-        AND vg.image_type = 3
+       
       ) AS images,
 
-
+(
+  SELECT COUNT(*)
+  FROM property_likes pl
+  WHERE pl.property_id = cv.child_venue_id
+) AS totalLikes,
       (
         SELECT MIN(vst.price)
         FROM venue_shift_timing vst
@@ -790,14 +819,94 @@ export class VenueService {
 
     const whereClauses = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
 
+const filters = query.filters || {};
+
+const hasAdvancedFilters =
+  !!query.category ||
+  !!query.search ||
+  !!query.city ||
+
+  // Keep type allowed
+  false ||
+
+  // Event type
+  filters.eventType?.length > 0 ||
+
+  // Capacity
+  filters.capacity?.length > 0 ||
+
+  // Category cards
+  filters.category_cards?.length > 0 ||
+
+  // Shift
+  filters.shift?.length > 0 ||
+
+  // Booking
+  filters.booking?.length > 0 ||
+
+  // Amenities
+  filters.amenities?.length > 0 ||
+
+  // Quick filters
+  filters.quickFilter?.length > 0 ||
+
+  // Farm
+  filters.farmType?.length > 0 ||
+  filters.farmFood?.length > 0 ||
+  filters.farmExperiences?.length > 0 ||
+
+  // Venue
+  filters.venueStyle?.length > 0 ||
+  filters.foodCatering?.length > 0 ||
+
+  // Workspace
+  filters.workspaceType?.length > 0 ||
+  filters.workspaceBooking?.length > 0 ||
+  filters.workspaceFeatures?.length > 0 ||
+
+  // Studio
+  filters.studioType?.length > 0 ||
+  filters.studioFeatures?.length > 0 ||
+
+  // Rental
+  filters.rentalCategory?.length > 0 ||
+  filters.rentalFeatures?.length > 0 ||
+
+  // Stay
+  filters.stayType?.length > 0 ||
+
+  // Others
+  filters.petFriendly?.length > 0 ||
+  filters.kidFriendly?.length > 0 ||
+  filters.poolExperience?.length > 0 ||
+  filters.loyaltyPerks?.length > 0 ||
+  filters.suitability?.length > 0 ||
+  filters.experienceType?.length > 0 ||
+  filters.expBooking?.length > 0 ||
+
+  // Budget changed from default
+  (filters.budget &&
+    (filters.budget.min > 0 || filters.budget.max < 500000));
+
     const unsql = `
   SELECT
     uv.id AS childVenueId,
+    uv.id AS parentVenueId,
     uv.name AS venueName,
-    uv.state,
-    uv.city,
+    uv.name AS parentVenueName,
+    uv.name AS category,
+    uv.country,
+    
     uv.lat,
     uv.lng,
+    uv.state,
+    uv.city,
+
+     0 AS maxGuests,
+     0 AS videoUrl,
+    uv.name AS venueType,
+    uv.rating,
+    uv.user_ratings_total as reviewCount,
 
     (
       SELECT ug.images
@@ -820,7 +929,13 @@ export class VenueService {
 
 paramss.push(limit, offset);
 
-const unregistered = await this.dataSource.query(unsql, paramss);
+// const unregistered = await this.dataSource.query(unsql, paramss);
+
+let unregistered = [];
+
+if (!hasAdvancedFilters) {
+  unregistered = await this.dataSource.query(unsql, paramss);
+}
 
     /* ======================
      MERGE RESULT (FIXED)
@@ -1369,4 +1484,87 @@ const unregistered = await this.dataSource.query(unsql, paramss);
   );
 }
   //	user_recent_views
+
+async addLikedProperty(body: any, userId: any) {
+  const { property_id, property_type } = body;
+
+   const singular = property_type.endsWith('s') ? property_type.slice(0, -1) : property_type;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
+
+  const [existing] = await this.dataSource.query(
+    `
+    SELECT id
+    FROM property_likes
+    WHERE user_id = ?
+      AND property_id = ?
+      AND property_type = ?
+    LIMIT 1
+    `,
+    [userId, property_id, categorys.id],
+  );
+
+  if (existing) {
+    await this.dataSource.query(
+      `
+      DELETE FROM property_likes
+      WHERE id = ?
+      `,
+      [existing.id],
+    );
+
+    return {
+      liked: false,
+      message: 'Property removed from favourites.',
+    };
+  }
+
+  await this.dataSource.query(
+    `
+    INSERT INTO property_likes
+    (user_id, property_id, property_type)
+    VALUES (?, ?, ?)
+    `,
+    [userId, property_id, categorys.id],
+  );
+
+  return {
+    liked: true,
+    message: 'Property added to favourites.',
+  };
+}
+
+async likedProperty(userId: any) {
+
+
+  const likedProperty = await this.dataSource.query(
+    `
+    SELECT property_id
+    FROM property_likes
+    WHERE user_id = ?
+    `,
+    [userId],
+  );
+
+  return likedProperty;
+
+}
+
+async totalLikedProperty() {
+
+
+  const totalLikedProperty = await this.dataSource.query(
+    `
+    SELECT property_id
+    FROM property_likes
+    `,
+  );
+
+  return totalLikedProperty;
+
+}
+
+  
 }
