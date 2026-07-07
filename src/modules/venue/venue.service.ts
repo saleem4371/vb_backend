@@ -740,6 +740,7 @@ export class VenueService {
       pv.lat,
       pv.lng,
       pv.propety_category AS category,
+      pv.reel_video,
       CASE
     WHEN pv.reel_video IS NOT NULL AND pv.reel_video <> ''
     THEN CONCAT(TRIM(TRAILING '/' FROM ?), '/', TRIM(LEADING '/' FROM pv.reel_video))
