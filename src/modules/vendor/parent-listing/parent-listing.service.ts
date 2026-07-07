@@ -9,47 +9,47 @@ export class ParentListingService {
     private storageService: StorageService,
   ) {}
 
-  async getParent(userId: any) {
-    const result = await this.dataSource.query(
-      `
-    SELECT * 
-    FROM venue_parent pv  
-    WHERE pv.created_by = ?
+ async getParent(userId: any, id: string) {
+  // Convert "venues" -> "venue"
+  const category = id.endsWith("s") ? id.slice(0, -1) : id;
+
+  // Get all categories
+  const categoryRows = await this.dataSource.query(
+    `
+    SELECT DISTINCT propety_category
+    FROM venue_parent
+    WHERE created_by = ?
     `,
-      [userId],
-    );
+    [userId],
+  );
 
-    // dynamic category list
-    const categories = [
-      ...new Set(result.map((item) => `${item.propety_category}s`)),
-    ];
+  const categories = categoryRows.map(
+    (item) => `${item.propety_category}s`,
+  );
 
-    // grouped result by category
-    const groupedResult = result.reduce((acc, item) => {
-      const key = `${item.propety_category}s`;
+  // Get data for selected category
+  const results = await this.dataSource.query(
+    `
+    SELECT *
+    FROM venue_parent
+    WHERE created_by = ?
+      AND propety_category = ?
+    `,
+    [userId, category],
+  );
 
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-
-      acc[key].push(item);
-
-      return acc;
-    }, {});
-
-    
-
-    return {
-      category: categories,
-      result: groupedResult,
-    };
-  }
+  return {
+    category: categories,
+    result: results,
+  };
+}
   // SERVICE
 
  async saveParent(
   body: any,
   uploadedFiles: any,
   videoFile: any,
+  reel_video: any,
   parentId: string,
 ) {
   try {
@@ -114,6 +114,9 @@ export class ParentListingService {
 
     let videoUrl =
       oldData.video_url || '';
+      
+      let reelsUrl =
+      oldData.reel_video || '';
 
     const imageUrls: string[] = [];
 
@@ -182,6 +185,39 @@ export class ParentListingService {
         await this.storageService.upload(
           videoFile,
           'venue/video',
+        );
+    }
+ /* ─────────────────────────────
+       Reels UPLOAD
+    ───────────────────────────── */
+
+    if (reel_video && reel_video.buffer) {
+
+      /* delete old video */
+
+      if (oldData.reel_video) {
+        try {
+
+          const oldKey =
+            oldData.reel_video.includes('.amazonaws.com/')
+              ? oldData.reel_video.split('.amazonaws.com/')[1]
+              : oldData.reel_video;
+
+          if (oldKey) {
+            await this.storageService.delete(oldKey);
+          }
+
+        } catch (e) {
+          console.log('OLD VIDEO DELETE ERROR =>', e);
+        }
+      }
+
+      /* upload new video */
+
+      reelsUrl =
+        await this.storageService.upload(
+          reel_video,
+          'venue/reels',
         );
     }
 
@@ -274,6 +310,7 @@ export class ParentListingService {
 
         banner_image = ?,
         video_url = ?,
+        reel_video = ?,
 
         displayMediaType = ?,
 
@@ -304,6 +341,7 @@ export class ParentListingService {
 
         bannerImageUrl || null,
         videoUrl || null,
+        reelsUrl || null,
 
         body.displayMediaType,
 

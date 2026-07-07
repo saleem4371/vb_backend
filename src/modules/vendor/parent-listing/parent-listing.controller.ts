@@ -20,9 +20,9 @@ export class ParentListingController {
   constructor(private readonly parentListingService: ParentListingService) {}
 
   @UseGuards(JwtAuthGuard)
-  @Get('parent')
+  @Get('parent/:id')
   getParent(@CurrentUser() user: any, @Param('id') id: string) {
-    return this.parentListingService.getParent(user?.id);
+    return this.parentListingService.getParent(user?.id,id);
   }
   // CONTROLLER
 
@@ -38,6 +38,7 @@ async saveParent(
 
   let files: any = null;
   let vfiles: any = null;
+  let rfiles: any = null;
 
   for await (const part of parts) {
 
@@ -57,6 +58,9 @@ async saveParent(
 
       if (part.fieldname === 'video') {
         vfiles = fileData;
+      } 
+      if (part.fieldname === 'brand_reel') {
+        rfiles = fileData;
       }
 
     } else {
@@ -69,6 +73,7 @@ async saveParent(
     body,
     files,
     vfiles,
+    rfiles,
     parentId,
   );
 }
