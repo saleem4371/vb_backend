@@ -720,84 +720,116 @@ export class VenueService {
      REGISTERED VENUES
   ====================== */
 
-  
+  //bedrooms
 
 
     const sql = `
     SELECT
-      cv.child_venue_id AS childVenueId,
-      cv.parent_venue_id AS parentVenueId,
-      cv.child_venue_name AS venueName,
-      cv.guest_rooms AS maxGuests,
-      pv.venue_city AS city,
-      pv.venue_state AS state,
-      pv.venue_state AS venueType,
-      pv.venue_name AS parentVenueName,
-      pv.venue_country AS country,
-      pv.rating AS rating,
-      pv.user_ratings_total AS reviewCount,
-      pv.user_ratings_total AS featured,
-      pv.lat,
-      pv.lng,
-      pv.propety_category AS category,
-      pv.reel_video,
-      CASE
-    WHEN pv.reel_video IS NOT NULL AND pv.reel_video <> ''
-    THEN CONCAT(TRIM(TRAILING '/' FROM ?), '/', TRIM(LEADING '/' FROM pv.reel_video))
-    ELSE NULL
-END AS videoUrl,
+    cv.child_venue_id AS childVenueId,
+    cv.parent_venue_id AS parentVenueId,
+    cv.child_venue_name AS venueName,
+    cv.guest_rooms AS maxGuests,
+ cv.banquet_round AS bedrooms,
 
-       /* COVER IMAGE */
-      (
+    pv.venue_city AS city,
+    pv.venue_state AS state,
+    vc.name AS venueType,
+   
+    pv.venue_name AS parentVenueName,
+    pv.venue_country AS country,
+    pv.rating,
+    pv.user_ratings_total AS reviewCount,
+    pv.user_ratings_total AS featured,
+    pv.lat,
+    pv.lng,
+    pv.propety_category AS category,
+
+    CASE
+        WHEN pv.reel_video IS NOT NULL
+         AND pv.reel_video <> ''
+        THEN CONCAT(
+            TRIM(TRAILING '/' FROM ?),
+            '/',
+            TRIM(LEADING '/' FROM pv.reel_video)
+        )
+        ELSE NULL
+    END AS videoUrl,
+
+    /* Cover Image */
+    (
         SELECT vg.attachment
         FROM venue_gallery vg
         WHERE vg.child_venue_id = cv.child_venue_id
-        AND vg.image_type = 1
+          AND vg.image_type = 1
         LIMIT 1
-      ) AS coverImage,
+    ) AS coverImage,
 
-      /* BANNER IMAGE */
-      (
+    /* Banner Image */
+    (
         SELECT vg.attachment
         FROM venue_gallery vg
         WHERE vg.child_venue_id = cv.child_venue_id
-        AND vg.image_type = 2
+          AND vg.image_type = 2
         LIMIT 1
-      ) AS coverImage,
+    ) AS bannerImage,
 
-      /* GALLERY  
-            'id', vg.id,  AND vg.image_type = 3*/
-      (
+    /* Gallery */
+    (
         SELECT JSON_ARRAYAGG(
-          JSON_OBJECT(
-            'image', vg.attachment
-          )
+            JSON_OBJECT(
+                'image', vg.attachment
+            )
         )
         FROM venue_gallery vg
         WHERE vg.child_venue_id = cv.child_venue_id
-       
-      ) AS images,
+    ) AS images,
 
-(
-  SELECT COUNT(*)
-  FROM property_likes pl
-  WHERE pl.property_id = cv.child_venue_id
-) AS totalLikes,
-      (
-        SELECT MIN(vst.price)
-        FROM venue_shift_timing vst
-        WHERE vst.child_venue_id = cv.child_venue_id
-      ) AS minPrice
+    (
+        SELECT COUNT(*)
+        FROM property_likes pl
+        WHERE pl.property_id = cv.child_venue_id
+    ) AS totalLikes,
 
-    FROM venue_child cv
-    INNER JOIN venue_parent pv
-      ON pv.parent_venue_id = cv.parent_venue_id
+    CASE
+        WHEN pv.propety_category = 'farmstay' THEN
+            MAX(
+                CASE
+                    WHEN pp.pricing_key = 'nightly'
+                    THEN pp.amount
+                END
+            )
+        ELSE
+            (
+                SELECT MIN(vst.price)
+                FROM venue_shift_timing vst
+                WHERE vst.child_venue_id = cv.child_venue_id
+            )
+    END AS minPrice
 
-    ${whereClause}
+FROM venue_child cv
 
-    ORDER BY minPrice ASC
-    LIMIT ?
-    OFFSET ?
+INNER JOIN venue_parent pv
+    ON pv.parent_venue_id = cv.parent_venue_id
+
+LEFT JOIN property_pricing pp
+    ON pp.child_venue_id = cv.child_venue_id
+   AND pp.enabled = 1
+
+  LEFT JOIN venue_categories vc
+    ON vc.id = cv.venue_category_id 
+
+    
+
+${whereClause}
+
+GROUP BY
+    cv.child_venue_id
+
+ORDER BY
+    minPrice ASC
+
+LIMIT ?
+OFFSET ?;
   `;
 
     const venues = await this.dataSource.query(sql, [...params, limit, offset]);
