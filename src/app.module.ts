@@ -9,6 +9,7 @@ import { ActivityLogInterceptor } from "./modules/admin/activity-logs/intercepto
 import { HomeModule } from './modules/home/home.module';
 import { CategoryModule } from './modules/category/category.module';
 import { VenueModule } from './modules/venue/venue.module';
+import { VenueDeatilModule } from './modules/venueDeatil/venueDeatil.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BookingModule } from './modules/booking/booking.module';
 import { BecomeAHostPartnerModule } from './modules/become_a_host_partner/become_a_host_partner.module';
@@ -93,6 +94,7 @@ import { StripeModule } from "./modules/integrations/stripe/Stripe.module"
     HomeModule,
     CategoryModule,
     VenueModule,
+    VenueDeatilModule,
     AuthModule,
     BookingModule,
     BecomeAHostPartnerModule,
