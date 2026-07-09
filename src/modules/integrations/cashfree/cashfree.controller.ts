@@ -40,4 +40,17 @@ export class CashfreeController {
   ) {
     return this.cashfreeService.cashfree_plans(category_id, category);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('create-order')
+  cashfree_order(  @Body()
+     @Body() body: any,
+
+    @Param('id') id: string,
+
+    @Param('country') country: string, @CurrentUser() user: any,@Headers('x-country') Country : any) {
+    return this.cashfreeService.cashfree_order(body, user?.id,Country);
+  }
+
+  
 }

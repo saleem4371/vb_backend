@@ -389,4 +389,57 @@ else{
   }
     return rows;
   }
+
+  async cashfree_order( data: {
+    orderId: string;
+    amount: number;
+    url: string;
+    customer: {
+      id: string;
+      name: string;
+      email: string;
+      phone: string;
+    };
+  },id:any,Country:any) {
+  const request = {
+  order_id: data.orderId,
+  order_amount: Number(data.amount),
+  order_currency: "INR",
+
+   customer_details: {
+      customer_id: data.customer.id,
+      customer_name: data.customer.name,
+      customer_email: data.customer.email,
+      customer_phone: data.customer.phone,
+    },
+
+  order_meta: {
+    return_url: `${process.env.FRONTEND_URLS}/${data.url}?order_id={order_id}`,
+  },
+};
+
+const config =
+  await this.integrationService.getIntegrationConfig("cashfree");
+
+const configData =
+  typeof config === "string" ? JSON.parse(config) : config;
+
+const url = `${configData.base_url}/pg/orders`;
+
+const response = await firstValueFrom(
+  this.http.post(url, request, {
+    headers: {
+      "x-client-id": configData.client_id,
+      "x-client-secret": configData.client_secret,
+      "x-api-version": "2025-01-01",
+      "Content-Type": "application/json",
+    },
+  }),
+);
+
+return response.data;
+   
+  }
+
+  
 }
