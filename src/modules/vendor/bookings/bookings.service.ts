@@ -1134,40 +1134,57 @@ if(dto.event?.selection_type ==='pax')
   );
 }
 
-  // -----------------------------
-  // 5. EVENT DATE
-  // -----------------------------
+ // -----------------------------
+// 5. EVENT DATES
+// -----------------------------
 let eventDates: string[] = [];
 
-// -----------------------------
-// RANGE CASE (YOUR CURRENT PAYLOAD)
-// -----------------------------
-if (dto.event?.date_range?.start_date && dto.event?.date_range?.end_date) {
+// Farmstay / Multiple booking
+if (
+  dto.venues?.length &&
+  dto.venues[0]?.start_date &&
+  dto.venues[0]?.end_date
+) {
+  eventDates = getDatesBetween(
+    dto.venues[0].start_date,
+    dto.venues[0].end_date,
+  );
+}
+
+// Event date range
+else if (
+  dto.event?.date_range?.start_date &&
+  dto.event?.date_range?.end_date
+) {
   eventDates = getDatesBetween(
     dto.event.date_range.start_date,
     dto.event.date_range.end_date,
   );
 }
 
-// -----------------------------
-// ARRAY CASE
-// -----------------------------
+// Multiple selected dates
 else if (Array.isArray(dto.event?.event_date)) {
   eventDates = dto.event.event_date;
 }
 
-// -----------------------------
-// SINGLE DATE CASE
-// -----------------------------
+// Single date
 else if (dto.event?.event_date) {
   eventDates = [dto.event.event_date];
 }
 
+// Remove duplicates
+eventDates = [...new Set(eventDates)];
+
+// Insert dates
 const eventDateResult: any[] = [];
 
 for (const date of eventDates) {
-  const res = await this.dataSource.query(
-    `INSERT INTO booking_event_dates (booking_id, event_date) VALUES (?,?)`,
+  const res: any = await this.dataSource.query(
+    `
+      INSERT INTO booking_event_dates
+      (booking_id, event_date)
+      VALUES (?, ?)
+    `,
     [bookingId, date],
   );
 
