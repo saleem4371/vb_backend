@@ -19,44 +19,168 @@ export class HomeService {
     return { categories, venues };
   }
 
+  // async getUserRecentViews(userId: any) {
+  //   const result = await this.dataSource.query(
+  //     `
+  //   SELECT 
+  //       urv.id,
+  //       urv.user_id,
+  //       urv.venue_id,
+  //       urv.viewed_at,
+
+  //       cv.child_venue_id,
+  //       cv.child_venue_name as name,
+  //       pv.venue_city as location,
+  //       pv.rating as rating,
+  //       pv.reviews as reviews,
+  //       vg.attachment AS image
+
+  //   FROM user_recent_views urv
+
+  //   LEFT JOIN venue_child cv
+  //       ON cv.child_venue_id = urv.venue_id
+
+  //   LEFT JOIN venue_parent pv
+  //       ON pv.parent_venue_id = cv.parent_venue_id
+
+  //   LEFT JOIN venue_gallery vg
+  //       ON vg.child_venue_id = urv.venue_id
+  //       AND vg.image_type = 1
+
+  //   WHERE urv.user_id = ?
+
+  //   ORDER BY urv.viewed_at DESC
+  //   LIMIT 20
+  //   `,
+  //     [userId],
+  //   );
+
+  //   return result;
+  // }
   async getUserRecentViews(userId: any) {
-    const result = await this.dataSource.query(
-      `
-    SELECT 
-        urv.id,
-        urv.user_id,
-        urv.venue_id,
-        urv.viewed_at,
 
-        cv.child_venue_id,
-        cv.child_venue_name as name,
-        pv.venue_city as location,
-        pv.rating as rating,
-        pv.reviews as reviews,
-        vg.attachment AS image
+ let query = `SELECT
+    pl.property_id,
 
-    FROM user_recent_views urv
+    /* IDs */
+    COALESCE(cv.child_venue_id, CAST(uv.id AS CHAR)) AS childVenueId,
+    COALESCE(cv.parent_venue_id, CAST(uv.id AS CHAR)) AS parentVenueId,
 
-    LEFT JOIN venue_child cv
-        ON cv.child_venue_id = urv.venue_id
+    /* Names */
+    COALESCE(cv.child_venue_name, uv.name) AS venueName,
+    COALESCE(pv.venue_name, uv.name) AS parentName,
 
-    LEFT JOIN venue_parent pv
-        ON pv.parent_venue_id = cv.parent_venue_id
+    /* Location */
+    COALESCE(pv.venue_city, uv.city) AS city,
+    COALESCE(pv.venue_state, uv.state) AS state,
+    COALESCE(pv.venue_country, uv.country) AS country,
 
-    LEFT JOIN venue_gallery vg
-        ON vg.child_venue_id = urv.venue_id
-        AND vg.image_type = 1
+    COALESCE(pv.lat, uv.lat) AS lat,
+    COALESCE(pv.lng, uv.lng) AS lng,
 
-    WHERE urv.user_id = ?
+    /* Details */
+    COALESCE(cv.guest_rooms, 0) AS maxGuests,
+    COALESCE(cv.banquet_round, 0) AS bedrooms,
 
-    ORDER BY urv.viewed_at DESC
-    LIMIT 20
-    `,
-      [userId],
-    );
+    COALESCE(vc.name, uv.name) AS venueType,
 
-    return result;
-  }
+    pv.rating,
+    pv.user_ratings_total AS reviewCount,
+    pv.propety_category AS category,
+
+    /* Cover Image */
+    CASE
+        WHEN cv.child_venue_id IS NOT NULL THEN
+        (
+            SELECT vg.attachment
+            FROM venue_gallery vg
+            WHERE vg.child_venue_id = cv.child_venue_id
+              AND vg.image_type = 1
+            LIMIT 1
+        )
+        ELSE
+        (
+            SELECT ug.images
+            FROM unrigistered_gallery ug
+            WHERE ug.unreg_id = uv.id
+            ORDER BY ug.id
+            LIMIT 1
+        )
+    END AS coverImage,
+
+    /* Gallery */
+    CASE
+        WHEN cv.child_venue_id IS NOT NULL THEN
+        (
+            SELECT JSON_ARRAYAGG(
+                JSON_OBJECT(
+                    'image', vg.attachment
+                )
+            )
+            FROM venue_gallery vg
+            WHERE vg.child_venue_id = cv.child_venue_id
+        )
+        ELSE
+        (
+            SELECT JSON_ARRAYAGG(
+                JSON_OBJECT(
+                    'image', ug.images
+                )
+            )
+            FROM unrigistered_gallery ug
+            WHERE ug.unreg_id = uv.id
+        )
+    END AS images,
+
+    /* Likes */
+    (
+        SELECT COUNT(*)
+        FROM property_likes pl2
+        WHERE pl2.property_id = pl.property_id
+    ) AS totalLikes,
+
+    1 AS isLiked,
+
+    /* Price */
+    CASE
+        WHEN cv.child_venue_id IS NOT NULL THEN
+        (
+            SELECT MIN(vst.price)
+            FROM venue_shift_timing vst
+            WHERE vst.child_venue_id = cv.child_venue_id
+        )
+        ELSE 0
+    END AS minPrice
+
+FROM property_likes pl
+
+/* Registered venue */
+LEFT JOIN venue_child cv
+    ON cv.child_venue_id = pl.property_id
+
+LEFT JOIN venue_parent pv
+    ON pv.parent_venue_id = cv.parent_venue_id
+
+LEFT JOIN venue_categories vc
+    ON vc.id = cv.venue_category_id
+
+/* Unregistered venue */
+LEFT JOIN unrigistered_venues uv
+    ON uv.id = CAST(pl.property_id AS UNSIGNED)
+    AND pl.property_id REGEXP '^[0-9]+$'
+
+WHERE pl.user_id = ?
+
+ORDER BY pl.id DESC;
+`;
+const result = await this.dataSource.query(query, [
+  userId,
+  userId,
+]);
+
+  return result;
+
+}
 // async vendor_category(userId: any , country :any) {
 //   const categories = await this.dataSource.query(
 //     `SELECT propety_category
