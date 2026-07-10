@@ -108,4 +108,8 @@ export class VenueController {
   async totalLikedProperty() {
     return this.venueService.totalLikedProperty();
   }
+  @Get('getParent/:id/:id1')
+  async getParent(@Param('id') id :any, @Param('id1') id1 :any ) {
+    return this.venueService.getParent(id,id1);
+  }
 }
