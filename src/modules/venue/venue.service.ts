@@ -1646,6 +1646,7 @@ ORDER BY uw.id DESC;
 
         cv.child_venue_id,
         cv.child_venue_name AS title,
+     CONCAT(pv.propety_category, 's') AS category,
       
 
         (
@@ -1660,6 +1661,9 @@ ORDER BY uw.id DESC;
 
     LEFT JOIN venue_child cv
         ON cv.child_venue_id = uc.venue_id
+
+    LEFT JOIN venue_parent pv
+        ON cv.parent_venue_id = pv.parent_venue_id
 
     WHERE uc.user_id = ?  AND country_id = ?
       AND category_id = ?
