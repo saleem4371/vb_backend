@@ -26,26 +26,34 @@ export class VenueController {
   }
   @UseGuards(JwtAuthGuard)
   @Post('save_wishlist_category')
-  async save_wishlist_category(@Body() body: any, @CurrentUser() user: any) {
+  async save_wishlist_category(@Body() body: any, 
+  @CurrentUser() user: any,
+   @Headers('x-country') country: number,
+    @Headers('x-category') category: number
+) {
     const userId = user?.id;
 
     console.log('Logged in user:', userId);
-    return this.venueService.saveWishlistCategory(body, userId);
+    return this.venueService.saveWishlistCategory(body, userId,country,category);
   }
   @UseGuards(JwtAuthGuard)
   @Get('UserWishlistCategory')
-  async UserWishlistCategory(@CurrentUser() user: any) {
+  async UserWishlistCategory(@CurrentUser() user: any,
+    @Headers('x-country') country: number,
+    @Headers('x-category') category: number) {
     const userId = user?.id;
 
-    return this.venueService.UserWishlistCategory(userId);
+    return this.venueService.UserWishlistCategory(userId,country,category);
   }
   
   @UseGuards(JwtAuthGuard)
   @Get('UserWishlist')
-  async UserUserWishlist(@CurrentUser() user: any) {
+  async UserUserWishlist(@CurrentUser() user: any,
+@Headers('x-country') country: number,
+    @Headers('x-category') category: number) {
     const userId = user?.id;
 
-    return this.venueService.UserUserWishlist(userId);
+    return this.venueService.UserUserWishlist(userId,country,category);
   } 
   
   @UseGuards(JwtAuthGuard)
@@ -58,18 +66,22 @@ export class VenueController {
     
   @UseGuards(JwtAuthGuard)
   @Get('UserCompare')
-  async UserCompare(@Body() body: any,@CurrentUser() user: any) {
+  async UserCompare(@Body() body: any,@CurrentUser() user: any,
+@Headers('x-country') country: number,
+    @Headers('x-category') category: number) {
     const userId = user?.id;
 
-    return this.venueService.UserCompare(userId);
+    return this.venueService.UserCompare(userId,country,category);
   }  
   
   @UseGuards(JwtAuthGuard)
   @Post('addCompare')
-  async addCompareAPI(@Body() body: any,@CurrentUser() user: any) {
+  async addCompareAPI(@Body() body: any,@CurrentUser() user: any,
+@Headers('x-country') country: number,
+    @Headers('x-category') category: number) {
     const userId = user?.id;
 
-    return this.venueService.addCompareAPI(body,userId);
+    return this.venueService.addCompareAPI(body,userId,country,category);
   } 
   
   @UseGuards(JwtAuthGuard)
@@ -90,18 +102,21 @@ export class VenueController {
   
   @UseGuards(JwtAuthGuard)
   @Get('likedProperty')
-  async likedProperty(@CurrentUser() user: any) {
+  async likedProperty(@CurrentUser() user: any,@Headers('x-country') country: number,
+    @Headers('x-category') category: number) {
     const userId = user?.id;
 
-    return this.venueService.likedProperty(userId);
+    return this.venueService.likedProperty(userId,country,category);
   }  
   
   @UseGuards(JwtAuthGuard)
   @Post('addLikedProperty')
-  async addLikedProperty(@Body() body: any,@CurrentUser() user: any) {
+  async addLikedProperty(@Body() body: any,@CurrentUser() user: any,
+@Headers('x-country') country: number,
+    @Headers('x-category') category: number) {
     const userId = user?.id;
 
-    return this.venueService.addLikedProperty(body,userId);
+    return this.venueService.addLikedProperty(body,userId,country,category);
   }  
   
   @Get('totalLikedProperty')

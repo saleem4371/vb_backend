@@ -1163,9 +1163,19 @@ if (!hasAdvancedFilters) {
     return await this.dataSource.query(query, params);
   }
 
-  async saveWishlistCategory(body: any, userId: any) {
+  async saveWishlistCategory(body: any, userId: any, country: any, category: any) {
     try {
       let categoryId = body.category_id;
+
+      //venue category
+
+      const singular = category.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
 
       /* ----------------------------------------
        EXISTING CATEGORY
@@ -1176,8 +1186,8 @@ if (!hasAdvancedFilters) {
           `SELECT id 
          FROM wishlist_categories
          WHERE id = ?
-         AND user_id = ?`,
-          [categoryId, userId],
+         AND user_id = ? AND country_id = ? AND category = ? `,
+          [categoryId, userId,country,categorys.id],
         );
 
         if (!categoryCheck.length) {
@@ -1193,9 +1203,9 @@ if (!hasAdvancedFilters) {
 
         const categoryResult: any = await this.dataSource.query(
           `INSERT INTO wishlist_categories
-        (user_id, name, is_default, color,description,icon,created_at, updated_at)
-        VALUES (?, ?, ?, ?,?,? ,NOW(), NOW())`,
-          [userId, body.name, 0 , body.color, body.description, body.icon],
+        (user_id, name, is_default, color,description,icon,created_at, updated_at,country_id,category)
+        VALUES (?, ?, ?, ?,?,? ,NOW(), NOW(),?,?)`,
+          [userId, body.name, 0 , body.color, body.description, body.icon,country,categorys.id],
         );
 
 
@@ -1228,9 +1238,9 @@ if (!hasAdvancedFilters) {
 
       await this.dataSource.query(
         `INSERT INTO user_wishlists
-      (user_id, venue_id, category_id, is_active, created_at, updated_at)
-      VALUES (?, ?, ?, ?, NOW(), NOW())`,
-        [userId, body.venue_id, categoryId, 1],
+      (user_id, venue_id, category_id, is_active, created_at, updated_at,country_id,category)
+      VALUES (?, ?, ?, ?, NOW(), NOW(),?,?)`,
+        [userId, body.venue_id, categoryId, 1,country,categorys.id],
       );
 
       return {
@@ -1247,7 +1257,18 @@ if (!hasAdvancedFilters) {
       };
     }
   }
-  async UserWishlistCategory(userId: any) {
+  async UserWishlistCategory(userId: any,country: any,category: any) {
+
+     //venue category
+
+      const singular = category.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
+
     const wishlistCategories = await this.dataSource.query(
       `
   SELECT 
@@ -1279,7 +1300,7 @@ if (!hasAdvancedFilters) {
       ON uw.category_id = wc.id
       AND uw.is_active = 1
 
-  WHERE wc.user_id = ?
+  WHERE wc.user_id = ? AND wc.country_id =? AND wc.category = ? 
 
   GROUP BY
       wc.id,
@@ -1290,7 +1311,7 @@ if (!hasAdvancedFilters) {
 
   ORDER BY wc.created_at DESC
   `,
-      [userId],
+      [userId,country,categorys.id],
     );
 
     return wishlistCategories;
@@ -1313,7 +1334,18 @@ if (!hasAdvancedFilters) {
 
   //   return UserWishlis;
   // }
-  async UserUserWishlist(userId: any) {
+  async UserUserWishlist(userId: any,country: any,category: any) {
+
+     //venue category
+
+      const singular = category.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
+    
   const query = `
 SELECT
     uw.id,
@@ -1424,12 +1456,12 @@ LEFT JOIN unrigistered_venues uv
     ON uv.id = CAST(uw.venue_id AS UNSIGNED)
     AND uw.venue_id REGEXP '^[0-9]+$'
 
-WHERE uw.user_id = ?
+WHERE uw.user_id = ?  AND uw.country_id =? AND uw.category = ? 
 
 ORDER BY uw.id DESC;
 `;
 
-  return await this.dataSource.query(query, [userId]);
+  return await this.dataSource.query(query, [userId,country,categorys.id]);
 }
 
   async remove_wishlist(body: any, userId: any) {
@@ -1450,7 +1482,17 @@ ORDER BY uw.id DESC;
    COMPARE SERVICE - NEST JS
 ================================ */
 
-  async addCompareAPI(body: any, userId: number) {
+  async addCompareAPI(body: any, userId: number, country:any,category:any) {
+
+  //venue category
+
+      const singular = category.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
     try {
       /* ---------------- CHECK EXIST ---------------- */
 
@@ -1460,9 +1502,11 @@ ORDER BY uw.id DESC;
       FROM compare_list
       WHERE user_id = ?
       AND venue_id = ?
+      AND country_id = ?
+      AND category_id = ?
       LIMIT 1
       `,
-        [userId, body.venue_id],
+        [userId, body.venue_id,country,categorys.id],
       );
 
       /* ---------------- REMOVE IF EXISTS ---------------- */
@@ -1473,8 +1517,10 @@ ORDER BY uw.id DESC;
         DELETE FROM compare_list
         WHERE user_id = ?
         AND venue_id = ?
+         AND country_id = ?
+      AND category_id = ?
         `,
-          [userId, body.venue_id],
+          [userId, body.venue_id,country,categorys.id],
         );
 
         return {
@@ -1490,8 +1536,10 @@ ORDER BY uw.id DESC;
       SELECT COUNT(*) as total
       FROM compare_list
       WHERE user_id = ?
+       AND country_id = ?
+      AND category_id = ?
       `,
-        [userId],
+        [userId,country,categorys.id],
       );
 
       if (total[0].total >= 4) {
@@ -1510,14 +1558,16 @@ ORDER BY uw.id DESC;
         user_id,
         venue_id,
         created_at,
-        updated_at
+        updated_at,
+        country_id,
+        category_id
       )
       VALUES
       (
-        ?, ?, NOW(), NOW()
+        ?, ?, NOW(), NOW(),?,?
       )
       `,
-        [userId, body.venue_id],
+        [userId, body.venue_id,country,categorys.id],
       );
 
       return {
@@ -1575,7 +1625,18 @@ ORDER BY uw.id DESC;
 
   //     return UserCompare;
   //   }
-  async UserCompare(userId: any) {
+  async UserCompare(userId: any,country: any,category: any) {
+
+     //venue category
+
+      const singular = category.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
+    const [categorys] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? limit 1`,
+      [singular],
+    );
+
     const UserCompare = await this.dataSource.query(
       `
     SELECT 
@@ -1600,11 +1661,12 @@ ORDER BY uw.id DESC;
     LEFT JOIN venue_child cv
         ON cv.child_venue_id = uc.venue_id
 
-    WHERE uc.user_id = ?
+    WHERE uc.user_id = ?  AND country_id = ?
+      AND category_id = ?
 
     ORDER BY uc.id DESC
     `,
-      [userId],
+      [userId,country,categorys.id],
     );
 
     return UserCompare;
@@ -1639,7 +1701,7 @@ ORDER BY uw.id DESC;
 }
   //	user_recent_views
 
-async addLikedProperty(body: any, userId: any) {
+async addLikedProperty(body: any, userId: any, country:any, category:any) {
   const { property_id, property_type } = body;
 
    const singular = property_type.endsWith('s') ? property_type.slice(0, -1) : property_type;
@@ -1690,7 +1752,7 @@ async addLikedProperty(body: any, userId: any) {
   };
 }
 
-async likedProperty(userId: any) {
+async likedProperty(userId: any, country:any, category:any) {
 
  let query = `SELECT
     pl.property_id,
