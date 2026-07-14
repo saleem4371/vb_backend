@@ -261,7 +261,7 @@ async LoadGetAmenties(query: any) {
     LEFT JOIN category c 
       ON c.id = cc.category_id
 
-    WHERE cc.country_id = ?
+   WHERE cc.country_id = ? order by c.id ASC
     `,
       [country_id],
     );
