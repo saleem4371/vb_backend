@@ -14,4 +14,7 @@ export class LoyaltyPointMasterItemDto {
 
   @IsNumber()
   max_points?: number;
+  
+  @IsNumber()
+  active?: number;
 }

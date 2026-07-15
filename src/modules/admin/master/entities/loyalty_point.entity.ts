@@ -4,41 +4,24 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Unique,
 } from "typeorm";
 
 @Entity("loyalty_point")
+@Unique(["country_id", "category_id"])
 export class LoyaltyPoint {
-
   @PrimaryGeneratedColumn()
   id?: number;
-
-  /*
-  |--------------------------------------------------------------------------
-  | COUNTRY
-  |--------------------------------------------------------------------------
-  */
 
   @Column({
     type: "int",
   })
   country_id?: number;
 
-  /*
-  |--------------------------------------------------------------------------
-  | CATEGORY
-  |--------------------------------------------------------------------------
-  */
-
   @Column({
     type: "int",
   })
   category_id?: number;
-
-  /*
-  |--------------------------------------------------------------------------
-  | ₹1 = ? POINTS
-  |--------------------------------------------------------------------------
-  */
 
   @Column({
     type: "decimal",
@@ -48,23 +31,17 @@ export class LoyaltyPoint {
   })
   point_value?: number;
 
-  /*
-  |--------------------------------------------------------------------------
-  | MAX WALLET POINTS
-  |--------------------------------------------------------------------------
-  */
-
   @Column({
     type: "int",
     default: 10000,
   })
   max_point?: number;
 
-  /*
-  |--------------------------------------------------------------------------
-  | TIMESTAMPS
-  |--------------------------------------------------------------------------
-  */
+  @Column({
+    type: "tinyint",
+    default: 1,
+  })
+  status?: number;
 
   @CreateDateColumn()
   created_at?: Date;

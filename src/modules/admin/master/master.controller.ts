@@ -29,10 +29,10 @@ export class MasterController {
   // }
   @Post('savePointMasterApi')
   create(
-    @Body() data: LoyaltyPointMasterItemDto[],
+    @Body() body: any,
     @Headers('x-country') country_id: number,
   ) {
-    return this.masterService.create(data, country_id);
+    return this.masterService.create(body, country_id);
   }
 
   @Get('getPointMasterApi')
@@ -62,6 +62,18 @@ export class MasterController {
     @Delete("deleteLoyaltyPointApi/:id")
     remove(@Param("id") id: string) {
       return this.masterService.remove(id);
+    }
+
+
+  /* plans */
+    @Get("plans/:id")
+    plans(@Param("id") id: string,@Headers('x-country') country_id: number) {
+      return this.masterService.plans(country_id,id);
+    } 
+    
+    @Get("third_party_api")
+    getIntegrationConfig(@Headers('x-country') country_id: number) {
+      return this.masterService.getIntegrationConfig(country_id);
     }
 
 }
