@@ -30,6 +30,9 @@ import { VenueTagsModule } from "./modules/admin/venue-tags/venue-tag.module"
 import { PropertyTagModule } from "./modules/admin/property-tag/property-tag.module"
 import { MasterModule } from "./modules/admin/master/master.module"
 
+
+import { LoyaltyModule } from "./modules/admin/loyalty/loyalty.module"
+
 // import { VenueTagsModule } from "./modules/admin/property-tag/property-tag.module";
 // import { CategoryPropertyModule } from './modules/admin/property_category/category.module';
 import { VenueCategoryModule } from './modules/admin/venue-category/venue-category.module';
@@ -140,6 +143,11 @@ import { StripeModule } from "./modules/integrations/stripe/Stripe.module"
 
     PushModule,
     AgingModule,
+
+    LoyaltyModule
+
+
+
     
   ],
 
