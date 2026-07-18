@@ -135,7 +135,7 @@ export class MasterService {
         data.customers_plan,                      // cust_plan_id (Bronze/Gold/Platinum/Diamond)
         data.color,                               // color
         data.icon,                                // icon
-        Number(data.min_redeem_points),           // burn_coin
+        Number(data.min_spend),           // burn_coin
         Number(data.max_spend),          // max_points
         Number(data.discount_percent || 0),       // discount_percentage
         Number(data.bonus_percent || 0),          // bonus_percentage
@@ -246,13 +246,13 @@ export class MasterService {
       WHERE id = ?
       `,
       [
-        data.tname,                                  // tier_name
+        data.tier_name,                                  // tier_name
         Number(data.plan_id),                        // plan_id
         Number(data.category_id),                    // category_id
         data.customers_plan,                         // cust_plan_id
         data.color,                                  // color
         data.icon,                                   // icon
-        Number(data.min_redeem_points),              // burn_coin
+        Number(data.min_spend),              // burn_coin
         Number(data.max_spend),                      // earn_point
         Number(data.discount_percent || 0),          // discount_percentage
         Number(data.bonus_percent || 0),             // bonus_percentage
