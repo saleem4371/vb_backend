@@ -202,6 +202,8 @@ export class CashfreeService {
       } else {
         nextBillingDate = dayjs().add(1, 'year').format('YYYY-MM-DD HH:mm:ss');
       }
+let  data = null;
+      if(body.category ==='venue'){
 
       // Create Subscription in Cashfree
       const response = await firstValueFrom(
@@ -234,12 +236,13 @@ export class CashfreeService {
         ),
       );
 
-      const data = response.data;
+      data = response.data;
 
       console.log(
         'Cashfree Subscription Response:',
         JSON.stringify(data, null, 2),
       );
+    }
 
       //Booking type
 
@@ -302,7 +305,7 @@ await Promise.all(
           body.selectedPlan, // category_id
           
           subscriptionCode, // local subscription code
-          data.subscription_id || subscriptionCode,
+          subscriptionCode,
           startDate, // start_date
           nextBillingDate, // next_billing_date
           endDate, // end_date
