@@ -687,7 +687,7 @@ export class VenueService {
       where.push(`pv.propety_category = ?`);
       params.push(query.type?.trim().replace(/s$/, ''));
     }
-
+//property_type
     if (query.category) {
       where.push(`cv.venue_category_id = ?`);
       params.push(query.category);
@@ -712,6 +712,7 @@ export class VenueService {
       params.push(south, north, west, east);
     }
 
+  
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     
@@ -850,6 +851,13 @@ OFFSET ?;
 
       paramss.push(south, north, west, east);
     }
+
+    if (query.type) {
+      wheres.push(`uv.property_type = ?`);
+      paramss.push(query.type?.trim().replace(/s$/, ''));
+    }
+//property_type
+
 
     const whereClauses = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
 
