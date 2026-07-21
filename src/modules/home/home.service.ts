@@ -22,7 +22,7 @@ export class HomeService {
   // async getUserRecentViews(userId: any) {
   //   const result = await this.dataSource.query(
   //     `
-  //   SELECT 
+  //   SELECT
   //       urv.id,
   //       urv.user_id,
   //       urv.venue_id,
@@ -57,9 +57,10 @@ export class HomeService {
 
   //   return result;
   // }
-  async getUserRecentViews(userId: any) {
+  async getUserRecentViews(userId: any, category: any) {
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
 
- let query = `SELECT
+    let query = `SELECT
     pl.property_id,
 
     /* IDs */
@@ -139,7 +140,7 @@ export class HomeService {
         WHERE pl2.property_id = pl.property_id
     ) AS totalLikes,
 
-    1 AS isLiked,
+   IF(pls.id IS NULL, 0, 1) AS isLiked,
 
     /* Price */
     CASE
@@ -152,7 +153,7 @@ export class HomeService {
         ELSE 0
     END AS minPrice
 
-FROM property_likes pl
+FROM user_recent_views pl
 
 /* Registered venue */
 LEFT JOIN venue_child cv
@@ -163,39 +164,43 @@ LEFT JOIN venue_parent pv
 
 LEFT JOIN venue_categories vc
     ON vc.id = cv.venue_category_id
+    
+LEFT JOIN property_likes pls
+ON pls.property_id = pl.property_id
+AND pls.user_id = pl.user_id
 
 /* Unregistered venue */
 LEFT JOIN unrigistered_venues uv
     ON uv.id = CAST(pl.property_id AS UNSIGNED)
     AND pl.property_id REGEXP '^[0-9]+$'
 
-WHERE pl.user_id = ?
+WHERE pl.user_id = ? AND pv.propety_category = ? OR uv.property_type = ?
 
 ORDER BY pl.id DESC;
 `;
-const result = await this.dataSource.query(query, [
-  userId,
-  userId,
-]);
+    const result = await this.dataSource.query(query, [
+      userId,
+      singular,
+      singular,
+    ]);
 
-  return result;
+    return result;
+  }
+  // async vendor_category(userId: any , country :any) {
+  //   const categories = await this.dataSource.query(
+  //     `SELECT propety_category
+  //      FROM venue_parent
+  //      WHERE created_by = ?
+  //        AND propety_category IS NOT NULL
+  //        AND propety_category != '' AND venue_country = ? GROUP BY propety_category`,
+  //     [userId,country]
+  //   );
 
-}
-// async vendor_category(userId: any , country :any) {
-//   const categories = await this.dataSource.query(
-//     `SELECT propety_category
-//      FROM venue_parent
-//      WHERE created_by = ?
-//        AND propety_category IS NOT NULL
-//        AND propety_category != '' AND venue_country = ? GROUP BY propety_category`,
-//     [userId,country]
-//   );
-
-//   return categories.map(item => `${item.propety_category}s`);
-// }
-async vendor_category(userId: number, country: string) {
-  const categories = await this.dataSource.query(
-    `
+  //   return categories.map(item => `${item.propety_category}s`);
+  // }
+  async vendor_category(userId: number, country: string) {
+    const categories = await this.dataSource.query(
+      `
     SELECT DISTINCT propety_category
     FROM venue_parent
     WHERE created_by = ?
@@ -203,83 +208,196 @@ async vendor_category(userId: number, country: string) {
       AND propety_category IS NOT NULL
       AND TRIM(propety_category) <> ''
     `,
-    [userId, country],
-  );
+      [userId, country],
+    );
 
-  return categories.map(({ propety_category }) => {
-    return propety_category.endsWith('s')
-      ? propety_category
-      : `${propety_category}s`;
-  });
-}
+    return categories.map(({ propety_category }) => {
+      return propety_category.endsWith('s')
+        ? propety_category
+        : `${propety_category}s`;
+    });
+  }
 
-async recommeded_property()
-{
-   const recommeded  = this.dataSource.query(`SELECT
-    cv.child_venue_id,
-    cv.child_venue_name as name,
-    vp.venue_city as location,
-    vp.rating as rating,
-    vp.user_ratings_total as reviews,
+  // async recommeded_property(state:any) {
+  //   const recommeded = await this.dataSource.query(
+  //     `
+  //     SELECT
+  //         cv.child_venue_id,
+  //         cv.child_venue_name AS name,
+  //         vp.venue_city AS location,
+  //         COALESCE(vp.rating, 5) AS rating,
+  //         vp.user_ratings_total AS reviews,
 
-    COUNT(DISTINCT b.id) AS total_bookings,
+  //         COUNT(DISTINCT b.id) AS total_bookings,
 
-    COALESCE(SUM(b.total_amount), 0) AS revenue,
+  //         COALESCE(SUM(b.total_amount), 0) AS revenue,
 
-    ROUND(AVG(COALESCE(vp.rating, 5)), 1) AS rating,
+  //         MAX(b.created_at) AS last_booking,
+  //  IF(pls.id IS NULL, 0, 1) AS isLiked,
+  //         /* Cover image */
+  //         (
+  //             SELECT vg.attachment
+  //             FROM venue_gallery vg
+  //             WHERE vg.child_venue_id = cv.child_venue_id
+  //             ORDER BY vg.id ASC
+  //             LIMIT 1
+  //         ) AS image,
 
-    MAX(b.created_at) AS last_booking,
+  //         /* Gallery */
+  //         (
+  //             SELECT JSON_ARRAYAGG(vg.attachment)
+  //             FROM venue_gallery vg
+  //             WHERE vg.child_venue_id = cv.child_venue_id
+  //         ) AS gallery,
 
-    /* Single cover image */
-    (
-        SELECT vg.attachment
-        FROM venue_gallery vg
-        WHERE vg.child_venue_id = cv.child_venue_id
-        ORDER BY vg.id
-        LIMIT 1
-    ) AS image,
+  //         (
+  //             COUNT(DISTINCT b.id) * 5 +
+  //             (COALESCE(SUM(b.total_amount), 0) / 10000) +
+  //             (COALESCE(vp.rating, 5) * 20) +
+  //             CASE
+  //                 WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 20
+  //                 WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN 10
+  //                 ELSE 0
+  //             END
+  //         ) AS recommendation_score
 
-    /* All gallery images */
-    (
-        SELECT JSON_ARRAYAGG(vg.attachment)
-        FROM venue_gallery vg
-        WHERE vg.child_venue_id = cv.child_venue_id
-    ) AS gallery,
+  //     FROM venue_child cv
 
-    (
-        COUNT(DISTINCT b.id) * 5 +
-        (COALESCE(SUM(b.total_amount),0) / 10000) +
-        (AVG(COALESCE(vp.rating,5)) * 20) +
-        CASE
-            WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 20
-            WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN 10
-            ELSE 0
-        END
-    ) AS recommendation_score
+  //     LEFT JOIN booking_venues bv
+  //         ON bv.child_venue_id = cv.child_venue_id
 
-FROM venue_child cv
+  //     LEFT JOIN bookings b
+  //         ON b.id = bv.booking_id
+  //         AND b.status IN (0,1)
 
-LEFT JOIN booking_venues bv
-       ON bv.child_venue_id = cv.child_venue_id
+  //     LEFT JOIN venue_parent vp
+  //         ON vp.parent_venue_id = cv.parent_venue_id
 
-LEFT JOIN bookings b
-       ON b.id = bv.booking_id
-      AND b.status IN (0,1)
+  // LEFT JOIN property_likes pls
+  //         ON pls.property_id = cv.child_venue_id
+  //         AND pls.user_id = ?
 
-LEFT JOIN venue_parent vp
-       ON vp.parent_venue_id = cv.parent_venue_id
+  //     WHERE
+  //         cv.publish_status = 1
+  //         AND vp.venue_state = ?
 
-WHERE cv.publish_status = 1
+  //     GROUP BY
+  //         cv.child_venue_id,
+  //         cv.child_venue_name,
+  //         vp.venue_city,
+  //         vp.rating,
+  //         vp.user_ratings_total
 
-GROUP BY
-    cv.child_venue_id,
-    cv.child_venue_name
+  //     ORDER BY recommendation_score DESC
 
-ORDER BY recommendation_score DESC
+  //     LIMIT 10
+  //     `,
+  //     [state],
+  //   );
 
-LIMIT 10`);
+  //   return recommeded;
+  // }
+  async recommeded_property(state: string, category: string) {
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
+    const recommeded = await this.dataSource.query(
+      `
+    SELECT
+        cv.child_venue_id,
+        cv.child_venue_name AS name,
+        vp.venue_city AS location,
+        COALESCE(vp.rating, 5) AS rating,
+        vp.user_ratings_total AS reviews,
 
-return recommeded;
-}
-  
+        COUNT(DISTINCT b.id) AS total_bookings,
+
+        COALESCE(SUM(b.total_amount), 0) AS revenue,
+
+        MAX(b.created_at) AS last_booking,
+
+        IF(MAX(pls.id) IS NULL, 0, 1) AS isLiked,
+
+        /* Cover Image */
+        (
+            SELECT vg.attachment
+            FROM venue_gallery vg
+            WHERE vg.child_venue_id = cv.child_venue_id
+            ORDER BY vg.id ASC
+            LIMIT 1
+        ) AS image,
+
+        /* Gallery */
+        (
+            SELECT JSON_ARRAYAGG(vg.attachment)
+            FROM venue_gallery vg
+            WHERE vg.child_venue_id = cv.child_venue_id
+        ) AS gallery,
+
+        (
+            COUNT(DISTINCT b.id) * 5 +
+            (COALESCE(SUM(b.total_amount), 0) / 10000) +
+            (COALESCE(vp.rating, 5) * 20) +
+            CASE
+                WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) THEN 20
+                WHEN MAX(b.created_at) >= DATE_SUB(CURDATE(), INTERVAL 90 DAY) THEN 10
+                ELSE 0
+            END
+        ) AS recommendation_score
+
+    FROM venue_child cv
+
+    LEFT JOIN booking_venues bv
+        ON bv.child_venue_id = cv.child_venue_id
+
+    LEFT JOIN bookings b
+        ON b.id = bv.booking_id
+        AND b.status IN (0,1)
+
+    LEFT JOIN venue_parent vp
+        ON vp.parent_venue_id = cv.parent_venue_id
+
+    LEFT JOIN property_likes pls
+        ON pls.property_id = cv.child_venue_id
+        AND pls.user_id = cv.created_at
+
+    WHERE
+        cv.publish_status = 1
+        AND vp.venue_state = ?
+        AND vp.propety_category = ?
+
+    GROUP BY
+        cv.child_venue_id,
+        cv.child_venue_name,
+        vp.venue_city,
+        vp.rating,
+        vp.user_ratings_total
+
+    ORDER BY recommendation_score DESC
+
+    LIMIT 10
+    `,
+      [state, singular],
+    );
+
+    return recommeded;
+  }
+
+  async getNearbyCities(state: string) {
+    const sql = `
+    SELECT
+      id,
+      name,
+      slug,
+      image,
+      latitude,
+      longitude,
+      district,
+      popularity_score
+    FROM destinations
+    WHERE status = 1 AND state =?
+    ORDER BY popularity_score DESC
+    LIMIT 5
+  `;
+
+    return this.dataSource.query(sql, [state]);
+  }
 }
