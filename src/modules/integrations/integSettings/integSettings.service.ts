@@ -22,6 +22,7 @@ export class IntegrationService {
           ON s.integration_id = i.id
       WHERE i.code = ?
       AND i.status = 1
+      AND s.is_active = 1
       `,
       [code],
     );

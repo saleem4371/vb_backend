@@ -120,4 +120,22 @@ export class RazorpayController {
   //     signature,
   //   );
   // }
+@Post("create-order")
+createOrder(@Body() body: any) {
+  return this.razorpayService.createOrder(body);
+}
+
+@Post("verify")
+verify(@Body() body: any) {
+  return this.razorpayService.verify(body);
+}
+
+  
+  @UseGuards(JwtAuthGuard)
+  @Post('createOnlineBooking')
+  async createOnlineBooking(@Body() body: any, @CurrentUser() user: any,@Headers('x-country') country: any) {
+    return await this.razorpayService.createOnlineBooking(body, user?.id,country);
+  } 
+
+
 }
