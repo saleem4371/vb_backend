@@ -67,6 +67,11 @@ import { SurepassModule } from "./modules/integrations/surepass/surepass.module"
 import { CashfreeModule } from "./modules/integrations/cashfree/cashfree.module"
 import { StripeModule } from "./modules/integrations/stripe/Stripe.module"
 
+import { CompareModule } from "./modules/compare/compare.module"
+import { PaxModule } from "./modules/pax/pax.module"
+import { RazorpayModule } from "./modules/integrations/rozarPay/razorpay.module"
+import { CheckoutModule } from "./modules/checkout/checkout.module"
+
 
 @Module({
   imports: [
@@ -144,7 +149,14 @@ import { StripeModule } from "./modules/integrations/stripe/Stripe.module"
     PushModule,
     AgingModule,
 
-    LoyaltyModule
+    LoyaltyModule,
+
+    //
+    CompareModule,
+    PaxModule,
+    RazorpayModule,
+
+    CheckoutModule
 
 
 
