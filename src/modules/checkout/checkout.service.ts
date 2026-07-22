@@ -7,7 +7,9 @@ export class CheckoutService {
 
   async checkoutSuccess(id :any) {
 
-  const query = `
+  const imageBaseUrl = process.env.PUBLIC_AWS_BUCKET_URL; // or S3 URL
+
+const query = `
  SELECT
     b.id,
     b.booking_code AS refNo,
@@ -24,6 +26,9 @@ export class CheckoutService {
     vp.logo,
     vp.phone,
     vp.email,
+
+    vc.child_venue_id,
+
 
     CASE
         WHEN b.status = 2 THEN 'CANCELLED'
@@ -125,18 +130,20 @@ export class CheckoutService {
         WHEN b.status = 1 THEN 'bg-green-500'
         WHEN b.status = 0 THEN 'bg-amber-500'
         ELSE 'bg-gray-500'
-    END AS avatarColor,
+    END AS avatarColor ,
 
+  CONCAT(
+    ?, '/',
     (
-        SELECT CONCAT(
-            'https://your-domain.com/uploads/venue-gallery/',
-            vg.attachment
-        )
+        SELECT vg.attachment
         FROM venue_gallery vg
         WHERE vg.child_venue_id = vc.child_venue_id
         ORDER BY vg.id ASC
         LIMIT 1
-    ) AS image
+    )
+) AS venue_image
+
+    
 
 FROM bookings b
 
@@ -151,13 +158,17 @@ LEFT JOIN venue_parent vp
 
 LEFT JOIN booking_event_types bet
     ON bet.id = b.booking_event_type_id
+    
+    WHERE b.booking_code = ?
+    LIMIT 1
+`
 
-WHERE b.booking_code = ?
-LIMIT 1
-`;
-
-const result = await this.dataSource.query(query, [id]);
+const result = await this.dataSource.query(query, [
+  imageBaseUrl,
+ id,
+]);
 
 return result;
+
   }
 }
