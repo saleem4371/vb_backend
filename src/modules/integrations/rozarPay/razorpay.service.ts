@@ -406,8 +406,8 @@ export class RazorpayService {
       // New single-venue shape
       venueValues = [[
         bookingId,
-        venueId,
         null,
+        venueId,
         venueName,
       ]];
     }
