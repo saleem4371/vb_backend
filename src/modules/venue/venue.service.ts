@@ -650,6 +650,7 @@ export class VenueService {
     const offset = (page - 1) * limit;
 
     const { shift, category_cards, budget } = query.filters || {};
+    //const { guests } = query.guests || {};
 
     const mapBounds = query.mapBounds || null;
 
@@ -661,14 +662,13 @@ export class VenueService {
     /* ======================
      FILTERS
   ====================== */
+    console.log(query.guests?.guests);
     const where: string[] = [];
     const params: any[] = [];
 
     const bucketUrl = process.env.PUBLIC_AWS_BUCKET_URL;
 
-   params.push(bucketUrl);
-    
-
+    params.push(bucketUrl);
 
     if (query.search) {
       where.push(`
@@ -687,7 +687,7 @@ export class VenueService {
       where.push(`pv.propety_category = ?`);
       params.push(query.type?.trim().replace(/s$/, ''));
     }
-//property_type
+
     if (query.category) {
       where.push(`cv.venue_category_id = ?`);
       params.push(query.category);
@@ -703,6 +703,11 @@ export class VenueService {
       params.push(query.city);
     }
 
+    if (query.guests?.guests) {
+      where.push(`cv.guest_rooms > ?`);
+      params.push(query.guests?.guests);
+    }
+
     if (mapBounds) {
       where.push(`
       pv.lat BETWEEN ? AND ?
@@ -712,17 +717,13 @@ export class VenueService {
       params.push(south, north, west, east);
     }
 
-  
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
-
-    
 
     /* ======================
      REGISTERED VENUES
   ====================== */
 
-  //bedrooms
-
+    //bedrooms
 
     const sql = `
     SELECT
@@ -840,10 +841,10 @@ OFFSET ?;
      UNREGISTERED (PAGINATED)
   ====================== */
 
-   const wheres: string[] = [];
+    const wheres: string[] = [];
     const paramss: any[] = [];
 
-   if (mapBounds) {
+    if (mapBounds) {
       wheres.push(`
       uv.lat BETWEEN ? AND ?
       AND uv.lng BETWEEN ? AND ?
@@ -852,83 +853,45 @@ OFFSET ?;
       paramss.push(south, north, west, east);
     }
 
-    if (query.type) {
-      wheres.push(`uv.property_type = ?`);
-      paramss.push(query.type?.trim().replace(/s$/, ''));
-    }
-//property_type
-
-
     const whereClauses = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
 
-const filters = query.filters || {};
+    const filters = query.filters || {};
 
-const hasAdvancedFilters =
-  !!query.category ||
-  !!query.search ||
-  !!query.city ||
-
-  // Keep type allowed
-  false ||
-
-  // Event type
-  filters.eventType?.length > 0 ||
-
-  // Capacity
-  filters.capacity?.length > 0 ||
-
-  // Category cards
-  filters.category_cards?.length > 0 ||
-
-  // Shift
-  filters.shift?.length > 0 ||
-
-  // Booking
-  filters.booking?.length > 0 ||
-
-  // Amenities
-  filters.amenities?.length > 0 ||
-
-  // Quick filters
-  filters.quickFilter?.length > 0 ||
-
-  // Farm
-  filters.farmType?.length > 0 ||
-  filters.farmFood?.length > 0 ||
-  filters.farmExperiences?.length > 0 ||
-
-  // Venue
-  filters.venueStyle?.length > 0 ||
-  filters.foodCatering?.length > 0 ||
-
-  // Workspace
-  filters.workspaceType?.length > 0 ||
-  filters.workspaceBooking?.length > 0 ||
-  filters.workspaceFeatures?.length > 0 ||
-
-  // Studio
-  filters.studioType?.length > 0 ||
-  filters.studioFeatures?.length > 0 ||
-
-  // Rental
-  filters.rentalCategory?.length > 0 ||
-  filters.rentalFeatures?.length > 0 ||
-
-  // Stay
-  filters.stayType?.length > 0 ||
-
-  // Others
-  filters.petFriendly?.length > 0 ||
-  filters.kidFriendly?.length > 0 ||
-  filters.poolExperience?.length > 0 ||
-  filters.loyaltyPerks?.length > 0 ||
-  filters.suitability?.length > 0 ||
-  filters.experienceType?.length > 0 ||
-  filters.expBooking?.length > 0 ||
-
-  // Budget changed from default
-  (filters.budget &&
-    (filters.budget.min > 0 || filters.budget.max < 500000));
+    const hasAdvancedFilters =
+      Boolean(
+        query.category || query.search || query.city || query.guests?.guests,
+      ) ||
+      [
+        filters.eventType,
+        filters.capacity,
+        filters.category_cards,
+        filters.shift,
+        filters.booking,
+        filters.amenities,
+        filters.quickFilter,
+        filters.farmType,
+        filters.farmFood,
+        filters.farmExperiences,
+        filters.venueStyle,
+        filters.foodCatering,
+        filters.workspaceType,
+        filters.workspaceBooking,
+        filters.workspaceFeatures,
+        filters.studioType,
+        filters.studioFeatures,
+        filters.rentalCategory,
+        filters.rentalFeatures,
+        filters.stayType,
+        filters.petFriendly,
+        filters.kidFriendly,
+        filters.poolExperience,
+        filters.loyaltyPerks,
+        filters.suitability,
+        filters.experienceType,
+        filters.expBooking,
+      ].some((filter) => Array.isArray(filter) && filter.length > 0) ||
+      (filters.budget &&
+        (filters.budget.min > 0 || filters.budget.max < 500000));
 
     const unsql = `
   SELECT
@@ -970,15 +933,15 @@ const hasAdvancedFilters =
   LIMIT ? OFFSET ?
 `;
 
-paramss.push(limit, offset);
+    paramss.push(limit, offset);
 
-// const unregistered = await this.dataSource.query(unsql, paramss);
+    // const unregistered = await this.dataSource.query(unsql, paramss);
 
-let unregistered = [];
+    let unregistered = [];
 
-if (!hasAdvancedFilters) {
-  unregistered = await this.dataSource.query(unsql, paramss);
-}
+    if (!hasAdvancedFilters) {
+      unregistered = await this.dataSource.query(unsql, paramss);
+    }
 
     /* ======================
      MERGE RESULT (FIXED)
@@ -1003,7 +966,6 @@ if (!hasAdvancedFilters) {
     /* ======================
      RESPONSE
   ====================== */
-
 
     return {
       success: true,
@@ -1171,19 +1133,24 @@ if (!hasAdvancedFilters) {
     return await this.dataSource.query(query, params);
   }
 
-  async saveWishlistCategory(body: any, userId: any, country: any, category: any) {
+  async saveWishlistCategory(
+    body: any,
+    userId: any,
+    country: any,
+    category: any,
+  ) {
     try {
       let categoryId = body.category_id;
 
       //venue category
 
       const singular = category.endsWith('s')
-      ? category.slice(0, -1)
-      : category;
-    const [categorys] = await this.dataSource.query(
-      `SELECT id FROM category WHERE name = ? limit 1`,
-      [singular],
-    );
+        ? category.slice(0, -1)
+        : category;
+      const [categorys] = await this.dataSource.query(
+        `SELECT id FROM category WHERE name = ? limit 1`,
+        [singular],
+      );
 
       /* ----------------------------------------
        EXISTING CATEGORY
@@ -1195,7 +1162,7 @@ if (!hasAdvancedFilters) {
          FROM wishlist_categories
          WHERE id = ?
          AND user_id = ? AND country_id = ? AND category = ? `,
-          [categoryId, userId,country,categorys.id],
+          [categoryId, userId, country, categorys.id],
         );
 
         if (!categoryCheck.length) {
@@ -1213,9 +1180,17 @@ if (!hasAdvancedFilters) {
           `INSERT INTO wishlist_categories
         (user_id, name, is_default, color,description,icon,created_at, updated_at,country_id,category)
         VALUES (?, ?, ?, ?,?,? ,NOW(), NOW(),?,?)`,
-          [userId, body.name, 0 , body.color, body.description, body.icon,country,categorys.id],
+          [
+            userId,
+            body.name,
+            0,
+            body.color,
+            body.description,
+            body.icon,
+            country,
+            categorys.id,
+          ],
         );
-
 
         categoryId = categoryResult.insertId;
       }
@@ -1248,7 +1223,7 @@ if (!hasAdvancedFilters) {
         `INSERT INTO user_wishlists
       (user_id, venue_id, category_id, is_active, created_at, updated_at,country_id,category)
       VALUES (?, ?, ?, ?, NOW(), NOW(),?,?)`,
-        [userId, body.venue_id, categoryId, 1,country,categorys.id],
+        [userId, body.venue_id, categoryId, 1, country, categorys.id],
       );
 
       return {
@@ -1265,13 +1240,10 @@ if (!hasAdvancedFilters) {
       };
     }
   }
-  async UserWishlistCategory(userId: any,country: any,category: any) {
+  async UserWishlistCategory(userId: any, country: any, category: any) {
+    //venue category
 
-     //venue category
-
-      const singular = category.endsWith('s')
-      ? category.slice(0, -1)
-      : category;
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
     const [categorys] = await this.dataSource.query(
       `SELECT id FROM category WHERE name = ? limit 1`,
       [singular],
@@ -1285,6 +1257,8 @@ if (!hasAdvancedFilters) {
       wc.name,
       wc.is_default,
       wc.created_at,
+      wc.color,
+      wc.icon,
 
       COUNT(DISTINCT uw.id) AS total_wishlist,
 
@@ -1319,7 +1293,7 @@ if (!hasAdvancedFilters) {
 
   ORDER BY wc.created_at DESC
   `,
-      [userId,country,categorys.id],
+      [userId, country, categorys.id],
     );
 
     return wishlistCategories;
@@ -1328,7 +1302,7 @@ if (!hasAdvancedFilters) {
   // async UserUserWishlist(userId: any) {
   //   const UserWishlis = await this.dataSource.query(
   //     `
-  // SELECT 
+  // SELECT
   //     uc.id,
   //     uc.user_id,
   //     uc.venue_id
@@ -1342,19 +1316,16 @@ if (!hasAdvancedFilters) {
 
   //   return UserWishlis;
   // }
-  async UserUserWishlist(userId: any,country: any,category: any) {
+  async UserUserWishlist(userId: any, country: any, category: any) {
+    //venue category
 
-     //venue category
-
-      const singular = category.endsWith('s')
-      ? category.slice(0, -1)
-      : category;
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
     const [categorys] = await this.dataSource.query(
       `SELECT id FROM category WHERE name = ? limit 1`,
       [singular],
     );
-    
-  const query = `
+
+    const query = `
 SELECT
     uw.id,
     uw.user_id,
@@ -1469,8 +1440,8 @@ WHERE uw.user_id = ?  AND uw.country_id =? AND uw.category = ?
 ORDER BY uw.id DESC;
 `;
 
-  return await this.dataSource.query(query, [userId,country,categorys.id]);
-}
+    return await this.dataSource.query(query, [userId, country, categorys.id]);
+  }
 
   async remove_wishlist(body: any, userId: any) {
     const UserWishlis = await this.dataSource.query(
@@ -1490,13 +1461,10 @@ ORDER BY uw.id DESC;
    COMPARE SERVICE - NEST JS
 ================================ */
 
-  async addCompareAPI(body: any, userId: number, country:any,category:any) {
+  async addCompareAPI(body: any, userId: number, country: any, category: any) {
+    //venue category
 
-  //venue category
-
-      const singular = category.endsWith('s')
-      ? category.slice(0, -1)
-      : category;
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
     const [categorys] = await this.dataSource.query(
       `SELECT id FROM category WHERE name = ? limit 1`,
       [singular],
@@ -1514,7 +1482,7 @@ ORDER BY uw.id DESC;
       AND category_id = ?
       LIMIT 1
       `,
-        [userId, body.venue_id,country,categorys.id],
+        [userId, body.venue_id, country, categorys.id],
       );
 
       /* ---------------- REMOVE IF EXISTS ---------------- */
@@ -1528,7 +1496,7 @@ ORDER BY uw.id DESC;
          AND country_id = ?
       AND category_id = ?
         `,
-          [userId, body.venue_id,country,categorys.id],
+          [userId, body.venue_id, country, categorys.id],
         );
 
         return {
@@ -1547,7 +1515,7 @@ ORDER BY uw.id DESC;
        AND country_id = ?
       AND category_id = ?
       `,
-        [userId,country,categorys.id],
+        [userId, country, categorys.id],
       );
 
       if (total[0].total >= 4) {
@@ -1575,7 +1543,7 @@ ORDER BY uw.id DESC;
         ?, ?, NOW(), NOW(),?,?
       )
       `,
-        [userId, body.venue_id,country,categorys.id],
+        [userId, body.venue_id, country, categorys.id],
       );
 
       return {
@@ -1633,37 +1601,146 @@ ORDER BY uw.id DESC;
 
   //     return UserCompare;
   //   }
-  async UserCompare(userId: any,country: any,category: any) {
+  async UserCompare(userId: number, country: number, category: string) {
+    const baseUrl = process.env.PUBLIC_AWS_BUCKET_URL;
 
-     //venue category
+    // Convert plural to singular
+    const singular = category.endsWith('s') ? category.slice(0, -1) : category;
 
-      const singular = category.endsWith('s')
-      ? category.slice(0, -1)
-      : category;
-    const [categorys] = await this.dataSource.query(
-      `SELECT id FROM category WHERE name = ? limit 1`,
+    const categories = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? LIMIT 1`,
       [singular],
     );
 
-    const UserCompare = await this.dataSource.query(
+    if (!categories.length) {
+      return [];
+    }
+
+    const categoryId = categories[0].id;
+
+    const userCompare = await this.dataSource.query(
       `
-    SELECT 
-        uc.id ,
+    SELECT
+        uc.id,
         uc.user_id,
-        uc.venue_id as childVenueId,
+        uc.venue_id AS childVenueId,
 
         cv.child_venue_id,
         cv.child_venue_name AS title,
-     CONCAT(pv.propety_category, 's') AS category,
-      
+        cv.*,
+        pv.*,
+
+        vc.name AS venueType,
+        CONCAT(pv.propety_category, 's') AS category,
 
         (
-          SELECT vg.attachment
-          FROM venue_gallery vg
-          WHERE vg.child_venue_id = cv.child_venue_id
-          ORDER BY vg.id ASC
-          LIMIT 1
-        ) AS image
+            SELECT vg.attachment
+            FROM venue_gallery vg
+            WHERE vg.child_venue_id = cv.child_venue_id
+            ORDER BY vg.id ASC
+            LIMIT 1
+        ) AS image,
+
+         (
+      SELECT JSON_ARRAYAGG(
+          JSON_OBJECT(
+              'image',
+              CONCAT(?, '/', TRIM(LEADING '/' FROM vg.attachment))
+          )
+      )
+      FROM venue_gallery vg
+      WHERE vg.child_venue_id = cv.child_venue_id
+  ) AS images,
+
+        (
+            SELECT COUNT(*)
+            FROM property_likes pl
+            WHERE pl.property_id = cv.child_venue_id
+        ) AS totalLikes,
+
+        CASE
+            WHEN pv.propety_category = 'farmstay' THEN
+                MAX(
+                    CASE
+                        WHEN pp.pricing_key = 'nightly'
+                        THEN pp.amount
+                    END
+                )
+            ELSE
+                (
+                    SELECT MIN(vst.price)
+                    FROM venue_shift_timing vst
+                    WHERE vst.child_venue_id = cv.child_venue_id
+                )
+        END AS minPrice,
+   (
+    SELECT COALESCE(
+        JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'id', gc.id,
+                'title', gc.name,
+                'count',
+                (
+                    SELECT COUNT(*)
+                    FROM venue_gallery vg
+                    WHERE vg.child_venue_id = cv.child_venue_id
+                      AND vg.g_category = gc.id
+                )
+            )
+        ),
+        JSON_ARRAY()
+    )
+    FROM venue_gallery_category gc
+    WHERE gc.child_id = cv.child_venue_id
+) AS galleryCategories,
+     
+      -- Amenities Category Wise
+    (
+        SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'categoryId', ac.id,
+                'category', ac.category,
+                'amenities',
+                (
+                    SELECT JSON_ARRAYAGG(
+                        JSON_OBJECT(
+                            'id', a.id,
+                            'name', a.name,
+                            'icon', a.svg_icon
+                        )
+                    )
+                    FROM venue_child_amenities vca
+                    INNER JOIN amenities a
+                        ON a.id = vca.amenities_id
+                    WHERE vca.child_venue_id = cv.child_venue_id
+                      AND a.amenities_category_id = ac.id
+                )
+            )
+        )
+        FROM amenities_categories ac
+        WHERE EXISTS (
+            SELECT 1
+            FROM venue_child_amenities vca
+            INNER JOIN amenities a
+                ON a.id = vca.amenities_id
+            WHERE vca.child_venue_id = cv.child_venue_id
+              AND a.amenities_category_id = ac.id
+        )
+    ) AS amenities ,
+    (
+    SELECT JSON_OBJECTAGG(
+        bet.event_name,
+        EXISTS (
+            SELECT 1
+            FROM venue_event_tags vet
+            WHERE vet.child_venue_id = cv.child_venue_id
+              AND vet.event_id = bet.id
+        )
+    )
+    FROM booking_event_types bet
+) AS venue_category
+
+
 
     FROM compare_list uc
 
@@ -1671,59 +1748,110 @@ ORDER BY uw.id DESC;
         ON cv.child_venue_id = uc.venue_id
 
     LEFT JOIN venue_parent pv
-        ON cv.parent_venue_id = pv.parent_venue_id
+        ON pv.parent_venue_id = cv.parent_venue_id
 
-    WHERE uc.user_id = ?  AND country_id = ?
-      AND category_id = ?
+    LEFT JOIN property_pricing pp
+        ON pp.child_venue_id = cv.child_venue_id
+        AND pp.enabled = 1
+
+    LEFT JOIN venue_categories vc
+        ON vc.id = cv.venue_category_id
+
+    WHERE
+        uc.user_id = ?
+        AND uc.country_id = ?
+        AND uc.category_id = ?
+
+    GROUP BY
+        uc.id,
+        cv.child_venue_id
 
     ORDER BY uc.id DESC
     `,
-      [userId,country,categorys.id],
+      [baseUrl, userId, country, categoryId],
     );
 
-    return UserCompare;
+    return userCompare;
   }
-  async userRecentViewsAPI(body: any, userId: any) {
-  await this.dataSource.query(
-    `
-    INSERT INTO user_recent_views (user_id, venue_id, viewed_at)
-    VALUES (?, ?, NOW())
-    ON DUPLICATE KEY UPDATE
-      viewed_at = NOW()
-    `,
-    [userId, body.venue_id],
-  );
+  //   async userRecentViewsAPI(body: any, userId: any) {
+  //   await this.dataSource.query(
+  //     `
+  //     INSERT INTO user_recent_views (user_id, venue_id, viewed_at)
+  //     VALUES (?, ?, NOW())
+  //     ON DUPLICATE KEY UPDATE
+  //       viewed_at = NOW()
+  //     `,
+  //     [userId, body.venue_id],
+  //   );
 
-  // keep only latest 20
-  await this.dataSource.query(
-    `
-    DELETE FROM user_recent_views
-    WHERE id NOT IN (
-      SELECT id FROM (
-        SELECT id
-        FROM user_recent_views
-        WHERE user_id = ?
-        ORDER BY viewed_at DESC
-        LIMIT 20
-      ) t
-    )
-    `,
-    [userId],
-  );
-}
+  //   // keep only latest 20
+  //   await this.dataSource.query(
+  //     `
+  //     DELETE FROM user_recent_views
+  //     WHERE id NOT IN (
+  //       SELECT id FROM (
+  //         SELECT id
+  //         FROM user_recent_views
+  //         WHERE user_id = ?
+  //         ORDER BY viewed_at DESC
+  //         LIMIT 20
+  //       ) t
+  //     )
+  //     `,
+  //     [userId],
+  //   );
+  // }
   //	user_recent_views
+  async userRecentViewsAPI(body: any, userId: number) {
+    const existing = await this.dataSource.query(
+      `
+    SELECT id
+    FROM user_recent_views
+    WHERE user_id = ? AND property_id = ?
+    LIMIT 1
+    `,
+      [userId, body.venue_id],
+    );
 
-async addLikedProperty(body: any, userId: any, country:any, category:any) {
-  const { property_id, property_type } = body;
+    if (existing.length > 0) {
+      // Update existing record
+      await this.dataSource.query(
+        `
+      UPDATE user_recent_views
+      SET viewed_at = NOW()
+      WHERE id = ?
+      `,
+        [existing[0].id],
+      );
+    } else {
+      // Insert new record
+      await this.dataSource.query(
+        `
+      INSERT INTO user_recent_views (user_id, property_id, viewed_at)
+      VALUES (?, ?, NOW())
+      `,
+        [userId, body.venue_id],
+      );
+    }
 
-   const singular = property_type.endsWith('s') ? property_type.slice(0, -1) : property_type;
+    return {
+      success: true,
+      message: 'Recent view updated successfully.',
+    };
+  }
+  async addLikedProperty(body: any, userId: any, country: any, category: any) {
+    const { property_id, property_type } = body;
+
+    const singular = property_type.endsWith('s')
+      ? property_type.slice(0, -1)
+      : property_type;
     const [categorys] = await this.dataSource.query(
       `SELECT id FROM category WHERE name = ? limit 1`,
       [singular],
     );
 
-  const [existing] = await this.dataSource.query(
-    `
+    const [existing] = await this.dataSource.query(
+      `
     SELECT id
     FROM property_likes
     WHERE user_id = ?
@@ -1731,42 +1859,41 @@ async addLikedProperty(body: any, userId: any, country:any, category:any) {
       AND property_type = ?
     LIMIT 1
     `,
-    [userId, property_id, categorys.id],
-  );
+      [userId, property_id, categorys.id],
+    );
 
-  if (existing) {
-    await this.dataSource.query(
-      `
+    if (existing) {
+      await this.dataSource.query(
+        `
       DELETE FROM property_likes
       WHERE id = ?
       `,
-      [existing.id],
-    );
+        [existing.id],
+      );
 
-    return {
-      liked: false,
-      message: 'Property removed from favourites.',
-    };
-  }
+      return {
+        liked: false,
+        message: 'Property removed from favourites.',
+      };
+    }
 
-  await this.dataSource.query(
-    `
+    await this.dataSource.query(
+      `
     INSERT INTO property_likes
     (user_id, property_id, property_type)
     VALUES (?, ?, ?)
     `,
-    [userId, property_id, categorys.id],
-  );
+      [userId, property_id, categorys.id],
+    );
 
-  return {
-    liked: true,
-    message: 'Property added to favourites.',
-  };
-}
+    return {
+      liked: true,
+      message: 'Property added to favourites.',
+    };
+  }
 
-async likedProperty(userId: any, country:any, category:any) {
-
- let query = `SELECT
+  async likedProperty(userId: any, country: any, category: any) {
+    let query = `SELECT
     pl.property_id,
 
     /* IDs */
@@ -1880,62 +2007,203 @@ WHERE pl.user_id = ?
 
 ORDER BY pl.id DESC;
 `;
-const likedProperty = await this.dataSource.query(query, [
-  userId,
-  userId,
-]);
+    const likedProperty = await this.dataSource.query(query, [userId, userId]);
 
-  return likedProperty;
+    return likedProperty;
+  }
 
-}
-
-async totalLikedProperty() {
-
-
-  const totalLikedProperty = await this.dataSource.query(
-    `
+  async totalLikedProperty() {
+    const totalLikedProperty = await this.dataSource.query(
+      `
     SELECT property_id
     FROM property_likes
     `,
-  );
+    );
 
-  return totalLikedProperty;
+    return totalLikedProperty;
+  }
 
-}
+  async getParent(parent_id: any, id: string) {
+    // Convert "venues" -> "venue"
+    const category = id.endsWith('s') ? id.slice(0, -1) : id;
 
-async getParent(parent_id: any, id: string) {
-  // Convert "venues" -> "venue"
-  const category = id.endsWith("s") ? id.slice(0, -1) : id;
-
-  // Get all categories
-  const categoryRows = await this.dataSource.query(
-    `
+    // Get all categories
+    const categoryRows = await this.dataSource.query(
+      `
     SELECT DISTINCT propety_category
     FROM venue_parent
     WHERE created_by = ?
     `,
-    [id],
-  );
+      [id],
+    );
 
-  const categories = categoryRows.map(
-    (item) => `${item.propety_category}s`,
-  );
+    const categories = categoryRows.map((item) => `${item.propety_category}s`);
 
-  // Get data for selected category
-  const results = await this.dataSource.query(
-    `
+    // Get data for selected category
+    const results = await this.dataSource.query(
+      `
     SELECT *
     FROM venue_parent
     WHERE parent_venue_id = ?
     `,
-    [parent_id],
-  );
+      [parent_id],
+    );
+    const bucketUrl = process.env.PUBLIC_AWS_BUCKET_URL;
+    const results1 = await this.dataSource.query(
+      `
+    SELECT
+    cv.child_venue_id AS childVenueId,
+    cv.parent_venue_id AS parentVenueId,
+    cv.child_venue_name AS venueName,
+    cv.guest_rooms AS maxGuests,
+ cv.banquet_round AS bedrooms,
 
-  return {
-    category: categories,
-    result: results,
-  };
-}
+    pv.venue_city AS city,
+    pv.venue_state AS state,
+    vc.name AS venueType,
+   
+    pv.venue_name AS parentVenueName,
+    pv.created_by,
+    pv.venue_country AS country,
+    pv.rating,
+    pv.user_ratings_total AS reviewCount,
+    pv.user_ratings_total AS featured,
+    pv.lat,
+    pv.lng,
+    pv.propety_category AS category,
 
-  
+    CASE
+        WHEN pv.reel_video IS NOT NULL
+         AND pv.reel_video <> ''
+        THEN CONCAT(
+            TRIM(TRAILING '/' FROM ?),
+            '/',
+            TRIM(LEADING '/' FROM pv.reel_video)
+        )
+        ELSE NULL
+    END AS videoUrl,
+
+    /* Cover Image */
+    (
+        SELECT vg.attachment
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+          AND vg.image_type = 1
+        LIMIT 1
+    ) AS coverImage,
+
+    /* Banner Image */
+    (
+        SELECT vg.attachment
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+          AND vg.image_type = 2
+        LIMIT 1
+    ) AS bannerImage,
+
+    /* Gallery */
+    (
+        SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'image', vg.attachment
+            )
+        )
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+    ) AS images,
+
+    (
+        SELECT COUNT(*)
+        FROM property_likes pl
+        WHERE pl.property_id = cv.child_venue_id
+    ) AS totalLikes,
+
+    CASE
+        WHEN pv.propety_category = 'farmstay' THEN
+            MAX(
+                CASE
+                    WHEN pp.pricing_key = 'nightly'
+                    THEN pp.amount
+                END
+            )
+        ELSE
+            (
+                SELECT MIN(vst.price)
+                FROM venue_shift_timing vst
+                WHERE vst.child_venue_id = cv.child_venue_id
+            )
+    END AS minPrice,
+    /* Amenities Category Wise */
+/* Amenities Category Wise */
+(
+    SELECT JSON_ARRAYAGG(
+        JSON_OBJECT(
+            'categoryId', ac.id,
+            'category', ac.category,
+            'amenities',
+            (
+                SELECT JSON_ARRAYAGG(
+                    JSON_OBJECT(
+                        'id', x.id,
+                        'name', x.name,
+                        'icon', x.svg_icon
+                    )
+                )
+                FROM (
+                    SELECT DISTINCT
+                        a.id,
+                        a.name,
+                        a.svg_icon
+                    FROM venue_child_amenities vca
+                    INNER JOIN amenities a
+                        ON a.id = vca.amenities_id
+                    WHERE vca.child_venue_id = cv.child_venue_id
+                      AND a.amenities_category_id = ac.id
+                ) x
+            )
+        )
+    )
+    FROM amenities_categories ac
+    WHERE EXISTS (
+        SELECT 1
+        FROM venue_child_amenities vca
+        INNER JOIN amenities a
+            ON a.id = vca.amenities_id
+        WHERE vca.child_venue_id = cv.child_venue_id
+          AND a.amenities_category_id = ac.id
+    )
+) AS amenities
+
+FROM venue_child cv
+
+INNER JOIN venue_parent pv
+    ON pv.parent_venue_id = cv.parent_venue_id
+
+LEFT JOIN property_pricing pp
+    ON pp.child_venue_id = cv.child_venue_id
+   AND pp.enabled = 1
+
+  LEFT JOIN venue_categories vc
+    ON vc.id = cv.venue_category_id 
+
+    
+
+WHERE cv.parent_venue_id = ? 
+
+GROUP BY
+    cv.child_venue_id
+
+ORDER BY
+    minPrice ASC
+;
+  `,
+      [bucketUrl, parent_id],
+    );
+
+    return {
+      category: categories,
+      result: results,
+      listing: results1,
+    };
+  }
 }
