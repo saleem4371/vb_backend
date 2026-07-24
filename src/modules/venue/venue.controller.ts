@@ -68,7 +68,7 @@ export class VenueController {
   @Get('UserCompare')
   async UserCompare(@Body() body: any,@CurrentUser() user: any,
 @Headers('x-country') country: number,
-    @Headers('x-category') category: number) {
+    @Headers('x-category') category: string) {
     const userId = user?.id;
 
     return this.venueService.UserCompare(userId,country,category);
