@@ -65,16 +65,23 @@ export class RazorpayService {
        * plan_PjN7fdxxxxxxxx
        */
 
+      // const subscription = await razorpay.subscriptions.create({
+      //   plan_id: plan.plan_id,
+      //   total_count: 12,
+      //   quantity: 1,
+      //   customer_notify: 1,
+      //   notes: {
+      //     user_id: String(userId),
+      //     plan_id: String(plan.plan_id),
+      //   },
+      // });
+
       const subscription = await razorpay.subscriptions.create({
-        plan_id: plan.plan_id,
-        total_count: 12,
-        quantity: 1,
-        customer_notify: 1,
-        notes: {
-          user_id: String(userId),
-          plan_id: String(plan.id),
-        },
-      });
+  plan_id:plan.plan_id,
+  total_count: 12,
+  quantity: 1,
+  customer_notify: 1,
+});
 
       const subscriptionCode = `SUB_${Date.now()}`;
 
@@ -98,10 +105,11 @@ export class RazorpayService {
       );
 
       return {
-        success: true,
-        subscription_id: subscription.id,
-        razorpay_key: configData.key_id,
-      };
+      success: true,
+      key_id: configData.key_id,
+      subscription_id: subscription.id,
+      url: subscription.short_url,
+    };
     } catch (e) {
       console.log(e);
 
@@ -109,29 +117,59 @@ export class RazorpayService {
     }
   }
 
-  async verifySubscription(subscriptionId: string) {
-    const config =
-      await this.integrationService.getIntegrationConfig('razorpay');
-    const configData = typeof config === 'string' ? JSON.parse(config) : config;
-    const razorpay = new Razorpay({
-      key_id: configData.key_id,
-      key_secret: configData.key_secret,
-    });
+  async verifySubscription(body: any) {
+     const config =
+    await this.integrationService.getIntegrationConfig('razorpay');
 
-    const subscription = await razorpay.subscriptions.fetch(subscriptionId);
+  const configData =
+    typeof config === 'string' ? JSON.parse(config) : config;
 
-    return {
-      success: true,
-      subscription_id: subscription.id,
-      status: subscription.status,
-      current_start: subscription.current_start,
-      current_end: subscription.current_end,
-      charge_at: subscription.charge_at,
-      total_count: subscription.total_count,
-      paid_count: subscription.paid_count,
-    };
+  const expectedSignature = crypto
+    .createHmac('sha256', configData.key_secret)
+    .update(
+      body.payment_id + '|' + body.subscription_id,
+    )
+    .digest('hex');
+
+  if (expectedSignature !== body.signature) {
+    throw new BadRequestException('Invalid signature');
   }
-  async verifyPayment(body: any, id: any) {
+
+  await this.dataSource.query(
+    `
+      UPDATE user_subscriptions
+      SET
+        status='active',
+        subscription_code=?,
+        updated_at=NOW()
+      WHERE subscription_id=?
+    `,
+    [
+      body.payment_id,
+      body.subscription_id,
+    ],
+  );
+
+  return {
+    success: true,
+    subscription_id:body.subscription_id
+    
+  };
+  }
+
+  async verifys(id: any) 
+  {
+     const result  = await this.dataSource.query(
+    `
+      SELECT * FROM  user_subscriptions WHERE subscription_id = ? 
+    `,
+    [
+      id,
+    ],
+  );
+  return result[0];
+  }
+    async verifyPayment(body: any, id: any) {
     const config =
       await this.integrationService.getIntegrationConfig('razorpay');
 
@@ -241,6 +279,7 @@ export class RazorpayService {
     // const eventType      = booking.event_type ?? dto.event?.event_type ?? null;
     const selectionType  = booking.selection_type ?? dto.event?.selection_type ?? null;
     const selectionMode  = booking.selection_mode ?? dto.event?.selection_mode ?? null;
+    const reservation_end_date  = booking.reservation_end_date ??  null;
     const specialRequest = dto.special_request ?? booking.notes ?? null;
 
     // Single-venue shape (new) vs. multi-venue array shape (old / farmstay)
@@ -283,6 +322,7 @@ export class RazorpayService {
       gstPercent:        rawPricing.gstPercent ?? 18,
       gstTotalLegacy:    rawPricing.gst_total ?? 0,
       paxGstLegacy:      rawPricing.pax_gst ?? 0,
+      estimated_total:      rawPricing.estimated_total ?? 0,
     };
 
     const taxAmountTotal = pricing.isCombinedGst
@@ -355,9 +395,12 @@ export class RazorpayService {
         updated_at,
         booking_event_type_id,
         selection_mode,
-        selection_type
+        selection_type,
+        estimated_total,
+        reservation_end_date
+
       )
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       `,
       [
         code,
@@ -383,6 +426,8 @@ export class RazorpayService {
         eventTypeId,
         'Online',
         'Online',
+        pricing.estimated_total || 0,
+        booking.reservation_end_date
       ],
     );
 
@@ -408,6 +453,7 @@ export class RazorpayService {
         bookingId,
         null,
         venueId,
+        
         venueName,
       ]];
     }
@@ -817,6 +863,7 @@ export class RazorpayService {
       success: true,
       booking_id: bookingId,
       invoice_number: code,
+      reserveType: reserveType
     };
   }
 
