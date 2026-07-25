@@ -717,6 +717,11 @@ export class VenueService {
       params.push(south, north, west, east);
     }
 
+      where.push(`
+      cv.publish_status = 1
+    `);
+
+
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     /* ======================
@@ -852,6 +857,10 @@ OFFSET ?;
 
       paramss.push(south, north, west, east);
     }
+
+     wheres.push(`
+      uv.Status = 1
+    `);
 
     const whereClauses = wheres.length ? `WHERE ${wheres.join(' AND ')}` : '';
 
