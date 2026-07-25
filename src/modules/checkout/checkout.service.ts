@@ -17,6 +17,8 @@ const query = `
     b.invoice_number,
     b.booking_type,
     b.total_pax,
+    b.estimated_total,
+    b.reservation_end_date,
 
     vp.venue_name,
     vp.parent_venue_id,
