@@ -4,6 +4,11 @@ import { DataSource, Repository, Not, IsNull } from 'typeorm';
 
 import { VenueChild } from '../../modules/listing/entities/venue-child.entity';
 
+import {
+  generateCode
+} from '../../common/utils/code-generator';
+
+
 @Injectable()
 export class VenueDetailService {
   constructor(
@@ -600,74 +605,174 @@ return {
     price: shift.price,
   }));
 
-  // Booking check
-  const bookingShifts = await this.dataSource.query(
-    `
-    SELECT
-        DATE_FORMAT(bed.event_date, '%Y-%m-%d') AS event_date,
+//   // Booking check
+//   const bookingShifts = await this.dataSource.query(
+//     `
+//     SELECT
+//         DATE_FORMAT(bed.event_date, '%Y-%m-%d') AS event_date,
 
-        CASE
-            WHEN b.category = 1
-            THEN LOWER(REPLACE(bs.shift_name, ' ', ''))
-            ELSE 'fullday'
-        END AS shift_name,
+//         CASE
+//             WHEN b.category = 1
+//             THEN LOWER(REPLACE(bs.shift_name, ' ', ''))
+//             ELSE 'fullday'
+//         END AS shift_name,
 
-        bs.status,
-        b.booking_type,
-        b.category
-    FROM bookings b
-    INNER JOIN booking_event_dates bed
-        ON bed.booking_id = b.id
-    INNER JOIN booking_venues bv
-        ON bv.booking_id = b.id
-    LEFT JOIN booking_shifts bs
-        ON bs.booking_id = b.id
-        AND bs.event_date_id = bed.id
-    WHERE bv.child_venue_id = ?
-    `,
-    [id],
-  );
+//         bs.status,
+//         b.booking_type,
+//         b.category
+//     FROM bookings b
+//     INNER JOIN booking_event_dates bed
+//         ON bed.booking_id = b.id
+//     INNER JOIN booking_venues bv
+//         ON bv.booking_id = b.id
+//     LEFT JOIN booking_shifts bs
+//         ON bs.booking_id = b.id
+//         AND bs.event_date_id = bed.id
+//     WHERE bv.child_venue_id = ?  AND b.booking_type IN ('booked', 'reserve')
+//     `,
+//     [id],
+//   );
 
-  const shiftTypes = ["morning", "afternoon", "evening"];
+//   const shiftTypes = ["morning", "afternoon", "evening"];
 
-  const SHIFT_STATUS: Record<string, Record<string, string>> = {};
-  const fullyBookedDates: string[] = [];
-  const partiallyBookedDates: string[] = [];
+//   const SHIFT_STATUS: Record<string, Record<string, string>> = {};
+//   const fullyBookedDates: string[] = [];
+//   const partiallyBookedDates: string[] = [];
 
-  for (const row of bookingShifts) {
-    const date = row.event_date;
+//   for (const row of bookingShifts) {
+//     const date = row.event_date;
 
-    if (!SHIFT_STATUS[date]) {
-      SHIFT_STATUS[date] = Object.fromEntries(
-        shiftTypes.map((shift) => [shift, "available"]),
-      );
-    }
+//     if (!SHIFT_STATUS[date]) {
+//       SHIFT_STATUS[date] = Object.fromEntries(
+//         shiftTypes.map((shift) => [shift, "available"]),
+//       );
+//     }
 
-    if (Number(row.category) === 1) {
-      if (row.shift_name) {
-        SHIFT_STATUS[date][row.shift_name] = row.booking_type.toLowerCase();
-      }
-    } else {
-      fullyBookedDates.push(date);
+//     if (Number(row.category) === 1) {
+//       if (row.shift_name!=='Full Day') {
+//         SHIFT_STATUS[date][row.shift_name] = row.booking_type.toLowerCase();
+//       }
+//       else if (row.shift_name==='Full Day')
+//       {
+// fullyBookedDates.push(date);
+//  shiftTypes.forEach((shift) => {
+//         SHIFT_STATUS[date][shift] = row.booking_type.toLowerCase();
+//       });
+//       }
+//     } else {
+//       fullyBookedDates.push(date);
+//       shiftTypes.forEach((shift) => {
+//         SHIFT_STATUS[date][shift] = row.booking_type.toLowerCase();
+//       });
+//     }
+//   }
+
+//   for (const [date, shiftMap] of Object.entries(SHIFT_STATUS)) {
+//     if (fullyBookedDates.includes(date)) continue;
+
+//     const bookedCount = shiftTypes.filter(
+//       (shift) => shiftMap[shift] !== "available",
+//     ).length;
+
+//     if (bookedCount === shiftTypes.length) {
+//       fullyBookedDates.push(date);
+//     } else if (bookedCount > 0) {
+//       partiallyBookedDates.push(date);
+//     }
+//   }
+// Booking check
+const bookingShifts = await this.dataSource.query(
+  `
+  SELECT
+      DATE_FORMAT(bed.event_date, '%Y-%m-%d') AS event_date,
+
+      CASE
+          WHEN b.category = 1
+          THEN LOWER(REPLACE(bs.shift_name, ' ', ''))
+          ELSE 'fullday'
+      END AS shift_name,
+
+      bs.status,
+      b.booking_type,
+      b.category
+  FROM bookings b
+  INNER JOIN booking_event_dates bed
+      ON bed.booking_id = b.id
+  INNER JOIN booking_venues bv
+      ON bv.booking_id = b.id
+  LEFT JOIN booking_shifts bs
+      ON bs.booking_id = b.id
+      AND bs.event_date_id = bed.id
+  WHERE bv.child_venue_id = ?
+    AND b.booking_type IN ('booked', 'reserve')
+  `,
+  [id],
+);
+
+const shiftTypes = ["morning", "afternoon", "evening"];
+
+const SHIFT_STATUS: Record<
+  string,
+  {
+    morning: string;
+    afternoon: string;
+    evening: string;
+  }
+> = {};
+
+const fullyBookedDates: string[] = [];
+const partiallyBookedDates: string[] = [];
+
+for (const row of bookingShifts) {
+  const date = row.event_date;
+  const bookingType = row.booking_type.toLowerCase(); // booked | reserve
+  const shiftName = (row.shift_name || "").toLowerCase();
+
+  if (!SHIFT_STATUS[date]) {
+    SHIFT_STATUS[date] = {
+      morning: "available",
+      afternoon: "available",
+      evening: "available",
+    };
+  }
+
+  // Event Booking (Morning / Afternoon / Evening / Full Day)
+  if (Number(row.category) === 1) {
+    if (shiftName === "fullday") {
       shiftTypes.forEach((shift) => {
-        SHIFT_STATUS[date][shift] = row.booking_type.toLowerCase();
+        SHIFT_STATUS[date][shift] = bookingType;
       });
+    } else if (shiftTypes.includes(shiftName)) {
+      SHIFT_STATUS[date][shiftName] = bookingType;
     }
   }
-
-  for (const [date, shiftMap] of Object.entries(SHIFT_STATUS)) {
-    if (fullyBookedDates.includes(date)) continue;
-
-    const bookedCount = shiftTypes.filter(
-      (shift) => shiftMap[shift] !== "available",
-    ).length;
-
-    if (bookedCount === shiftTypes.length) {
-      fullyBookedDates.push(date);
-    } else if (bookedCount > 0) {
-      partiallyBookedDates.push(date);
-    }
+  // Stay Booking (always full day)
+  else {
+    shiftTypes.forEach((shift) => {
+      SHIFT_STATUS[date][shift] = bookingType;
+    });
   }
+}
+
+// Find Fully / Partially Booked Dates
+for (const [date, shiftMap] of Object.entries(SHIFT_STATUS)) {
+  const statuses = shiftTypes.map((shift) => shiftMap[shift]);
+
+  // All shifts booked
+  if (statuses.every((status) => status === "booked")) {
+    fullyBookedDates.push(date);
+  }
+  // At least one shift booked/reserved
+  else if (
+    statuses.some(
+      (status) => status === "booked" || status === "reserve",
+    )
+  ) {
+    partiallyBookedDates.push(date);
+  }
+}
+
+
 
   // Amenities
   const amenities = await this.dataSource.query(
@@ -742,6 +847,155 @@ async loadAddons(country: any, body: any)
 
     return result;
   
+}
+
+async sendEnquiry(category: any, country: any,dto: any,id: any) {
+
+  const singular = category?.endsWith('s')
+      ? category.slice(0, -1)
+      : category;
+
+    const [categoryRow] = await this.dataSource.query(
+      `SELECT id FROM category WHERE name = ? LIMIT 1`,
+      [singular],
+    );
+
+    // -----------------------------
+    // 2. IDS
+    // -----------------------------
+    let code = generateCode();
+
+    while (true) {
+      const rows = await this.dataSource.query(
+        `SELECT 1 FROM bookings WHERE invoice_number = ? LIMIT 1`,
+        [code],
+      );
+
+      if (rows.length === 0) break;
+      code = generateCode();
+    }
+  const eventRows: any = await this.dataSource.query(
+    `SELECT id FROM booking_event_types WHERE event_name = ? LIMIT 1`,
+    [dto.eventType],
+  );
+
+  const eventTypeId = eventRows.length ? eventRows[0].id : null;
+
+const result: any = await this.dataSource.query(
+  `
+  INSERT INTO bookings
+  (
+    booking_code,
+    booking_type,
+    category,
+    country_id,
+    status,
+    total_pax,
+    booking_event_type_id,
+    created_at,
+    updated_at,
+    selection_mode,
+    selection_type,
+    vendor_id,
+    created_by,
+    updated_by
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), ?, ?, ?, ?, ?)
+  `,
+  [
+    code,
+    "enquiry",
+    categoryRow?.id ?? null,
+    country,
+    "active",
+    dto.guests,
+    eventTypeId,
+    "Online",
+    "Online",
+    id,
+    id,
+    id,
+  ]
+);
+
+  const bookingId = result.insertId;
+
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_venues
+    (
+      booking_id,
+      child_venue_id,
+      venue_name_snapshot
+    )
+    VALUES (?, ?, ?)
+    `,
+    [
+      bookingId,
+      dto.venueId,
+      dto.venueName,
+    ],
+  );
+
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_event_dates
+    (
+      booking_id,
+      event_date
+    )
+    VALUES (?, ?)
+    `,
+    [
+      bookingId,
+      dto.date,
+    ],
+  );
+
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_shifts
+    (
+      booking_id,
+      event_date_id,
+      venue_id,
+      shift_name,
+      status
+    )
+    VALUES (?, LAST_INSERT_ID(), 0, ?, 'active')
+    `,
+    [
+      bookingId,
+      dto.shift,
+    ],
+  );
+
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_parties
+    (
+      booking_id,
+      party_type,
+      party_id,
+      name,
+      phone,
+      email
+    )
+    VALUES (?, 'customer', 0, ?, ?, ?)
+    `,
+    [
+      bookingId,
+      dto.name,
+      dto.phone,
+      dto.email,
+    ],
+  );
+
+  return {
+    success: true,
+    bookingId,
+    code,
+  };
 }
 
 }

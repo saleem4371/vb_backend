@@ -31,5 +31,17 @@ export class VenueDeatilController {
   ) {
     return this.venueDetailService.loadAddons(country,id);
   }
- 
+
+  @UseGuards(JwtAuthGuard)
+  @Post('sendEnquiry')
+  sendEnquiry(
+    @Headers('x-category') category: number,
+    @Headers('x-country') country: number,
+    @Body() body: any,
+     @CurrentUser() user: any,
+  ) {
+    return this.venueDetailService.sendEnquiry(category,country,body,user?.id);
+  }
+ //category: any, country: any,dto: any
 }
+ 
