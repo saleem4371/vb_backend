@@ -26,31 +26,51 @@ export class ListingController {
   constructor(private readonly listingService: ListingService) {}
   @UseGuards(JwtAuthGuard)
   @Put('last_parent_id/:id')
-  async parent_last_create_id(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
-    return this.listingService.parent_last_create_id(user?.id,id,Country);
-  } 
-  
+  async parent_last_create_id(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Headers('x-country') Country: any,
+  ) {
+    return this.listingService.parent_last_create_id(user?.id, id, Country);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Put('parent_of_category/:id')
-  async parent_of_category(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
-    return this.listingService.parent_of_category(user?.id,id,Country);
-  }  
-  
+  async parent_of_category(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Headers('x-country') Country: any,
+  ) {
+    return this.listingService.parent_of_category(user?.id, id, Country);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Put('child_of_category/:id')
-  async child_of_category(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
-    return this.listingService.child_of_category(user?.id,id,Country);
+  async child_of_category(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Headers('x-country') Country: any,
+  ) {
+    return this.listingService.child_of_category(user?.id, id, Country);
   }
-  
+
   @UseGuards(JwtAuthGuard)
   @Put('listing_sub_check/:id')
-  async listing_sub_check(@CurrentUser() user: any,@Param('id') id: string,@Headers('x-country') Country : any) {
-    return this.listingService.listing_sub_check(user?.id,id,Country);
+  async listing_sub_check(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Headers('x-country') Country: any,
+  ) {
+    return this.listingService.listing_sub_check(user?.id, id, Country);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('parent_create')
-  async parent_create(@Req() req: FastifyRequest, @CurrentUser() user: any , @Headers('x-country') Country : any) {
+  async parent_create(
+    @Req() req: FastifyRequest,
+    @CurrentUser() user: any,
+    @Headers('x-country') Country: any,
+  ) {
     const parts = req.parts();
 
     const body: any = {};
@@ -71,7 +91,7 @@ export class ListingController {
 
     const logo = files.find((f) => f.fieldname === 'logo');
 
-    return this.listingService.create_parent(user?.id, body, logo ,Country);
+    return this.listingService.create_parent(user?.id, body, logo, Country);
   }
   @UseGuards(JwtAuthGuard)
   @Post('create')
@@ -212,6 +232,9 @@ export class ListingController {
       throw new BadRequestException(error || 'Upload failed');
     }
   }
+
+ 
+
   //   async ListingData(
   //   @Body() dto: CreateListingDto,
   // ) {
@@ -344,6 +367,17 @@ export class ListingController {
       bannerImage: bannerImage || null,
       images,
     };
+  }
+
+  //Auto Detect location / Manual
+   @Get('syncDestination/:id')
+  async syncDestination(@Param('id') id: any) {
+    return await this.listingService.syncDestination(id);
+  } 
+  
+  @Get('createTest')
+  async createTest() {
+    return await this.listingService.createTest();
   }
 }
 

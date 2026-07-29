@@ -14,10 +14,15 @@ import { VenueGalleryCategory } from "./entities/venue-gallery-category.entity";
 import { UserRole } from "./entities/user-role.entity";
  import { UserEntity } from './entities/user.entity';
  import { Pricing } from './entities/property_pricing.entity';
+
+ import { Destination } from './entities/destination.entity';
+ import { DestinationPlace } from './entities/destination-place.entity';
+
+
+import { ZohoModule } from '../integrations/zoho/zoho.module';
 @Module({
-  controllers: [ListingController],
-  providers: [ListingService],
-    imports: [
+   imports: [
+    ZohoModule,
       TypeOrmModule.forFeature([
         VenueParent,
         VenueChild,
@@ -28,9 +33,15 @@ import { UserRole } from "./entities/user-role.entity";
         VenueGalleryCategory,
         UserRole,
          UserEntity,
-         Pricing
+         Pricing,
+         Destination,
+         DestinationPlace
 
       ]),
+      
     ],
+  controllers: [ListingController],
+  providers: [ListingService],
+   
 })
 export class ListingModule {}
