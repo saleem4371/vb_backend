@@ -101,6 +101,13 @@ export class SocketGateway
   });
 }
 
+broadcast(text: any,message: any) {
+
+    this.server.emit('announcement-status', {
+      text,
+      message,
+    });
+  }
 
 
 }

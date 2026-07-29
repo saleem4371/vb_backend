@@ -16,4 +16,8 @@ export class SocketService {
   realtime(userId: string,type:string,message:string) {
   this.gateway.realtimeApplication(userId,type,message);
 }
+
+  broadcast(type: string, message: any) {
+    this.gateway.broadcast(type, message);
+  }
 }
