@@ -71,15 +71,33 @@ export class RazorpayController {
   /**
    * Verify Subscription
    */
-  @Get('subscription/:subscription_id')
-  async verifySubscription(
-    @Param('subscription_id')
-    subscriptionId: string,
+   @UseGuards(JwtAuthGuard)
+  @Post('razorpay_subscription')
+  async subscription(
+    @Body()
+    body: any,
+     @CurrentUser() user: any,
+     @Headers('x-country') country: number,
   ) {
-    return this.razorpayService.verifySubscription(
-      subscriptionId,
+    return this.razorpayService.subscription(
+       body,
+      user.id,
+      country,
     );
   }
+
+  @Post('subscription/verify')
+async verifySubscription(@Body() body: any) {
+return this.razorpayService.verifySubscription(
+       body
+    );
+}
+  @Get('verify_subscription/:id')
+async verifys(@Param('id') id: any) {
+return this.razorpayService.verifys(
+       id
+    );
+}
 
   /**
    * Cancel Subscription
@@ -137,9 +155,11 @@ verify(@Body() body: any) {
   async createOnlineBooking(@Body() body: any, @CurrentUser() user: any,@Headers('x-country') country: any) {
     return await this.razorpayService.createOnlineBooking(body, user?.id,country);
   } 
-@Post("webhook")
+
+  @Post("webhook")
 async webhook(@Req() req: Request, @Res() res: Response) {
   return this.razorpayService.webhook(req,res);
 }
+
 
 }
