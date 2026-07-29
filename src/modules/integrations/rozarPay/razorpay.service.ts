@@ -936,7 +936,7 @@ async webhook(req: any, res: any) {
       case 'payment.captured': {
         const payment = req.body.payload.payment.entity;
 
-        await this.databaseService.query(
+        await this.dataSource.query(
           `
           INSERT INTO user_subscription_payments (
             subscription_id,
@@ -976,7 +976,7 @@ async webhook(req: any, res: any) {
       case 'payment.failed': {
         const payment = req.body.payload.payment.entity;
 
-        await this.databaseService.query(
+        await this.dataSource.query(
           `
           INSERT INTO user_subscription_payments (
             subscription_id,
