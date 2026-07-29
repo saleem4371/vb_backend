@@ -905,6 +905,139 @@ async createLog(
 
 }
   //
+async webhook(req: any, res: any) {
+  try {
+    // Get Razorpay configuration
+    const config = await this.integrationService.getIntegrationConfig('razorpay');
+
+    const configData =
+      typeof config === 'string' ? JSON.parse(config) : config;
+
+    // Get Razorpay Signature
+    const signature = req.headers['x-razorpay-signature'];
+
+    if (!signature) {
+      return res.status(400).send('Missing Signature');
+    }
+
+    // Verify Webhook Signature
+    const generatedSignature = crypto
+      .createHmac('sha256', configData.webhook_secret)
+      .update(req.rawBody)
+      .digest('hex');
+
+    if (signature !== generatedSignature) {
+      return res.status(400).send('Invalid Signature');
+    }
+
+    const event = req.body.event;
+
+    switch (event) {
+      case 'payment.captured': {
+        const payment = req.body.payload.payment.entity;
+
+        await this.databaseService.query(
+          `
+          INSERT INTO user_subscription_payments (
+            subscription_id,
+            user_id,
+            order_id,
+            transaction_id,
+            payment_id,
+            amount,
+            tax_amount,
+            total_amount,
+            payment_method,
+            payment_status,
+            paid_at,
+            failure_reason,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
+          `,
+          [
+            null,                           // subscription_id
+            null,                           // user_id
+            payment.order_id,
+            payment.id,
+            payment.id,
+            payment.amount / 100,
+            0,
+            payment.amount / 100,
+            payment.method,
+            payment.status,
+            null,
+          ],
+        );
+
+        console.log('Payment Captured:', payment.id);
+        break;
+      }
+
+      case 'payment.failed': {
+        const payment = req.body.payload.payment.entity;
+
+        await this.databaseService.query(
+          `
+          INSERT INTO user_subscription_payments (
+            subscription_id,
+            user_id,
+            order_id,
+            transaction_id,
+            payment_id,
+            amount,
+            tax_amount,
+            total_amount,
+            payment_method,
+            payment_status,
+            paid_at,
+            failure_reason,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NOW())
+          `,
+          [
+            null,
+            null,
+            payment.order_id,
+            payment.id,
+            payment.id,
+            payment.amount / 100,
+            0,
+            payment.amount / 100,
+            payment.method,
+            'failed',
+            payment.error_description || payment.error_reason || null,
+          ],
+        );
+
+        console.log('Payment Failed:', payment.id);
+        break;
+      }
+
+      case 'order.paid': {
+        const order = req.body.payload.order.entity;
+
+        console.log('Order Paid:', order.id);
+
+        break;
+      }
+
+      default:
+        console.log('Unhandled Event:', event);
+    }
+
+    return res.status(200).send({
+      success: true,
+      message: 'Webhook Processed',
+    });
+  } catch (error) {
+    console.error('Webhook Error:', error);
+
+    return res.status(500).send({
+      success: false,
+      message: 'Internal Server Error',
+    });
+  }
+}
 
 }
 
