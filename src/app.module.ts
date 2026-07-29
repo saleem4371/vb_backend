@@ -71,6 +71,10 @@ import { CompareModule } from "./modules/compare/compare.module"
 import { PaxModule } from "./modules/pax/pax.module"
 import { RazorpayModule } from "./modules/integrations/rozarPay/razorpay.module"
 import { CheckoutModule } from "./modules/checkout/checkout.module"
+import { TeamModule } from "./modules/teams/team.module"
+
+import { ZohoModule } from './modules/integrations/zoho/zoho.module';
+import { RewardModule } from './modules/rewards/rewards.module';
 
 
 @Module({
@@ -156,7 +160,12 @@ import { CheckoutModule } from "./modules/checkout/checkout.module"
     PaxModule,
     RazorpayModule,
 
-    CheckoutModule
+    CheckoutModule,
+    TeamModule,
+
+
+    ZohoModule,
+    RewardModule
 
 
 
