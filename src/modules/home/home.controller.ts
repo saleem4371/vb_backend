@@ -50,4 +50,9 @@ export class HomeController {
   async getNearbyCities(@Query('state') state: string) {
     return this.homeService.getNearbyCities(state);
   }
+   @UseGuards(JwtAuthGuard)
+  @Get('find_your_tier')
+  async find_your_tier( @CurrentUser() user: any,) {
+    return this.homeService.find_your_tier(user?.id);
+  }
 }

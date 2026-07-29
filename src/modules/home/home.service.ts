@@ -400,4 +400,60 @@ ORDER BY pl.id DESC;
 
     return this.dataSource.query(sql, [state]);
   }
+async find_your_tier(uid: number) {
+  // Get booking count & amount
+  const [booking] = await this.dataSource.query(
+    `
+    SELECT
+      COUNT(*) AS booking_count,
+      COALESCE(SUM(total_amount), 0) AS booking_amount
+    FROM bookings
+    WHERE selection_mode = 'Online'
+      AND booking_type = 'booked'
+      AND created_by = ?
+    `,
+    [uid],
+  );
+
+  const bookingCount = Number(booking.booking_count);
+  const bookingAmount = Number(booking.booking_amount);
+
+  // Get all tiers
+  const tiers = await this.dataSource.query(`
+    SELECT *
+    FROM member_tier
+    ORDER BY min_booking ASC
+  `);
+
+  let currentTier = null;
+
+  for (const tier of tiers) {
+    // Special condition for Diamond
+    if (tier.name === "Diamond") {
+      if (
+        (bookingCount >= tier.min_booking &&
+          bookingAmount >= Number(tier.book_amount)) ||
+        bookingCount >= tier.max_booking
+      ) {
+        currentTier = tier;
+      }
+    } else {
+      if (
+        bookingCount >= tier.min_booking &&
+        bookingCount <= tier.max_booking
+      ) {
+        currentTier = tier;
+      }
+    }
+  }
+
+  return {
+    bookingCount,
+    bookingAmount,
+    tier: currentTier,
+  };
+}
+/*  AND invoice_date IS NOT NULL
+      AND invoice_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+      AND invoice_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 12 MONTH) */
 }
