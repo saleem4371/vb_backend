@@ -8,11 +8,13 @@ import {
   generateCode
 } from '../../common/utils/code-generator';
 
+import { sentEnquireEmail } from '../invoice/email/mail.service';
 
 @Injectable()
 export class VenueDetailService {
   constructor(
     private dataSource: DataSource,
+    // private invoiceService: InvoiceService,
     @InjectRepository(VenueChild)
     private readonly childRepo: Repository<VenueChild>,
   ) {}
@@ -990,6 +992,21 @@ const result: any = await this.dataSource.query(
       dto.email,
     ],
   );
+
+  const Enquiredata = {
+      email: dto.email,
+      id: bookingId,
+      customerName: dto.name,
+      venueName: dto.venueName,
+      enquiryId: code,
+      enquiryDate: new Date(),
+      eventDate: dto.date,
+      eventType: dto.eventType,
+      guests: dto.guests,
+      message: 'hello',//`We are looking for a wedding venue with indoor dining, stage decoration, catering, and parking facilities for approximately ${dto.guests} guests. Please share your best package and availability `,
+  };
+
+  sentEnquireEmail(Enquiredata);
 
   return {
     success: true,
