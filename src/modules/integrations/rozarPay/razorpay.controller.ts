@@ -136,6 +136,9 @@ verify(@Body() body: any) {
   async createOnlineBooking(@Body() body: any, @CurrentUser() user: any,@Headers('x-country') country: any) {
     return await this.razorpayService.createOnlineBooking(body, user?.id,country);
   } 
-
+@Post("webhook")
+async webhook(@Req() req: Request, @Res() res: Response) {
+  return this.razorpayService.webhook(req,res);
+}
 
 }
