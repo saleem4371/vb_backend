@@ -3,11 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository, Not, IsNull } from 'typeorm';
 
 import { VenueChild } from '../../modules/listing/entities/venue-child.entity';
+import { SocketService } from '../socket/socket.service';
 
 @Injectable()
 export class VenueService {
   constructor(
     private dataSource: DataSource,
+      private socketService: SocketService,
     @InjectRepository(VenueChild)
     private readonly childRepo: Repository<VenueChild>,
   ) {}
@@ -1848,178 +1850,279 @@ ORDER BY uw.id DESC;
       message: 'Recent view updated successfully.',
     };
   }
-  async addLikedProperty(body: any, userId: any, country: any, category: any) {
-    const { property_id, property_type } = body;
+  async addLikedProperty(
+  body: any,
+  userId: number,
+  country: any,
+  categorys: any,
+) {
+  const { property_id, property_type } = body;
 
-    const singular = property_type.endsWith('s')
-      ? property_type.slice(0, -1)
-      : property_type;
-    const [categorys] = await this.dataSource.query(
-      `SELECT id FROM category WHERE name = ? limit 1`,
-      [singular],
-    );
+  const singular = property_type.endsWith("s")
+    ? property_type.slice(0, -1)
+    : property_type;
 
-    const [existing] = await this.dataSource.query(
-      `
-    SELECT id
-    FROM property_likes
-    WHERE user_id = ?
-      AND property_id = ?
-      AND property_type = ?
-    LIMIT 1
+  const [category] = await this.dataSource.query(
+    `SELECT id FROM category WHERE name = ? LIMIT 1`,
+    [singular],
+  );
+
+  if (!category) {
+    throw new Error("Category not found");
+  }
+
+  const [existing] = await this.dataSource.query(
+    `
+      SELECT id
+      FROM property_likes
+      WHERE user_id = ?
+        AND property_id = ?
+        AND property_type = ?
+      LIMIT 1
     `,
-      [userId, property_id, categorys.id],
+    [userId, property_id, category.id],
+  );
+
+  let liked = true;
+  let message = "Property added to favourites.";
+
+  if (existing) {
+    await this.dataSource.query(
+      `DELETE FROM property_likes WHERE id = ?`,
+      [existing.id],
     );
 
-    if (existing) {
-      await this.dataSource.query(
-        `
-      DELETE FROM property_likes
-      WHERE id = ?
-      `,
-        [existing.id],
-      );
-
-      return {
-        liked: false,
-        message: 'Property removed from favourites.',
-      };
-    }
-
+    liked = false;
+    message = "Property removed from favourites.";
+  } else {
     await this.dataSource.query(
       `
-    INSERT INTO property_likes
-    (user_id, property_id, property_type)
-    VALUES (?, ?, ?)
-    `,
-      [userId, property_id, categorys.id],
+      INSERT INTO property_likes
+      (user_id, property_id, property_type)
+      VALUES (?, ?, ?)
+      `,
+      [userId, property_id, category.id],
     );
-
-    return {
-      liked: true,
-      message: 'Property added to favourites.',
-    };
   }
 
-  async likedProperty(userId: any, country: any, category: any) {
-    let query = `SELECT
-    pl.property_id,
+  // Get latest like count
+  const [countResult] = await this.dataSource.query(
+    `
+    SELECT COUNT(*) AS totalLikes
+    FROM property_likes
+    WHERE property_id = ?
+    `,
+    [property_id],
+  );
 
-    /* IDs */
-    COALESCE(cv.child_venue_id, CAST(uv.id AS CHAR)) AS childVenueId,
-    COALESCE(cv.parent_venue_id, CAST(uv.id AS CHAR)) AS parentVenueId,
+  const totalLikes = Number(countResult.totalLikes || 0);
 
-    /* Names */
-    COALESCE(cv.child_venue_name, uv.name) AS venueName,
-    COALESCE(pv.venue_name, uv.name) AS parentName,
+  // Broadcast updated count to all connected users
+  this.socketService.broadcast("likes", {
+    venueId: property_id,
+    totalLikes,
+    liked,
+    userId,
+  });
 
-    /* Location */
-    COALESCE(pv.venue_city, uv.city) AS city,
-    COALESCE(pv.venue_state, uv.state) AS state,
-    COALESCE(pv.venue_country, uv.country) AS country,
+  return {
+    liked,
+    totalLikes,
+    message,
+  };
+}
 
-    COALESCE(pv.lat, uv.lat) AS lat,
-    COALESCE(pv.lng, uv.lng) AS lng,
+//   async likedProperty(userId: any, country: any, category: any) {
+//     let query = `SELECT
+//     pl.property_id,
 
-    /* Details */
-    COALESCE(cv.guest_rooms, 0) AS maxGuests,
-    COALESCE(cv.banquet_round, 0) AS bedrooms,
+//     /* IDs */
+//     COALESCE(cv.child_venue_id, CAST(uv.id AS CHAR)) AS childVenueId,
+//     COALESCE(cv.parent_venue_id, CAST(uv.id AS CHAR)) AS parentVenueId,
 
-    COALESCE(vc.name, uv.name) AS venueType,
+//     /* Names */
+//     COALESCE(cv.child_venue_name, uv.name) AS venueName,
+//     COALESCE(pv.venue_name, uv.name) AS parentName,
 
-    pv.rating,
-    pv.user_ratings_total AS reviewCount,
-    pv.propety_category AS category,
+//     /* Location */
+//     COALESCE(pv.venue_city, uv.city) AS city,
+//     COALESCE(pv.venue_state, uv.state) AS state,
+//     COALESCE(pv.venue_country, uv.country) AS country,
 
-    /* Cover Image */
-    CASE
-        WHEN cv.child_venue_id IS NOT NULL THEN
-        (
-            SELECT vg.attachment
-            FROM venue_gallery vg
-            WHERE vg.child_venue_id = cv.child_venue_id
-              AND vg.image_type = 1
-            LIMIT 1
-        )
-        ELSE
-        (
-            SELECT ug.images
-            FROM unrigistered_gallery ug
-            WHERE ug.unreg_id = uv.id
-            ORDER BY ug.id
-            LIMIT 1
-        )
-    END AS coverImage,
+//     COALESCE(pv.lat, uv.lat) AS lat,
+//     COALESCE(pv.lng, uv.lng) AS lng,
 
-    /* Gallery */
-    CASE
-        WHEN cv.child_venue_id IS NOT NULL THEN
-        (
-            SELECT JSON_ARRAYAGG(
-                JSON_OBJECT(
-                    'image', vg.attachment
-                )
-            )
-            FROM venue_gallery vg
-            WHERE vg.child_venue_id = cv.child_venue_id
-        )
-        ELSE
-        (
-            SELECT JSON_ARRAYAGG(
-                JSON_OBJECT(
-                    'image', ug.images
-                )
-            )
-            FROM unrigistered_gallery ug
-            WHERE ug.unreg_id = uv.id
-        )
-    END AS images,
+//     /* Details */
+//     COALESCE(cv.guest_rooms, 0) AS maxGuests,
+//     COALESCE(cv.banquet_round, 0) AS bedrooms,
 
-    /* Likes */
-    (
-        SELECT COUNT(*)
-        FROM property_likes pl2
-        WHERE pl2.property_id = pl.property_id
-    ) AS totalLikes,
+//     COALESCE(vc.name, uv.name) AS venueType,
 
-    1 AS isLiked,
+//     pv.rating,
+//     pv.user_ratings_total AS reviewCount,
+//     pv.propety_category AS category,
 
-    /* Price */
-    CASE
-        WHEN cv.child_venue_id IS NOT NULL THEN
-        (
-            SELECT MIN(vst.price)
-            FROM venue_shift_timing vst
-            WHERE vst.child_venue_id = cv.child_venue_id
-        )
+//     /* Cover Image */
+//     CASE
+//         WHEN cv.child_venue_id IS NOT NULL THEN
+//         (
+//             SELECT vg.attachment
+//             FROM venue_gallery vg
+//             WHERE vg.child_venue_id = cv.child_venue_id
+//               AND vg.image_type = 1
+//             LIMIT 1
+//         )
+//         ELSE
+//         (
+//             SELECT ug.images
+//             FROM unrigistered_gallery ug
+//             WHERE ug.unreg_id = uv.id
+//             ORDER BY ug.id
+//             LIMIT 1
+//         )
+//     END AS coverImage,
+
+//     /* Gallery */
+//     CASE
+//         WHEN cv.child_venue_id IS NOT NULL THEN
+//         (
+//             SELECT JSON_ARRAYAGG(
+//                 JSON_OBJECT(
+//                     'image', vg.attachment
+//                 )
+//             )
+//             FROM venue_gallery vg
+//             WHERE vg.child_venue_id = cv.child_venue_id
+//         )
+//         ELSE
+//         (
+//             SELECT JSON_ARRAYAGG(
+//                 JSON_OBJECT(
+//                     'image', ug.images
+//                 )
+//             )
+//             FROM unrigistered_gallery ug
+//             WHERE ug.unreg_id = uv.id
+//         )
+//     END AS images,
+
+//     /* Likes */
+//     (
+//         SELECT COUNT(*)
+//         FROM property_likes pl2
+//         WHERE pl2.property_id = pl.property_id
+//     ) AS totalLikes,
+
+//     1 AS isLiked,
+
+//     /* Price */
+//     CASE
+//         WHEN cv.child_venue_id IS NOT NULL THEN
+//         (
+//             SELECT MIN(vst.price)
+//             FROM venue_shift_timing vst
+//             WHERE vst.child_venue_id = cv.child_venue_id
+//         )
+//         ELSE 0
+//     END AS minPrice
+
+// FROM property_likes pl
+
+// /* Registered venue */
+// LEFT JOIN venue_child cv
+//     ON cv.child_venue_id = pl.property_id
+
+// LEFT JOIN venue_parent pv
+//     ON pv.parent_venue_id = cv.parent_venue_id
+
+// LEFT JOIN venue_categories vc
+//     ON vc.id = cv.venue_category_id
+
+// /* Unregistered venue */
+// LEFT JOIN unrigistered_venues uv
+//     ON uv.id = CAST(pl.property_id AS UNSIGNED)
+//     AND pl.property_id REGEXP '^[0-9]+$'
+
+// WHERE pl.user_id = ?
+
+// ORDER BY pl.id DESC;
+// `;
+//     const likedProperty = await this.dataSource.query(query, [userId, userId]);
+
+//     return likedProperty;
+//   }
+async likedProperty(userId: number, country: number, category: number) {
+  const query = `
+    SELECT
+      cv.child_venue_id AS childVenueId,
+      cv.child_venue_name AS venueName,
+
+      COALESCE(lc.totalLikes, 0) AS totalLikes,
+
+      CASE
+        WHEN ul.user_id IS NOT NULL THEN 1
         ELSE 0
-    END AS minPrice
+      END AS isLiked
 
-FROM property_likes pl
+    FROM venue_child cv
 
-/* Registered venue */
-LEFT JOIN venue_child cv
-    ON cv.child_venue_id = pl.property_id
+    /* Total likes from all users */
+    LEFT JOIN (
+      SELECT
+        property_id,
+        COUNT(*) AS totalLikes
+      FROM property_likes
+      GROUP BY property_id
+    ) lc
+      ON lc.property_id = cv.child_venue_id
 
-LEFT JOIN venue_parent pv
-    ON pv.parent_venue_id = cv.parent_venue_id
+    /* Current logged-in user's like */
+    LEFT JOIN property_likes ul
+      ON ul.property_id = cv.child_venue_id
+      AND ul.user_id = ?
 
-LEFT JOIN venue_categories vc
-    ON vc.id = cv.venue_category_id
 
-/* Unregistered venue */
-LEFT JOIN unrigistered_venues uv
-    ON uv.id = CAST(pl.property_id AS UNSIGNED)
-    AND pl.property_id REGEXP '^[0-9]+$'
+    ORDER BY cv.child_venue_name ASC
+  `;
 
-WHERE pl.user_id = ?
+  return await this.dataSource.query(query, [userId, country, category]);
+}
 
-ORDER BY pl.id DESC;
-`;
-    const likedProperty = await this.dataSource.query(query, [userId, userId]);
+// async likedProperty(userId: number,country: any, category: any) {
+//   const query = `
+//     SELECT
+//       cv.child_venue_id AS childVenueId,
+//       cv.child_venue_name AS venueName,
 
-    return likedProperty;
-  }
+//       COALESCE(lc.totalLikes, 0) AS totalLikes,
+
+//       CASE
+//         WHEN ul.id IS NOT NULL THEN 1
+//         ELSE 0
+//       END AS isLiked
+
+//     FROM venue_child cv
+
+//     /* Total likes from all users */
+//     LEFT JOIN (
+//       SELECT
+//         property_id,
+//         COUNT(*) AS totalLikes
+//       FROM property_likes
+//       GROUP BY property_id
+//     ) lc
+//       ON lc.property_id = cv.child_venue_id
+
+//     /* Logged-in user's like only */
+//     LEFT JOIN property_likes ul
+//       ON ul.property_id = cv.child_venue_id
+//       AND ul.user_id = ?
+
+//     ORDER BY cv.child_venue_name ASC
+//   `;
+
+//   return this.dataSource.query(query, [userId]);
+// }
 
   async totalLikedProperty() {
     const totalLikedProperty = await this.dataSource.query(
@@ -2215,4 +2318,38 @@ ORDER BY
       listing: results1,
     };
   }
+
+async UserlikedProperty(
+  body: any,
+  userId: number,
+  country: any,
+  categorys: any,
+) {
+  const singular = categorys.endsWith("s")
+    ? categorys.slice(0, -1)
+    : categorys;
+
+  const [category] = await this.dataSource.query(
+    `SELECT id FROM category WHERE name = ? LIMIT 1`,
+    [singular],
+  );
+
+  if (!category) {
+    return [];
+  }
+
+  const likedProperty = await this.dataSource.query(
+    `
+    SELECT
+      pl.property_id
+    FROM property_likes pl
+    WHERE pl.user_id = ?
+      AND pl.property_type = ?
+    ORDER BY pl.id DESC
+    `,
+    [userId, category.id],
+  );
+
+  return likedProperty;
+}
 }
