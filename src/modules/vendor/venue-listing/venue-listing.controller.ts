@@ -300,6 +300,11 @@ async updatePhotos(
     return this.venueListingService.DeletePhotos(body);
   } 
 
+  @Post('UpdateCoverPhotos')
+  UpdateCoverPhotos(@Body() body: any) {
+    return this.venueListingService.UpdateCoverPhotos(body);
+  } 
+
 
   
 }

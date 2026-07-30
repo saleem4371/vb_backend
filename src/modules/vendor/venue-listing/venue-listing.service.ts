@@ -4,6 +4,7 @@ import { DataSource, Repository, Not, IsNull, LessThan } from 'typeorm';
 import { StorageService } from 'src/common/storage/storage.service';
 
 import { v4 as uuidv4 } from "uuid";
+import { SocketService } from '../../socket/socket.service';
 
 type UploadFile = {
   id: string;
@@ -18,6 +19,7 @@ export class VenueListingService {
   constructor(
     private dataSource: DataSource,
     private storageService: StorageService,
+      private socketService: SocketService,
   ) {}
 
   async getListData(userId: any, id: any, country: any) {
@@ -68,13 +70,22 @@ export class VenueListingService {
       [id],
     );
 
-    const photos = await this.dataSource.query(
-      `SELECT attachment
-      FROM venue_gallery
-      WHERE child_venue_id = ?`,
-      [id],
-    );
-
+const photos = await this.dataSource.query(
+  `
+  SELECT attachment
+  FROM venue_gallery
+  WHERE child_venue_id = ?
+  ORDER BY
+    CASE
+      WHEN image_type = '1' THEN 0
+      WHEN image_type IS NULL THEN 1
+      ELSE 2
+    END,
+    image_type ASC,
+    id ASC
+  `,
+  [id],
+);
     const selected_amenities = await this.dataSource.query(
       `SELECT amenities_id
       FROM venue_child_amenities
@@ -953,7 +964,168 @@ for (const item of pricingRows) {
   /* ─────────────────────────────
      PHOTOS
   ───────────────────────────── */
-async updatePhotos(id: string, body: any, files: any[],uid:any) {
+// async updatePhotos(id: string, body: any, files: any[],uid:any) {
+//   const photoSections = this.safeJson(body.photoSections);
+//   const existingPhotos = this.safeJson(body.existingPhotos);
+
+//   const fileMap = new Map<string, any>();
+
+//   for (const file of files || []) {
+//     fileMap.set(file.id, file);
+//   }
+
+//   const finalPhotos: string[] = [];
+
+//   /*
+//   ---------------------------
+//   MAIN PHOTOS (UNCHANGED)
+//   ---------------------------
+//   */
+//   for (const photo of existingPhotos) {
+//     if (typeof photo === 'string') {
+//       finalPhotos.push(photo);
+//       continue;
+//     }
+
+//     if (photo?.type === 'new') {
+//       const file = fileMap.get(photo.id);
+
+//       if (!file) continue;
+
+//       const url = await this.storageService.upload(
+//         file,
+//         'venue/photos',
+//       );
+
+//       finalPhotos.push(url);
+//     }
+
+//     if (photo?.path) {
+//       finalPhotos.push(photo.path);
+//     }
+//   }
+
+//   /*
+// -----------------------------------
+// MAIN PHOTOS DB UPDATE
+// -----------------------------------
+// */
+
+// for (const photo of finalPhotos) {
+//   const exists = await this.dataSource.query(
+//     `SELECT id 
+//      FROM venue_gallery
+//      WHERE child_venue_id = ?
+//      AND attachment = ?`,
+//     [id, photo],
+//   );
+
+//   if (!exists.length) {
+//     await this.dataSource.query(
+//       `INSERT INTO venue_gallery
+//       (child_venue_id, g_category, attachment, created_at) 
+//       VALUES (?, ?, ?, NOW())`,
+//       [id,exists.g_category, photo],
+//     );
+//   }
+// }
+
+//   /*
+//   ---------------------------
+//   SECTIONS + DB FIXED
+//   ---------------------------
+//   */
+//   for (const section of photoSections || []) {
+//     const { id: sectionId, name, description, images = [] } = section;
+
+//     // ✅ 1. CATEGORY UPSERT (FIXED POSITION)
+//     let category: any = await this.dataSource.query(
+//       `SELECT id
+//        FROM venue_gallery_category
+//        WHERE child_id = ?
+//        AND name = ?`,
+//       [id, name],
+//     );
+
+//     let categoryId: any;
+
+//     if (!category.length) {
+//       const result = await this.dataSource.query(
+//         `INSERT INTO venue_gallery_category
+//         (child_id, name, description, created_at, updated_at)
+//         VALUES (?, ?, ?, NOW(), NOW())`,
+//         [id, name, description],
+//       );
+
+//       categoryId = result.insertId;
+//     } else {
+//       categoryId = category[0].id;
+
+//       await this.dataSource.query(
+//         `UPDATE venue_gallery_category
+//          SET name = ?,
+//              description = ?,
+//              updated_at = NOW()
+//          WHERE id = ?`,
+//         [name, description, categoryId],
+//       );
+//     }
+
+//     /*
+//     ---------------------------
+//     2. IMAGE PROCESSING + INSERT
+//     ---------------------------
+//     */
+//     for (const img of images || []) {
+//       let finalUrl = '';
+
+//       // EXISTING
+//       if (img.type === 'existing') {
+//         finalUrl = img.path;
+//       }
+
+//       // NEW UPLOAD
+//       if (img.type === 'new') {
+//         const file = fileMap.get(img.id);
+
+//         if (!file) continue;
+
+//         finalUrl = await this.storageService.upload(
+//           file,
+//           'venue/gallery',
+//         );
+//       }
+
+//       if (!finalUrl) continue;
+
+//       // CHECK EXIST
+//       const exists = await this.dataSource.query(
+//         `SELECT id
+//          FROM venue_gallery
+//          WHERE child_venue_id = ?
+//          AND g_category = ?
+//          AND attachment = ?`,
+//         [id, categoryId, finalUrl],
+//       );
+
+//       // INSERT IF NOT EXISTS
+//       if (!exists.length) {
+//         await this.dataSource.query(
+//           `INSERT INTO venue_gallery
+//           (child_venue_id, g_category, attachment, created_at)
+//           VALUES (?, ?, ?, NOW())`,
+//           [id, categoryId, finalUrl],
+//         );
+//       }
+//     }
+//   }
+
+//   return {
+//     success: true,
+//     photos: finalPhotos,
+//   };
+// }
+async updatePhotos(id: string, body: any, files: any[], uid: any) {
   const photoSections = this.safeJson(body.photoSections);
   const existingPhotos = this.safeJson(body.existingPhotos);
 
@@ -967,67 +1139,103 @@ async updatePhotos(id: string, body: any, files: any[],uid:any) {
 
   /*
   ---------------------------
-  MAIN PHOTOS (UNCHANGED)
+  MAIN PHOTOS
   ---------------------------
+  Only photos that are genuinely NEW get uploaded + inserted. Anything
+  already existing (plain string, or { type: 'existing' }) is left alone —
+  no upload call, no DB write — it's already there. This also fixes the
+  duplicate-insert bug: the old code ran the exists-check/insert against
+  every photo including untouched existing ones.
   */
-  for (const photo of existingPhotos) {
+  let newCoverUrl: string | null = null;
+
+  for (const photo of existingPhotos || []) {
+    // Legacy shape — a bare existing URL string. Nothing to do.
     if (typeof photo === 'string') {
       finalPhotos.push(photo);
       continue;
     }
 
+    // Already-existing photo (untouched). Skip upload/insert entirely.
+    if (photo?.type === 'existing') {
+      finalPhotos.push(photo.path);
+
+      if (photo.isCover || photo.category_key === 2) {
+        newCoverUrl = photo.path;
+      }
+      continue;
+    }
+
+    // Genuinely new photo — upload it, then insert once.
     if (photo?.type === 'new') {
       const file = fileMap.get(photo.id);
 
       if (!file) continue;
 
-      const url = await this.storageService.upload(
-        file,
-        'venue/photos',
-      );
+      const url = await this.storageService.upload(file, 'venue/photos');
 
       finalPhotos.push(url);
-    }
 
-    if (photo?.path) {
-      finalPhotos.push(photo.path);
+      // category_key: 2 = cover, 3 = additional — read from the photo
+      // itself (the frontend already computes this), not derived from
+      // a broken `exists` reference like before.
+      const categoryKey = photo.isCover ? 2 : (photo.category_key || 3);
+
+      await this.dataSource.query(
+        `INSERT INTO venue_gallery
+         (child_venue_id, g_category, attachment, created_at)
+         VALUES (?, ?, ?, NOW())`,
+        [id, categoryKey, url],
+      );
+
+      if (photo.isCover) {
+        newCoverUrl = url;
+      }
     }
   }
 
   /*
------------------------------------
-MAIN PHOTOS DB UPDATE
------------------------------------
-*/
-
-for (const photo of finalPhotos) {
-  const exists = await this.dataSource.query(
-    `SELECT id 
-     FROM venue_gallery
-     WHERE child_venue_id = ?
-     AND attachment = ?`,
-    [id, photo],
-  );
-
-  if (!exists.length) {
+  ---------------------------
+  COVER PROMOTION / DEMOTION
+  ---------------------------
+  Whatever photo is currently flagged as cover (existing or new) becomes
+  g_category = 2. Any other row for this venue that was previously marked
+  as cover gets demoted to 3, so there's never more than one cover row.
+  */
+  if (newCoverUrl) {
+    // Demote any previous cover that isn't the current one.
     await this.dataSource.query(
-      `INSERT INTO venue_gallery
-      (child_venue_id, g_category, attachment, created_at) 
-      VALUES (?, ?, ?, NOW())`,
-      [id,exists.g_category, photo],
+      `UPDATE venue_gallery
+       SET g_category = 3
+       WHERE child_venue_id = ?
+       AND g_category = 2
+       AND attachment != ?`,
+      [id, newCoverUrl],
+    );
+
+    // Promote the current cover (covers the case where it was an
+    // *existing* photo that just got dragged to position 0 — its DB row
+    // already exists, we just need to flip its category).
+    await this.dataSource.query(
+      `UPDATE venue_gallery
+       SET g_category = 2
+       WHERE child_venue_id = ?
+       AND attachment = ?`,
+      [id, newCoverUrl],
     );
   }
-}
 
   /*
   ---------------------------
-  SECTIONS + DB FIXED
+  SECTIONS
   ---------------------------
+  Unchanged from your version — category upsert, then only upload/insert
+  images whose type is 'new'; existing section images already have a row
+  and are skipped.
   */
   for (const section of photoSections || []) {
     const { id: sectionId, name, description, images = [] } = section;
 
-    // ✅ 1. CATEGORY UPSERT (FIXED POSITION)
     let category: any = await this.dataSource.query(
       `SELECT id
        FROM venue_gallery_category
@@ -1060,34 +1268,21 @@ for (const photo of finalPhotos) {
       );
     }
 
-    /*
-    ---------------------------
-    2. IMAGE PROCESSING + INSERT
-    ---------------------------
-    */
     for (const img of images || []) {
-      let finalUrl = '';
+      // Existing section image — already has a DB row, skip entirely.
+      if (img.type === 'existing') continue;
 
-      // EXISTING
-      if (img.type === 'existing') {
-        finalUrl = img.path;
-      }
+      // New section image — upload + insert.
+      if (img.type !== 'new') continue;
 
-      // NEW UPLOAD
-      if (img.type === 'new') {
-        const file = fileMap.get(img.id);
+      const file = fileMap.get(img.id);
 
-        if (!file) continue;
+      if (!file) continue;
 
-        finalUrl = await this.storageService.upload(
-          file,
-          'venue/gallery',
-        );
-      }
+      const finalUrl = await this.storageService.upload(file, 'venue/gallery');
 
       if (!finalUrl) continue;
 
-      // CHECK EXIST
       const exists = await this.dataSource.query(
         `SELECT id
          FROM venue_gallery
@@ -1097,7 +1292,6 @@ for (const photo of finalPhotos) {
         [id, categoryId, finalUrl],
       );
 
-      // INSERT IF NOT EXISTS
       if (!exists.length) {
         await this.dataSource.query(
           `INSERT INTO venue_gallery
@@ -1174,6 +1368,12 @@ safeJson(val: any): any[] {
         [publishStatus, id],
       );
     }
+
+    //Globally Refresh 
+this.socketService.broadcast(
+  'Setting',
+  `Setting Updated`
+);
 
     return {
       success: true,
@@ -1507,6 +1707,40 @@ async DeletePhotos(body: any) {
     key: key,
     success: true,
     message: "Image deleted successfully",
+  };
+}
+async UpdateCoverPhotos(body: any) {
+  const imageUrl = body.image;
+
+  const baseUrl = process.env.FILE_URL; // https://vb-venue-images.s3.eu-north-1.amazonaws.com/
+
+ const gallery = imageUrl
+  .replace(baseUrl, '')
+  .substring(1);
+console.log(gallery)
+  // Remove existing cover image
+await this.dataSource.query(
+  `
+  UPDATE venue_gallery
+  SET image_type = ?
+  WHERE image_type = ?
+  `,
+  ['3',1],
+);
+
+
+await this.dataSource.query(
+  `UPDATE venue_gallery
+  SET image_type = ?
+  WHERE attachment = ?
+  `,
+  ['1', gallery], 
+);
+
+  return {
+    success: true,
+    message: 'Cover photo updated successfully.',
+    gallery,
   };
 }
  
