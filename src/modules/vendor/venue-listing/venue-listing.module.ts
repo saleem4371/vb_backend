@@ -3,6 +3,7 @@ import { VenueListingController } from './venue-listing.controller';
 import { VenueListingService } from './venue-listing.service';
 import { VenueChild } from '../../../modules/listing/entities/venue-child.entity';
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { SocketModule } from '../../socket/socket.module';
 
 @Module({
   controllers: [VenueListingController],
@@ -10,6 +11,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
    imports: [
     TypeOrmModule.forFeature([
       VenueChild,
+      SocketModule
     ]),
   ]
 })
