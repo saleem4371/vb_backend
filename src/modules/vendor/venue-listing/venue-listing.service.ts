@@ -4,7 +4,7 @@ import { DataSource, Repository, Not, IsNull, LessThan } from 'typeorm';
 import { StorageService } from 'src/common/storage/storage.service';
 
 import { v4 as uuidv4 } from "uuid";
-import { SocketService } from '../../socket/socket.service';
+//import { SocketService } from '../../socket/socket.service';
 
 type UploadFile = {
   id: string;
@@ -19,7 +19,7 @@ export class VenueListingService {
   constructor(
     private dataSource: DataSource,
     private storageService: StorageService,
-      private socketService: SocketService,
+      //private socketService: SocketService,
   ) {}
 
   async getListData(userId: any, id: any, country: any) {
@@ -1370,10 +1370,10 @@ safeJson(val: any): any[] {
     }
 
     //Globally Refresh 
-this.socketService.broadcast(
+/*this.socketService.broadcast(
   'Setting',
   `Setting Updated`
-);
+);*/
 
     return {
       success: true,
