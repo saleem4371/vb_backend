@@ -1710,10 +1710,8 @@ async DeletePhotos(body: any) {
   };
 }
 async UpdateCoverPhotos(body: any) {
-  const imageUrl = body.image;
-
-  const baseUrl = process.env.FILE_URL; // https://vb-venue-images.s3.eu-north-1.amazonaws.com/
-
+  const imageUrl = body.data.image;
+  const baseUrl = process.env.FILE_URL;
  const gallery = imageUrl
   .replace(baseUrl, '')
   .substring(1);
@@ -1723,18 +1721,18 @@ await this.dataSource.query(
   `
   UPDATE venue_gallery
   SET image_type = ?
-  WHERE image_type = ?
+  WHERE image_type = ? AND  child_venue_id = ? 
   `,
-  ['3',1],
+  ['3',1 , body.listingId],
 );
 
 
 await this.dataSource.query(
   `UPDATE venue_gallery
   SET image_type = ?
-  WHERE attachment = ?
+  WHERE attachment = ? AND  child_venue_id = ? 
   `,
-  ['1', gallery], 
+  ['1', gallery,body.listingId], 
 );
 
   return {
@@ -1743,5 +1741,6 @@ await this.dataSource.query(
     gallery,
   };
 }
+ 
  
 }
