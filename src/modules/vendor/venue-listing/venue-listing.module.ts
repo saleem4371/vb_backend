@@ -11,7 +11,7 @@ import { SocketModule } from '../../socket/socket.module';
       VenueChild,
       SocketModule
     ]),
-  ]
+  ],
   controllers: [VenueListingController],
   providers: [VenueListingService],
    
