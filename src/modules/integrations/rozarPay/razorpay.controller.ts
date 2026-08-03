@@ -160,6 +160,17 @@ verify(@Body() body: any) {
 async webhook(@Req() req: Request, @Res() res: Response) {
   return this.razorpayService.webhook(req,res);
 }
+ @UseGuards(JwtAuthGuard)
+ @Post("onlinepayment")
+async onlinepayment(@Body() body: any,@CurrentUser() user: any) {
+  return this.razorpayService.onlinepayment(body,user?.id);
+} 
+
+@UseGuards(JwtAuthGuard)
+ @Post("cancelBooking")
+async cancelBooking(@Body() body: any,@CurrentUser() user: any) {
+  return this.razorpayService.cancelBooking(body,user?.id);
+}
 
 
 }

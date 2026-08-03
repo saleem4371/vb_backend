@@ -7,9 +7,13 @@ import { HttpModule } from '@nestjs/axios';
 import { SocketModule } from '../../socket/socket.module'
 import { InvoiceModule } from '../../invoice/invoice.module'
 import { NotificationModule } from '../../../notifications/notification.module'
+import { ZohoModule } from '../../integrations/zoho/zoho.module';
+import { TwilioModule } from '../../integrations/twilio/twilio.module';
 
 @Module({
    imports: [
+    TwilioModule,
+    ZohoModule,
     HttpModule,
     IntegSettingsModule,
     SocketModule,

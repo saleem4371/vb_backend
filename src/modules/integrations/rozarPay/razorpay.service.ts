@@ -19,12 +19,17 @@ import {
   generateCode
 } from '../../../common/utils/code-generator';
 
+import { ZohoService } from '../../integrations/zoho/zoho.service';
+import { TwilioService } from '../../integrations/twilio/twilio.service';
+
 @Injectable()
 export class RazorpayService {
   constructor(
     private readonly integrationService: IntegrationService,
     private readonly http: HttpService,
     private readonly dataSource: DataSource,
+    private readonly zohoService: ZohoService,
+    private readonly twilioService: TwilioService,
 
      private invoiceService: InvoiceService,
     private readonly notificationService: NotificationService,
@@ -282,6 +287,12 @@ export class RazorpayService {
     const reservation_end_date  = booking.reservation_end_date ??  null;
     const specialRequest = dto.special_request ?? booking.notes ?? null;
 
+    //wallets
+
+   
+
+
+
     // Single-venue shape (new) vs. multi-venue array shape (old / farmstay)
     const venueId   = booking.venue_id ?? null;
     const venueName = booking.venue_name ?? null;
@@ -323,8 +334,17 @@ export class RazorpayService {
       gstTotalLegacy:    rawPricing.gst_total ?? 0,
       paxGstLegacy:      rawPricing.pax_gst ?? 0,
       estimated_total:      rawPricing.estimated_total ?? 0,
+
+      burnPoint:      rawPricing.burnPoint ?? 0,
+      earnedPoints:      rawPricing.earnedPoints ?? 0,
+      wallet_discount:      rawPricing.wallet_discount ?? 0,
+      paid_amount:      rawPricing.payableNow ?? 0,
     };
 
+    //Online payment 
+    const payment = dto.payment || {};
+
+  
     const taxAmountTotal = pricing.isCombinedGst
       ? pricing.gstAmount
       : (pricing.gstTotalLegacy + pricing.paxGstLegacy);
@@ -583,7 +603,7 @@ export class RazorpayService {
         0,
         customerName,
         customerPhone,
-        customerEmail,
+        customerEmail
       ],
     );
 
@@ -859,6 +879,108 @@ export class RazorpayService {
       createdBy: id,
     });
 
+    //twilioService
+  await this.twilioService.sendWhatsApp({
+  to: `+91${customerPhone}`,
+  body: `Your ${reserveType} booking has been received successfully.📌 Booking ID: ${code}`
+});
+    //ZOHO 
+
+    //Payment
+
+//------------------------------------------------------------------
+//Online transaction  AMount
+//------------------------------------------------------------------
+
+let paid = pricing.paid_amount;
+
+await this.addPayment(bookingId,paid ,id ,payment)
+
+await this.updateMemberTier(id);//check membership
+
+//------------------------------------------------------------------
+//Online transaction  AMount
+//------------------------------------------------------------------
+   
+
+const subtotalWithoutExcluded = chargeValues.reduce((total, charge) => {
+  const excludedTypes = [
+    'convenience_fee',
+    'wallet_discount',
+    'security_deposit',
+    'discount',
+    'reservation',
+  ];
+
+  if (excludedTypes.includes(charge[1])) {
+    return total;
+  }
+
+  return total + Number(charge[5] || 0);
+}, 0);
+
+
+    const commison  = subtotalWithoutExcluded*5/100; // Calculate Commision
+
+
+    await this.createZohoTransaction({
+      customer: customerName,
+      email: customerEmail,
+      phone: customerPhone,
+      bookingId: code,
+     
+        total_amount: pricing.grandTotal,
+        category:singular,
+        convenienceFee:pricing.convenienceFee,
+        charge_amount:commison
+
+    });
+
+     //wallets
+
+
+  const rewardCategoryId = categoryRow?.id ?? null;
+
+  // Wrapped in try/catch so a rewards failure (insufficient points, a bad
+  // category id, a transient DB error, etc.) never rolls back or crashes an
+  // already-successful booking — it just gets logged, and the booking
+  // response still returns success.
+  if (pricing.earnedPoints > 0) {
+    try {
+      await this.addRewardPoints(
+        id,                        // user_id
+        bookingId,                 // booking_id
+        '',                      // order_id / invoice number
+        rewardCategoryId,          // category_id
+        Math.round(pricing.earnedPoints),  // points — force integer
+        pricing.grandTotal,        // amount
+        'Booking reward earned',
+        'reward',
+      );
+    } catch (err) {
+      console.error('Failed to credit reward points for booking', bookingId, err);
+    }
+  }
+
+  if (pricing.burnPoint > 0) {
+    try {
+      await this.addRewardPoints(
+        id,                     // user_id
+        bookingId,              // booking_id
+        '',                   // order_id / invoice number
+        rewardCategoryId,       // category_id
+        Math.round(pricing.burnPoint),  // points — force integer
+        pricing.burnPoint,        // redeemed amount
+        'Reward points redeemed',
+        'redeem',
+      );
+    } catch (err) {
+      console.error('Failed to redeem reward points for booking', bookingId, err);
+    }
+  }
+
+
+
     return {
       success: true,
       booking_id: bookingId,
@@ -1038,6 +1160,518 @@ async createLog(
       message: 'Internal Server Error',
     });
   }
+}
+
+//wallets
+async addRewardPoints(
+  userId: number,
+  bookingId: number,
+  orderId: string,
+  categoryId: number,
+  points: number,
+  amount: number,
+  remarks: string,
+  transactionType: 'reward' | 'redeem',
+) {
+  const queryRunner = this.dataSource.createQueryRunner();
+
+  await queryRunner.connect();
+  await queryRunner.startTransaction();
+
+  try {
+    const balance = await queryRunner.query(
+      `
+      SELECT *
+      FROM reward_point_balance
+      WHERE user_id = ?
+      LIMIT 1
+      `,
+      [userId],
+    );
+
+    if (balance.length > 0) {
+      if (transactionType === 'reward') {
+        // Add points
+        await queryRunner.query(
+          `
+          UPDATE reward_point_balance
+          SET
+            total_points = total_points + ?,
+            available_points = available_points + ?,
+            updated_at = NOW()
+          WHERE user_id = ?
+          `,
+          [points, points, userId],
+        );
+      } else {
+        // Redeem points
+        const available = Number(balance[0].available_points);
+
+        if (available < points) {
+          throw new BadRequestException('Insufficient reward points.');
+        }
+
+        await queryRunner.query(
+          `
+          UPDATE reward_point_balance
+          SET
+            available_points = available_points - ?,
+            redeemed_points = redeemed_points + ?,
+            updated_at = NOW()
+          WHERE user_id = ?
+          `,
+          [points, points, userId],
+        );
+      }
+    } else {
+      if (transactionType === 'reward') {
+        // First reward entry
+        await queryRunner.query(
+          `
+          INSERT INTO reward_point_balance
+          (
+            user_id,
+            mem_id,
+            total_points,
+            available_points,
+            redeemed_points,
+            expired_points,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, 0, 0, NOW())
+          `,
+          [
+            userId,
+            1, // Default membership tier
+            points,
+            points,
+          ],
+        );
+      } else {
+        throw new BadRequestException('Reward wallet not found.');
+      }
+    }
+
+    // Transaction history
+    await queryRunner.query(
+      `
+      INSERT INTO reward_point_transactions
+      (
+        user_id,
+        booking_id,
+        order_id,
+        category_id,
+        transaction_type,
+        points,
+        amount,
+        expiry_date,
+        remarks,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 1 YEAR), ?, NOW())
+      `,
+      [
+        userId,
+        bookingId,
+        orderId,
+        categoryId,
+        transactionType, // reward | redeem
+        points,
+        amount,
+        remarks,
+      ],
+    );
+
+    await queryRunner.commitTransaction();
+
+    return {
+      success: true,
+      message:
+        transactionType === 'reward'
+          ? 'Reward points credited successfully.'
+          : 'Reward points redeemed successfully.',
+    };
+  } catch (error) {
+    await queryRunner.rollbackTransaction();
+    throw error;
+  } finally {
+    await queryRunner.release();
+  }
+}
+async onlinepayment(body:any,id:any)
+{
+  const  { booking_id,paid_amount } = body.payment;
+  return await this.addPayment(booking_id,paid_amount,id ,body.payment);
+}
+
+async addPayment(bookingId:any,paid:any,id:any ,payment:any)
+{
+
+  const transactionId = payment.razorpay_payment_id || null;
+  const paymentMethod = payment.payment_method || 'Online';
+
+const charges = await this.dataSource.query(
+  `
+  SELECT
+      charge_type,
+      total_price
+  FROM booking_charges
+  WHERE booking_id = ?
+    AND charge_type IN ('addon','security_deposit','base')
+  ORDER BY FIELD(charge_type,'addon','security_deposit','base')
+  `,
+  [bookingId],
+);
+
+const payments: any[] = [];
+
+for (const charge of charges) {
+  if (paid <= 0) break;
+
+  const amount = Math.min(charge.total_price, paid);
+
+  await this.dataSource.query(
+    `
+    INSERT INTO booking_payments
+    (
+      booking_id,
+      payment_date,
+      payment_type,
+      payment_method,
+      transaction_id,
+      amount_paid,
+      payment_status,
+      paid_at
+    )
+    VALUES (?, CURDATE(), ?, ?, ?, ?, 'paid', NOW())
+    `,
+    [
+      bookingId,
+      charge.charge_type =='base' ? 'base_amount': charge.charge_type,
+      paymentMethod,
+      transactionId,
+      amount,
+    ],
+  );
+
+  payments.push({
+    booking_id: bookingId,
+    payment_type: charge.charge_type =='base' ? 'base_amount': charge.charge_type,
+    payment_method: paymentMethod,
+    transaction_id: transactionId,
+    amount_paid: amount,
+    payment_date: new Date(),
+  });
+
+  paid -= amount;
+}
+
+// Create log for each payment
+for (const payment of payments) {
+  await this.createLog(
+    'booking',
+    bookingId,
+    'payment_received',
+    `Payment received - ${payment.payment_type} ₹${Number(
+      payment.amount_paid,
+    ).toLocaleString('en-IN')}`,
+    id,
+    null,
+    {
+      payment_type: payment.payment_type,
+      payment_method: payment.payment_method,
+      amount_paid: payment.amount_paid,
+      payment_date: payment.payment_date,
+      transaction_id: payment.transaction_id,
+    },
+  );
+}
+
+// Realtime Notification
+// this.socketService.realtime(
+//   id.toString(),
+//   'Payment',
+//   `Payment of ₹${payments
+//     .reduce((sum, p) => sum + Number(p.amount_paid), 0)
+//     .toLocaleString('en-IN')} received`,
+// );
+
+// App Notification
+await this.notificationService.createNotification({
+  type: 'Payment',
+  referenceId: bookingId,
+  title: 'New Payment',
+  message: `Payment of ₹${payments
+    .reduce((sum, p) => sum + Number(p.amount_paid), 0)
+    .toLocaleString('en-IN')} received successfully.`,
+  createdBy: id,
+});
+
+}
+
+async updateMemberTier(userId: number) {
+  // Get booking count
+  const [booking] = await this.dataSource.query(
+    `
+    SELECT
+      COUNT(*) AS booking_count,
+      COALESCE(SUM(total_amount), 0) AS booking_amount
+    FROM bookings
+    WHERE selection_mode = 'Online'
+      AND booking_type = 'booked'
+      AND created_by = ?
+    `,
+    [userId],
+  );
+
+  const bookingCount = Number(booking.booking_count);
+  const bookingAmount = Number(booking.booking_amount);
+
+  // Get all tiers
+  const tiers = await this.dataSource.query(
+    `
+    SELECT *
+    FROM member_tier
+    ORDER BY min_booking ASC
+    `,
+  );
+
+  let currentTier: any = null;
+
+  for (const tier of tiers) {
+    if (tier.name === 'Diamond') {
+      if (
+        (bookingCount >= tier.min_booking &&
+          bookingAmount >= Number(tier.book_amount)) ||
+        bookingCount >= tier.max_booking
+      ) {
+        currentTier = tier;
+      }
+    } else {
+      if (
+        bookingCount >= tier.min_booking &&
+        bookingCount <= tier.max_booking
+      ) {
+        currentTier = tier;
+      }
+    }
+  }
+
+  if (!currentTier) {
+    return {
+      success: false,
+      message: 'No tier found',
+    };
+  }
+
+  // Check reward balance row exists
+  const [balance] = await this.dataSource.query(
+    `
+    SELECT id
+    FROM reward_point_balance
+    WHERE user_id = ?
+    `,
+    [userId],
+  );
+
+  if (balance) {
+    // Update existing record
+    await this.dataSource.query(
+      `
+      UPDATE reward_point_balance
+      SET
+        mem_id = ?,
+        updated_at = NOW()
+      WHERE user_id = ?
+      `,
+      [currentTier.id, userId],
+    );
+  } else {
+    // Create new record
+    await this.dataSource.query(
+      `
+      INSERT INTO reward_point_balance
+      (
+        user_id,
+        mem_id,
+        total_points,
+        available_points,
+        redeemed_points,
+        expired_points,
+        updated_at
+      )
+      VALUES (?, ?, 0, 0, 0, 0, NOW())
+      `,
+      [userId, currentTier.id],
+    );
+  }
+
+  return {
+    success: true,
+    bookingCount,
+    bookingAmount,
+    tier: currentTier,
+  };
+}
+
+
+//ZOHO 
+ async createZohoTransaction({
+  customer,
+  email,
+  phone,
+  bookingId,
+  total_amount,
+  category,
+  convenienceFee,
+  charge_amount,
+}: {
+  customer: string;
+  email: string;
+  phone: string;
+  bookingId: string;
+  total_amount: number;
+  category: string;
+  convenienceFee: any;
+  charge_amount: any;
+}) {
+  const items = [] as any[];
+
+  // Convenience Fee (common for venue & farmstay)
+  if (category === 'venue' || category === 'farmstay') {
+    items.push({
+      itemId: '3975444000000033267', // Convenience Fee
+      quantity: 1,
+      rate: convenienceFee,
+    });
+  }
+
+  // Venue Commission
+  if (category === 'venue') {
+    items.push({
+      itemId: '3975444000000033239', // Venue Commission
+      quantity: 1,
+      rate: charge_amount,
+    });
+  }
+
+  // Farmstay Commission
+  if (category === 'farmstay') {
+    items.push({
+      itemId: '3975444000000033258', // Farmstay Commission
+      quantity: 1,
+      rate: charge_amount,
+    });
+  }
+
+  // // Subscription
+  // if (category === 'subscription') {
+  //   items.push({
+  //     itemId: '3975444000000033229', // Subscription
+  //     quantity: 1,
+  //     rate: total_amount,
+  //   });
+  // }
+
+  return await this.zohoService.completeBookingZoho({
+    customer: {
+      name: customer,
+      email,
+      phone,
+    },
+    items,
+    booking: {
+      bookingNo: bookingId,
+      bookingDate: dayjs().format('YYYY-MM-DD'),
+      notes: `Customer ${category} booking`,
+    },
+    payment: {
+      amount: total_amount,
+      mode: 'Online',
+      date: dayjs().format('YYYY-MM-DD'),
+    },
+  });
+}
+
+async cancelBooking(body: any, id: number) {
+  const refundAmount = Number(body.refund_amount || 0);
+
+  await this.dataSource.transaction(async (manager) => {
+    // Cancel Booking
+    await manager.query(
+      `
+      UPDATE bookings
+      SET
+        status = ?,
+        cancellation_date = NOW(),
+        cancellation_reason = ?
+      WHERE id = ?
+      `,
+      ['cancelled', body.reason, body.booking_id],
+    );
+
+    // Insert Refund Payment
+    if (refundAmount > 0) {
+      await manager.query(
+        `
+        INSERT INTO booking_payments
+        (
+          booking_id,
+          payment_date,
+          payment_type,
+          payment_method,
+          transaction_id,
+          amount_paid,
+          payment_status,
+          paid_at
+        )
+        VALUES
+        (?, CURDATE(), 'refund', 'System', NULL, ?, 'refunded', NOW())
+        `,
+        [body.booking_id, refundAmount],
+      );
+    }
+
+    // Booking Log
+    await this.createLog(
+      'booking',
+      body.booking_id,
+      'booking_cancelled',
+      `Booking cancelled${refundAmount > 0 ? ` - Refund ₹${refundAmount.toLocaleString('en-IN')}` : ''}`,
+      id,
+      null,
+      {
+        cancellation_reason: body.reason,
+        refund_amount: refundAmount,
+      },
+    );
+
+    // Notification
+    await this.notificationService.createNotification({
+      type: 'Booking',
+      referenceId: body.booking_id,
+      title: 'Booking Cancelled',
+      message:
+        refundAmount > 0
+          ? `Your booking has been cancelled. Refund of ₹${refundAmount} will be processed.`
+          : 'Your booking has been cancelled.',
+      createdBy: id,
+    });
+
+    // Realtime Notification
+    // this.socketService.realtime(
+    //   id.toString(),
+    //   'Booking',
+    //   refundAmount > 0
+    //     ? `Booking cancelled. Refund ₹${refundAmount.toLocaleString('en-IN')} initiated.`
+    //     : 'Booking cancelled successfully.',
+    // );
+  });
+
+  return {
+    success: true,
+    message: 'Booking cancelled successfully.',
+  };
 }
 
 }
