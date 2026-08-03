@@ -24,13 +24,14 @@ import { JwtAuthGuard } from '../auth/strategies/jwt-auth.guard';
 export class RewardController {
   constructor(private readonly rewardService: RewardService) {}
   @UseGuards(JwtAuthGuard)
-  @Get('total_reward_in_your_account')
+  @Get('total_reward_in_your_account/:id')
   async total_reward_in_your_account(
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Headers('x-category') category: any,
+    @Headers('x-country') country: any,
   ) {
-    return this.rewardService.total_reward_in_your_account(user?.id ,category );
+    return this.rewardService.total_reward_in_your_account(user?.id ,category ,id,country );
   }
 
 }
