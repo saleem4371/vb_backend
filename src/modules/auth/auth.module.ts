@@ -6,12 +6,12 @@ import { MailModule } from '../../mail/mail.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { CommonModule } from '../../common/common.module';
 import { SocketModule } from '../socket/socket.module';
+import { TwilioModule } from '../integrations/twilio/twilio.module';
+
 
 @Module({
-  providers: [AuthService,JwtStrategy],
-  exports: [AuthService],
-  controllers: [AuthController],
-   imports: [
+  imports: [
+    TwilioModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET || 'secretKey',
       signOptions: { expiresIn: '3650d' },
@@ -20,5 +20,9 @@ import { SocketModule } from '../socket/socket.module';
     CommonModule,
     SocketModule
   ],
+  providers: [AuthService,JwtStrategy],
+  exports: [AuthService],
+  controllers: [AuthController],
+   
 })
 export class AuthModule {}
