@@ -1019,44 +1019,128 @@ aadhaar_xml:true
   }
 
   //Digilocker
-   async handleCallback(query: any) {
-    try {
-      this.logger.log('===== DigiLocker Callback =====');
-      this.logger.log(JSON.stringify(query, null, 2));
+  async handleCallback(query: any) {
+  try {
+    this.logger.log('===== DigiLocker Callback =====');
+    this.logger.log(JSON.stringify(query, null, 2));
 
-       const config =
-        await this.integrationService.getIntegrationConfig('surepass');
-      const configData =
-        typeof config === 'string' ? JSON.parse(config) : config;
- 
-      // Download Aadhaar using client_id
-      const aadhaarResponse = await this.http.axiosRef.get(
-        `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
-        {
-          headers: {
-            Authorization: `Bearer ${configData.api_key}`,
-          },
-        },
-      );
- 
-      const aadhaar = aadhaarResponse.data;
- 
-      console.log(aadhaar);
- 
+    if (query.status !== 'success') {
       return {
-        success: true,
-        aadhaar,
+        success: false,
+        message: 'DigiLocker verification failed',
       };
-      // 3. Fetch DigiLocker details if Surepass requires another API call
-
-      return {
-        success: true,
-      };
-    } catch (error) {
-      this.logger.error(error);
-      throw error;
     }
+
+    if (!query.client_id) {
+      throw new Error('client_id is missing');
+    }
+
+    // Example state:
+    // {"user_id":2,"category_id":2,"country_id":2}
+    let state: any = {};
+
+    if (query.state) {
+      try {
+        state = JSON.parse(query.state);
+      } catch {
+        state = {};
+      }
+    }
+
+    const config = await this.integrationService.getIntegrationConfig('surepass');
+
+    const configData =
+      typeof config === 'string' ? JSON.parse(config) : config;
+
+    // Download Aadhaar
+    const { data: aadhaar } = await this.http.axiosRef.get(
+      `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
+      {
+        headers: {
+          Authorization: `Bearer ${configData.api_key}`,
+        },
+      },
+    );
+
+    this.logger.log('===== Aadhaar Response =====');
+    this.logger.log(JSON.stringify(aadhaar, null, 2));
+
+    const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
+    const metadata = aadhaar?.data?.digilocker_metadata ?? {};
+
+    // Check existing record
+    const existing = await this.dataSource.query(
+      `
+      SELECT id
+      FROM user_kyc_documents
+      WHERE user_id = ?
+      AND document_type = 'aadhaar'
+      LIMIT 1
+      `,
+      [state.user_id],
+    );
+
+    if (existing.length > 0) {
+      await this.dataSource.query(
+        `
+        UPDATE user_kyc_documents
+        SET
+          document_number = ?,
+          doc_details = ?,
+          verification_status = ?,
+          updated_at = NOW()
+        WHERE id = ?
+        `,
+        [
+          xml.masked_aadhaar ?? null,
+          JSON.stringify(aadhaar),
+          'approved',
+          existing[0].id,
+        ],
+      );
+    } else {
+      await this.dataSource.query(
+        `
+        INSERT INTO user_kyc_documents
+        (
+          category_id,
+          country_id,
+          user_id,
+          document_type,
+          document_number,
+          doc_details,
+          verification_status
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          state.category_id ?? 2,
+          state.country_id ?? 2,
+          state.user_id ?? null,
+          'aadhaar',
+          xml.masked_aadhaar ?? null,
+          JSON.stringify(aadhaar),
+          'approved',
+        ],
+      );
+    }
+
+    return {
+      success: true,
+      client_id: query.client_id,
+      name: xml.full_name ?? metadata.name,
+      masked_aadhaar: xml.masked_aadhaar,
+      dob: xml.dob ?? metadata.dob,
+      gender: xml.gender ?? metadata.gender,
+      mobile: metadata.mobile_number,
+      address: xml.full_address,
+      xml_url: aadhaar?.data?.xml_url,
+    };
+  } catch (error: any) {
+    this.logger.error(error.response?.data || error.message);
+    throw error;
   }
+}
 
   /**
    * Handles Surepass webhook
