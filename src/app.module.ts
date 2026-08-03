@@ -75,7 +75,8 @@ import { TeamModule } from "./modules/teams/team.module"
 
 import { ZohoModule } from './modules/integrations/zoho/zoho.module';
 import { RewardModule } from './modules/rewards/rewards.module';
-
+import { TwilioModule } from './modules/integrations/twilio/twilio.module';
+import { AccountModule } from './modules/account/account.module';
 
 @Module({
   imports: [
@@ -165,7 +166,10 @@ import { RewardModule } from './modules/rewards/rewards.module';
 
 
     ZohoModule,
-    RewardModule
+    RewardModule,
+    TwilioModule,
+
+    AccountModule
 
 
 
