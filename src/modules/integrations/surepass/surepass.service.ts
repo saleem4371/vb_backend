@@ -1056,9 +1056,9 @@ aadhaar_xml:true
         VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
         [
-          categoryData?.id ?? null,
-          context.country,
-          context.id,
+          2,
+          2,
+          2,
           'aadhaar',
           aadhaar.data?.aadhaar_number ?? null,
           JSON.stringify(aadhaar),
