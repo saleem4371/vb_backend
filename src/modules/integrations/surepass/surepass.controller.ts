@@ -84,7 +84,7 @@ async callback(@Query() query: any, @Res() reply: FastifyReply) {
       </html>
     `);
   } catch (err) {
-    this.logger.error('DigiLocker callback failed', err?.stack || err);
+  //  this.logger.error('DigiLocker callback failed', err?.stack || err);
 
     return reply.type('text/html').send(`
       <!DOCTYPE html>
