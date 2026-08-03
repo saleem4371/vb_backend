@@ -235,7 +235,7 @@ export class BecomeAHostPartnerService {
 
     await this.dataSource.query(
       `INSERT INTO venue_parent 
-      (parent_venue_id, created_by, venue_name, venue_address, venue_city, venue_state, venue_country, lat, lng)
+      (parent_venue_id, created_by, venue_name, venue_address, venue_city, venue_state, venue_country, lat, lng , )
       VALUES (?,?,?,?,?,?,?,?,?)`,
       [
         uuidv4(),
