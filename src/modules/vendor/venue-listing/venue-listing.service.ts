@@ -167,7 +167,7 @@ const venue_addon = await this.dataSource.query(
       };
     });
 
-    const baseUrl = process.env.FILE_URL;
+    const baseUrl = process.env.PUBLIC_AWS_BUCKET_URL;
 
     const photo_ctegory = await this.dataSource.query(
       `SELECT 
@@ -1711,7 +1711,7 @@ async DeletePhotos(body: any) {
 }
 async UpdateCoverPhotos(body: any) {
   const imageUrl = body.data.image;
-  const baseUrl = process.env.FILE_URL;
+  const baseUrl = process.env.PUBLIC_AWS_BUCKET_URL;
  const gallery = imageUrl
   .replace(baseUrl, '')
   .substring(1);
