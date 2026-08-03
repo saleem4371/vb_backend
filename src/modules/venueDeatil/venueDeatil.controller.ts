@@ -19,9 +19,10 @@ export class VenueDeatilController {
   @Get('venue_deatils/:id')
   getVenuesDetailData(
     @Headers('x-country') country: number,
+    @Headers('x-category') category: number,
     @Param('id') id: number,
   ) {
-    return this.venueDetailService.getVenuesDetailData(country,id);
+    return this.venueDetailService.getVenuesDetailData(country,id,category);
   } 
   
   @Post('loadAddons')
