@@ -62,159 +62,34 @@ verifyAdhar(@Body() body: string) {
 // );
 // }
 
- @Get('digilocker/callback')
-async callback(
-  @Query() query: any,
-  @Res() reply: FastifyReply,
-) {
-  const result = await this.surepassService.handleCallback(query);
+  @Get('digilocker/callback')
+  async callback(
+    @Query() query: any,
+     @Res() reply: FastifyReply,
+  ) {
+    await this.surepassService.handleCallback(query);
 
-  return reply.type('text/html').send(`
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="UTF-8">
-<title>Aadhaar Verification</title>
+    return reply
+      .type('text/html')
+      .send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>DigiLocker Success</title>
+          </head>
+          <body style="font-family:Arial;text-align:center;padding-top:100px">
+            <h2> DigiLocker Verification Successful</h2>
+            <p>You can close this window now.</p>
 
-<style>
-body{
-    margin:0;
-    background:#f4f7fb;
-    font-family:Arial,sans-serif;
-}
-.card{
-    width:520px;
-    margin:60px auto;
-    background:#fff;
-    border-radius:12px;
-    box-shadow:0 10px 30px rgba(0,0,0,.1);
-    overflow:hidden;
-}
-.header{
-    background:#0b6efd;
-    color:#fff;
-    text-align:center;
-    padding:25px;
-}
-.success{
-    font-size:70px;
-}
-.content{
-    padding:30px;
-}
-table{
-    width:100%;
-    border-collapse:collapse;
-}
-td{
-    padding:10px;
-    border-bottom:1px solid #eee;
-}
-td:first-child{
-    font-weight:bold;
-    width:170px;
-}
-button{
-    width:100%;
-    background:#0b6efd;
-    color:#fff;
-    border:none;
-    border-radius:8px;
-    padding:14px;
-    margin-top:25px;
-    font-size:16px;
-    cursor:pointer;
-}
-button:hover{
-    background:#0958d9;
-}
-</style>
-
-</head>
-
-<body>
-
-<div class="card">
-
-<div class="header">
-<div class="success">✅</div>
-<h2>Aadhaar Verified Successfully</h2>
-</div>
-
-<div class="content">
-
-<table>
-<tr>
-<td>Name</td>
-<td>${result.name ?? ''}</td>
-</tr>
-
-<tr>
-<td>Masked Aadhaar</td>
-<td>${result.masked_aadhaar ?? ''}</td>
-</tr>
-
-<tr>
-<td>Date of Birth</td>
-<td>${result.dob ?? ''}</td>
-</tr>
-
-<tr>
-<td>Gender</td>
-<td>${result.gender ?? ''}</td>
-</tr>
-
-<tr>
-<td>Mobile</td>
-<td>${result.mobile ?? ''}</td>
-</tr>
-
-<tr>
-<td>Address</td>
-<td>${result.address ?? ''}</td>
-</tr>
-
-</table>
-
-<button onclick="sendData()">
-Continue
-</button>
-
-</div>
-
-</div>
-
-<script>
-
-function sendData(){
-
-    if(window.opener){
-
-        window.opener.postMessage(
-            {
-                type:"DIGILOCKER_SUCCESS",
-                data:${JSON.stringify(result)}
-            },
-            "*"
-        );
-
-        window.close();
-
-    }else{
-
-        alert("Verification completed.");
-
-    }
-
-}
-
-</script>
-
-</body>
-
-</html>
-`);
-}
+            <script>
+              setTimeout(() => {
+                window.close();
+              }, 3000);
+            </script>
+          </body>
+        </html>
+      `);
+  }
 
 @Post('digilocker/webhook')
    async webhook(@Body() body: any, @Headers('x-category') category: any, @Headers('x-country') country: any) {
