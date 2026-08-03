@@ -93,12 +93,16 @@ verifyAdhar(@Body() body: string) {
 
 @Post('digilocker/webhook')
    async webhook(@Body() body: any, @Headers('x-category') category: any, @Headers('x-country') country: any) {
-     this.logger.log(`Webhook hit, body: ${JSON.stringify(body)}`);
+    console.log('==============================');
+  console.log('WEBHOOK RECEIVED');
+  console.log('Headers:', headers);
+  console.log('Body:', JSON.stringify(body, null, 2));
+  console.log('==============================');
      try {
        await this.surepassService.handleWebhook(body, category, country);
        return { success: true };
      } catch (err) {
-       this.logger.error('handleWebhook failed', err?.stack || err);
+       console.error('handleWebhook failed', err?.stack || err);
        // still return 200 so Surepass doesn't retry-storm you while you debug,
        // but log the failure so you can see it
        return { success: false };
