@@ -26,7 +26,7 @@ import { SurepassService } from './surepass.service';
 @Controller('thirdParty')
 export class SurepassController {
   constructor(private readonly surepassService: SurepassService,
-              private readonly logger = new Logger(DigilockerController.name)
+              private readonly logger = new Logger(SurepassController.name)
              ) {}
 
     @UseGuards(JwtAuthGuard)
