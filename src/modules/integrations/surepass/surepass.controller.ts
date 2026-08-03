@@ -95,7 +95,8 @@ verifyAdhar(@Body() body: string) {
    async webhook(@Body() body: any, @Headers('x-category') category: any, @Headers('x-country') country: any) {
     console.log('==============================');
   console.log('WEBHOOK RECEIVED');
-  console.log('Headers:', headers);
+  console.log('Headers:', category);
+     console.log('Users:', country);
   console.log('Body:', JSON.stringify(body, null, 2));
   console.log('==============================');
      try {
