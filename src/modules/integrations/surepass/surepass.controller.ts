@@ -216,15 +216,19 @@ function sendData(){
 `);
 }
 
-  @Post('digilocker/webhook')
-  async webhook(@Body() body: any ,@Headers('x-category') category:any , @Headers('x-country') country:any) {
-    console.log('Webhook hit');
-    await this.surepassService.handleWebhook(body,category,country);
-
-    return {
-      success: true,
-    };
-  }
+@Post('digilocker/webhook')
+   async webhook(@Body() body: any, @Headers('x-category') category: any, @Headers('x-country') country: any) {
+     this.logger.log(`Webhook hit, body: ${JSON.stringify(body)}`);
+     try {
+       await this.surepassService.handleWebhook(body, category, country);
+       return { success: true };
+     } catch (err) {
+       this.logger.error('handleWebhook failed', err?.stack || err);
+       // still return 200 so Surepass doesn't retry-storm you while you debug,
+       // but log the failure so you can see it
+       return { success: false };
+     }
+   }
 
 @Get('initializeDigilocker')
 initializeDigilocker(@Body() body: string) {
