@@ -904,75 +904,82 @@ if (body.category === "business") {
   return bank;
 }
 
-  // ============================================================
-  // ✅ AADHAAR / DIGILOCKER (FIXED)
-  // ============================================================
-  //
-  // Bugs fixed here:
-  //  1. `verifyAdhar` never received `id`/`category`/`country`, so there was
-  //     no way to know which user a DigiLocker session belonged to once
-  //     Surepass redirected/webhooked back.
-  //  2. `handleCallback` referenced `axios.get(...)` but `axios` was never
-  //     imported anywhere in this file — that line would throw
-  //     `ReferenceError: axios is not defined` the moment status === 'success'.
-  //  3. `handleCallback` read `body.user_id`, but the method's only parameter
-  //     is `query` — `body` doesn't exist in that scope, so this was always
-  //     `undefined` (or a ReferenceError under strict settings), and every
-  //     inserted Aadhaar row would have `user_id = null`.
-  //  4. `handleCallback` hardcoded `category_id: 0, country_id: 2` instead of
-  //     resolving them per-request like every other verify method does.
-  //  5. `handleCallback` used `process.env.SUREPASS_API_KEY` instead of the
-  //     integration config the rest of the service uses — inconsistent and
-  //     silently broken if that env var was never set.
-  //
-  // Fix: encode {id, category, country} into a `state` value when we call
-  // /digilocker/initialize. Surepass echoes `state` back on both the
-  // browser redirect (query.state) and the server-to-server webhook
-  // (body.state), so we can always recover which user/category/country a
-  // given callback belongs to — no separate mapping table needed.
-  // ============================================================
-
-  async verifyAdhar(body: any, id: any, category: any, country: any) {
+  async verifyAdhar(body: any) {
     const config =
       await this.integrationService.getIntegrationConfig('surepass');
 
+    // const [existingPan] = await this.dataSource.query(
+    //   `SELECT id FROM user_kyc_documents WHERE document_number = ? LIMIT 1`,
+    //   [body.aadhaarNumber]
+    // );
+
+    // if (existingPan) {
+    //   return false;
+    // }
+
+    // curl --location 'https://kyc-api.surepass.app/api/v1/digilocker/initialize' \
+    // --header 'Authorization: Bearer <token>' \
+    // --header 'Content-Type: application/json' \
+    // --data '{
+    //     "data": {
+    //         "signup_flow": true,
+    //         "auth_type": "app"
+    //     }
+    // }'
     const configData = typeof config === 'string' ? JSON.parse(config) : config;
 
-    // Carries the requesting user's context through DigiLocker's redirect
-    // and webhook round-trip. Base64 keeps it URL-safe.
-    const state = Buffer.from(
-      JSON.stringify({ id, category, country }),
-    ).toString('base64');
-
     try {
-      const { data } = await this.http.axiosRef.post(
-        `${configData.base_url}/api/v1/digilocker/initialize`,
-        {
-          data: {
-            signup_flow: true,
-            logo_url:
-              'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
-            redirect_url: `${process.env.FILE_URL}/thirdParty/digilocker/callback`,
-            webhook_url: `${process.env.FILE_URL}/thirdParty/digilocker/webhook`,
-            skip_main_screen: false,
-            aadhaar_xml: true,
-            state,
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${configData.api_key}`,
-            'Content-Type': 'application/json',
-          },
-        },
-      );
+  const { data } = await this.http.axiosRef.post(
+    `${configData.base_url}/api/v1/digilocker/initialize`,
+    {
+      data: {
+        // signup_flow: true,
+        // webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+        // state: `user_${Date.now()}`,
+         "signup_flow": true,
+        logo_url:'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+redirect_url:`${process.env.APP_URL}/thirdParty/digilocker/callback`,
+webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+skip_main_screen:false,
+aadhaar_xml:true
+       
+      },
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${configData.api_key}`,
+        'Content-Type': 'application/json',
+      },
+    },
+  );
 
-      return data;
-    } catch (error) {
-      throw error;
-    }
+  return data;
+} catch (error) {
+  throw error;
+}
+
+    // const { data } = await this.http.axiosRef.post(
+    //   `${configData.base_url}/api/v1/digilocker/initialize`,
+    //   {
+    //     data: {
+    //       signup_flow: true,
+    //       webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+    //       state: `user_${Date.now()}`,
+    //       //send_email: true,
+    //     },
+    //   },
+    //   {
+    //     headers: {
+    //       Authorization: `Bearer ${configData.api_key}`,
+    //       'Content-Type': 'application/json',
+    //     },
+    //   },
+    // );
+
+    
+
+    // return data;
   }
-
   async callback(body: any) {
     console.log(body);
   }
@@ -1011,55 +1018,17 @@ if (body.category === "business") {
     return true;
   }
 
-  /**
-   * Decodes the `state` value we set during /digilocker/initialize.
-   * Returns null if it's missing or unparsable (e.g. an old/expired link).
-   */
-  private decodeDigilockerState(
-    raw: string | undefined,
-  ): { id: any; category: any; country: any } | null {
-    if (!raw) return null;
-    try {
-      const decoded = JSON.parse(Buffer.from(raw, 'base64').toString('utf8'));
-      return decoded?.id ? decoded : null;
-    } catch {
-      return null;
-    }
-  }
-
   //Digilocker
-  async handleCallback(query: any) {
+   async handleCallback(query: any) {
     try {
       this.logger.log('===== DigiLocker Callback =====');
       this.logger.log(JSON.stringify(query, null, 2));
 
-      if (query.status !== 'success') {
-        return { success: false };
-      }
-
-      const context = this.decodeDigilockerState(query.state);
-
-      if (!context) {
-        this.logger.error(
-          'DigiLocker callback missing/invalid state — cannot map to a user',
-        );
-        return { success: false };
-      }
-
-      const singular = context.category?.endsWith('s')
-        ? context.category.slice(0, -1)
-        : context.category;
-
-      const [categoryData] = await this.dataSource.query(
-        `SELECT * FROM category WHERE name = ? LIMIT 1`,
-        [singular],
-      );
-
-      const config =
+       const config =
         await this.integrationService.getIntegrationConfig('surepass');
       const configData =
         typeof config === 'string' ? JSON.parse(config) : config;
-
+ 
       // Download Aadhaar using client_id
       const aadhaarResponse = await this.http.axiosRef.get(
         `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
@@ -1069,9 +1038,9 @@ if (body.category === "business") {
           },
         },
       );
-
+ 
       const aadhaar = aadhaarResponse.data;
-
+ 
       await this.dataSource.query(
         `
         INSERT INTO user_kyc_documents
@@ -1096,10 +1065,15 @@ if (body.category === "business") {
           'approved',
         ],
       );
-
+ 
       return {
         success: true,
         aadhaar,
+      };
+      // 3. Fetch DigiLocker details if Surepass requires another API call
+
+      return {
+        success: true,
       };
     } catch (error) {
       this.logger.error(error);
@@ -1110,61 +1084,55 @@ if (body.category === "business") {
   /**
    * Handles Surepass webhook
    */
-  async handleWebhook(body: any, category: any, country: any) {
+  async handleWebhook(body: any,category: any,country: any) {
     try {
       this.logger.log('===== DigiLocker Webhook =====');
       this.logger.log(JSON.stringify(body, null, 2));
 
-      // Prefer the state we set during initialize (Surepass echoes it back
-      // on the webhook body too), falling back to whatever the controller
-      // route passed in so this still works if state is ever missing.
-      const context = this.decodeDigilockerState(body.state ?? body.data?.state);
+  //       const singular = category.endsWith("s")
+  //   ? category.slice(0, -1)
+  //   : category;
 
-      const userId = context?.id ?? body.user_id;
-      const effectiveCategory = context?.category ?? category;
-      const effectiveCountry = context?.country ?? country;
+  // const [categoryData] = await this.dataSource.query(
+  //   `SELECT * FROM category WHERE name = ?`,
+  //   [singular],
+  // );
 
-      if (!userId) {
-        this.logger.error(
-          'DigiLocker webhook missing user context — cannot store result',
-        );
-        return { success: false };
-      }
-
-      const singular = effectiveCategory?.endsWith('s')
-        ? effectiveCategory.slice(0, -1)
-        : effectiveCategory;
-
-      const [categoryData] = await this.dataSource.query(
-        `SELECT * FROM category WHERE name = ? LIMIT 1`,
-        [singular],
-      );
+      /**
+       * Example payload:
+       * {
+       *   request_id: "...",
+       *   status: "success",
+       *   aadhaar_xml: "...",
+       *   data: {...} //category,country
+       * }
+       */
 
       if (body.status === 'success') {
-        await this.dataSource.query(
-          `
-          INSERT INTO user_kyc_documents
-          (
-            category_id,
-            country_id,
-            user_id,
-            document_type,
-            document_number,
-            doc_details,
-            verification_status
-          )
-          VALUES (?,?,?, ?, ?, ?, ?)
-          `,
-          [
-            categoryData?.id ?? null,
-            effectiveCountry,
-            userId,
-            'aadhaar',
-            body.aadhaar_number,
-            JSON.stringify(body),
-            'approved',
-          ],
-        );
+       await this.dataSource.query(
+    `
+    INSERT INTO user_kyc_documents
+    (
+      category_id,
+      country_id,
+      user_id,
+      document_type,
+      document_number,
+      doc_details,
+      verification_status
+    )
+    VALUES (?,?,?, ?, ?, ?, ?)
+    `,
+    [
+      2,
+      2,
+      2,
+      'aadhaar',
+      body.aadhaar_number,
+      JSON.stringify(body),
+      'approved',
+    ],
+  );
       }
 
       return {
