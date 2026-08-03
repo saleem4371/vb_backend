@@ -6,6 +6,7 @@ import { VenueService } from './venue.service';
 
 import { VenueChild } from '../../modules/listing/entities/venue-child.entity';
 import { SocketModule } from '../socket/socket.module';
+import { JwtService } from '@nestjs/jwt';
 
 @Module({
   imports: [
@@ -15,7 +16,7 @@ import { SocketModule } from '../socket/socket.module';
     ]),
   ],
   controllers: [VenueController],
-  providers: [VenueService],
+  providers: [VenueService,JwtService],
   exports: [VenueService],
 })
 export class VenueModule {}

@@ -5,11 +5,14 @@ import { DataSource, Repository, Not, IsNull } from 'typeorm';
 import { VenueChild } from '../../modules/listing/entities/venue-child.entity';
 import { SocketService } from '../socket/socket.service';
 
+import { JwtService } from '@nestjs/jwt';
+
 @Injectable()
 export class VenueService {
   constructor(
     private dataSource: DataSource,
       private socketService: SocketService,
+      private jwtService: JwtService,
     @InjectRepository(VenueChild)
     private readonly childRepo: Repository<VenueChild>,
   ) {}
@@ -2352,4 +2355,20 @@ async UserlikedProperty(
 
   return likedProperty;
 }
+
+  createCheckoutToken(data: string) {
+  return this.jwtService.sign(
+    { data },
+    {
+      secret: process.env.JWT_SECRET,
+      expiresIn: '10m',
+    },
+  );
+}
+
+  verifyCheckoutToken(token: string) {
+    return this.jwtService.verify(token, {
+      secret: process.env.JWT_SECRET,
+    });
+  }
 }
