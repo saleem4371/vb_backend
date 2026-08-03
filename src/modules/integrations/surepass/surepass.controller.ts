@@ -63,33 +63,47 @@ verifyAdhar(@Body() body: string) {
 // }
 
  @Get('digilocker/callback')
-  async callback(
-    @Query() query: any,
-     @Res() reply: FastifyReply,
-  ) {
+async callback(@Query() query: any, @Res() reply: FastifyReply) {
+  try {
     await this.surepassService.handleCallback(query);
 
-    return reply
-      .type('text/html')
-      .send(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>DigiLocker Success</title>
-          </head>
-          <body style="font-family:Arial;text-align:center;padding-top:100px">
-            <h2> DigiLocker Verification Successful</h2>
-            <p>You can close this window now.</p>
+    return reply.type('text/html').send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>DigiLocker Success</title></head>
+        <body style="font-family:Arial;text-align:center;padding-top:100px">
+          <h2>DigiLocker Verification Successful</h2>
+          <p>You can close this window now.</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: "DIGILOCKER_SUCCESS" }, "*");
+            }
+            setTimeout(() => window.close(), 1500);
+          </script>
+        </body>
+      </html>
+    `);
+  } catch (err) {
+    this.logger.error('DigiLocker callback failed', err?.stack || err);
 
-            <script>
-              setTimeout(() => {
-                window.close();
-              }, 3000);
-            </script>
-          </body>
-        </html>
-      `);
+    return reply.type('text/html').send(`
+      <!DOCTYPE html>
+      <html>
+        <head><title>DigiLocker Error</title></head>
+        <body style="font-family:Arial;text-align:center;padding-top:100px">
+          <h2>Verification failed</h2>
+          <p>${err?.message || 'Something went wrong. Please try again.'}</p>
+          <script>
+            if (window.opener) {
+              window.opener.postMessage({ type: "DIGILOCKER_ERROR", message: ${JSON.stringify(err?.message || 'Unknown error')} }, "*");
+            }
+            setTimeout(() => window.close(), 3000);
+          </script>
+        </body>
+      </html>
+    `);
   }
+}
 
   @Post('digilocker/webhook')
   async webhook(@Body() body: any ,@Headers('x-category') category:any , @Headers('x-country') country:any) {
