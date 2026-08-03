@@ -1041,30 +1041,7 @@ aadhaar_xml:true
  
       const aadhaar = aadhaarResponse.data;
  
-      await this.dataSource.query(
-        `
-        INSERT INTO user_kyc_documents
-        (
-          category_id,
-          country_id,
-          user_id,
-          document_type,
-          document_number,
-          doc_details,
-          verification_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          2,
-          2,
-          2,
-          'aadhaar',
-          aadhaar.data?.aadhaar_number ?? null,
-          JSON.stringify(aadhaar),
-          'approved',
-        ],
-      );
+      console.log(aadhaar);
  
       return {
         success: true,
