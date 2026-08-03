@@ -1116,7 +1116,7 @@ aadhaar_xml:true
         [
           state.category_id ?? 2,
           state.country_id ?? 2,
-          state.user_id ?? null,
+          state.user_id ?? 70,
           'aadhaar',
           xml.masked_aadhaar ?? null,
           JSON.stringify(aadhaar),
