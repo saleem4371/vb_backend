@@ -126,6 +126,7 @@ const query = `
     b.created_at AS orderDate,
 
     bet.event_name AS eventType,
+    rpt.points AS earn_point,
 
     CASE
         WHEN b.status = 2 THEN 'bg-red-500'
@@ -160,6 +161,9 @@ LEFT JOIN venue_parent vp
 
 LEFT JOIN booking_event_types bet
     ON bet.id = b.booking_event_type_id
+    
+LEFT JOIN reward_point_transactions rpt
+    ON rpt.booking_id = b.id AND rpt.transaction_type ='reward'
     
     WHERE b.booking_code = ?
     LIMIT 1
