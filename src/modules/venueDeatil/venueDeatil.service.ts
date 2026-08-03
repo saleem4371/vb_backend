@@ -325,7 +325,21 @@ export class VenueDetailService {
 // }
   
 // }
-async getVenuesDetailData(country: any, id: any) {
+async getVenuesDetailData(country: any, id: any,category: any) {
+
+    const singular = category.endsWith("s")
+    ? category.slice(0, -1)
+    : category;
+
+  const [categorys] = await this.dataSource.query(
+    `SELECT id FROM category WHERE name = ? LIMIT 1`,
+    [singular],
+  );
+
+  if (!categorys) {
+    return [];
+  }
+
   const bucketUrl = process.env.PUBLIC_AWS_BUCKET_URL;
 
   // ── Step 0: figure out whether this id is a registered (venue_child)
@@ -822,20 +836,130 @@ for (const [date, shiftMap] of Object.entries(SHIFT_STATUS)) {
     [id],
   );
 
-  return {
-    gallery,
-    category: sectionConfig,
-    venues,
-    shifts: shiftData,
-    SHIFT_STATUS,
-    Amenities: amenitiesList,
-    Amenitiesgroup: groupedAmenities,
-    events,
-    venue_settings,
-    fullyBookedDates,
-    partiallyBookedDates,
-  };
+// Settings categorys.id
+  const user_subscriptions = await this.dataSource.query(
+    `
+    SELECT *
+    FROM user_subscriptions us
+    WHERE user_id = ? AND  country_id = ? AND category_id = ?
+    `,
+    [venues.created_by,country,2],
+  );
+
+  //---------------------------------------------
+// Gallery
+//---------------------------------------------
+const categoryGallery = await this.dataSource.query(
+  `
+  SELECT
+      gc.id,
+      gc.name AS title,
+      vg.id AS imageId,
+      CASE
+          WHEN vg.attachment IS NOT NULL
+               AND vg.attachment <> ''
+          THEN CONCAT(
+              TRIM(TRAILING '/' FROM ?),
+              '/',
+              TRIM(LEADING '/' FROM vg.attachment)
+          )
+          ELSE NULL
+      END AS attachment
+  FROM venue_gallery_category gc
+  LEFT JOIN venue_gallery vg
+      ON vg.g_category = gc.id
+  WHERE gc.child_id = ?
+  ORDER BY gc.id, vg.id
+  `,
+  [bucketUrl, id],
+);
+
+const galleryMap = new Map();
+
+for (const row of categoryGallery) {
+  if (!galleryMap.has(row.id)) {
+    galleryMap.set(row.id, {
+      id: row.id,
+      title: row.title,
+      images: [],
+    });
+  }
+
+  if (row.attachment) {
+    galleryMap.get(row.id).images.push({
+      id: row.imageId,
+      attachment: row.attachment,
+    });
+  }
 }
+
+const categoryWiseGallery = [...galleryMap.values()];
+
+/* ---------------------------------------------
+   Additional Images (No Category)
+--------------------------------------------- */
+
+const uncategorizedGallery = await this.dataSource.query(
+  `
+  SELECT
+      vg.id AS imageId,
+      CASE
+          WHEN vg.attachment IS NOT NULL
+               AND vg.attachment <> ''
+          THEN CONCAT(
+              TRIM(TRAILING '/' FROM ?),
+              '/',
+              TRIM(LEADING '/' FROM vg.attachment)
+          )
+          ELSE NULL
+      END AS attachment
+  FROM venue_gallery vg
+  WHERE vg.child_venue_id = ?
+    AND (
+        vg.g_category IS NULL
+        OR vg.g_category NOT IN (
+            SELECT id
+            FROM venue_gallery_category
+            WHERE child_id = ?
+        )
+    )
+  ORDER BY vg.id
+  `,
+  [bucketUrl, id, id],
+);
+
+const additionalImages = uncategorizedGallery
+  .filter((row) => row.attachment)
+  .map((row) => ({
+    id: row.imageId,
+    attachment: row.attachment,
+  }));
+
+if (additionalImages.length) {
+  categoryWiseGallery.push({
+    id: 0,
+    title: "Additional Images",
+    images: additionalImages,
+  });
+}
+return {
+  gallery,
+  category: sectionConfig,
+  venues,
+  shifts: shiftData,
+  SHIFT_STATUS,
+  Amenities: amenitiesList,
+  Amenitiesgroup: groupedAmenities,
+  events,
+  venue_settings,
+  fullyBookedDates,
+  partiallyBookedDates,
+  user_subscriptions,
+  categoryWiseGallery,
+};
+}
+
+
 
 
 
