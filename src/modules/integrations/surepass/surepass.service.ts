@@ -938,8 +938,8 @@ if (body.category === "business") {
         // state: `user_${Date.now()}`,
          "signup_flow": true,
         logo_url:'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
-redirect_url:`${process.env.APP_URL}/thirdParty/digilocker/callback`,
-webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+redirect_url:`${process.env.FILE_URL}/thirdParty/digilocker/callback`,
+webhook_url: `${process.env.FILE_URL}/thirdParty/digilocker/webhook`,
 skip_main_screen:false,
 aadhaar_xml:true
        
