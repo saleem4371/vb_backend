@@ -41,10 +41,39 @@ verifyBank(@Body() body: string,@CurrentUser() user: any,@Headers('x-category') 
   return this.surepassService.verifyBank(body,user?.id,category,country);
 } 
 
+// ============================================================
+// ✅ AADHAAR / DIGILOCKER (FIXED)
+// ============================================================
+//
+// Bugs fixed here:
+//  1. `verifyAdhar` had NO guard and NO @CurrentUser() — meaning it was an
+//     unauthenticated endpoint AND had no user id to pass along even if it
+//     had been called by a logged-in user. That's the root cause of
+//     surepass.service.ts inserting Aadhaar rows with a missing user_id:
+//     there was never a user id available here to send.
+//  2. `initializeDigilocker` duplicated the same call but as a bare @Get()
+//     with @Body() — GET requests aren't guaranteed to carry a body (many
+//     HTTP clients strip it), so this route was unreliable by construction.
+//     Changed to @Post() to match REST semantics and the other verify routes.
+//  3. Neither route sent `x-category`/`x-country` headers even though
+//     `verifyPan`/`verifyBank` both require them — verifyAdhar needs the
+//     same context so it can encode it into DigiLocker's `state`.
+//
+// Both routes now require auth and forward (userId, category, country),
+// matching verifyPan/verifyBank exactly.
+// ============================================================
+
+@UseGuards(JwtAuthGuard)
 @Post('verifyAdhar')
-verifyAdhar(@Body() body: string) {
-  return this.surepassService.verifyAdhar(body);
+verifyAdhar(
+  @Body() body: string,
+  @CurrentUser() user: any,
+  @Headers('x-category') category: any,
+  @Headers('x-country') country: any,
+) {
+  return this.surepassService.verifyAdhar(body, user?.id, category, country);
 }
+
 // @Post('digilocker/callback')
 // callback(@Body() body: string) {
 //   return this.surepassService.callback(body);
@@ -100,10 +129,17 @@ verifyAdhar(@Body() body: string) {
     };
   }
 
-@Get('initializeDigilocker')
-initializeDigilocker(@Body() body: string) {
-  return this.surepassService.verifyAdhar(body);
+@UseGuards(JwtAuthGuard)
+@Post('initializeDigilocker')
+initializeDigilocker(
+  @Body() body: string,
+  @CurrentUser() user: any,
+  @Headers('x-category') category: any,
+  @Headers('x-country') country: any,
+) {
+  return this.surepassService.verifyAdhar(body, user?.id, category, country);
 }
+
  @UseGuards(JwtAuthGuard)
 @Post('UploadDocument')
 async UploadDocument(
