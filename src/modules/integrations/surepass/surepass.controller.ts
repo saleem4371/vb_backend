@@ -93,6 +93,7 @@ verifyAdhar(@Body() body: string) {
 
   @Post('digilocker/webhook')
   async webhook(@Body() body: any ,@Headers('x-category') category:any , @Headers('x-country') country:any) {
+    console.log('Webhook hit');
     await this.surepassService.handleWebhook(body,category,country);
 
     return {
