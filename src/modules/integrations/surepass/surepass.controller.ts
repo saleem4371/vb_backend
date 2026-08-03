@@ -81,11 +81,11 @@ verifyAdhar(@Body() body: string) {
             <h2> DigiLocker Verification Successful</h2>
             <p>You can close this window now.</p>
 
-            <script>
-              setTimeout(() => {
-                window.close();
-              }, 3000);
-            </script>
+            // <script>
+            //   setTimeout(() => {
+            //     window.close();
+            //   }, 3000);
+            // </script>
           </body>
         </html>
       `);
