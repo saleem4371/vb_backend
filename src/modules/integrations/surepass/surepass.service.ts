@@ -904,82 +904,131 @@ if (body.category === "business") {
   return bank;
 }
 
-  async verifyAdhar(body: any) {
-    const config =
-      await this.integrationService.getIntegrationConfig('surepass');
+  async verifyAdhar(
+  body: any,
+  userId: number,
+  countryId: number,
+  categoryId: number,
+) {
+  const config = await this.integrationService.getIntegrationConfig('surepass');
+  const configData =
+    typeof config === 'string' ? JSON.parse(config) : config;
 
-    // const [existingPan] = await this.dataSource.query(
-    //   `SELECT id FROM user_kyc_documents WHERE document_number = ? LIMIT 1`,
-    //   [body.aadhaarNumber]
-    // );
-
-    // if (existingPan) {
-    //   return false;
-    // }
-
-    // curl --location 'https://kyc-api.surepass.app/api/v1/digilocker/initialize' \
-    // --header 'Authorization: Bearer <token>' \
-    // --header 'Content-Type: application/json' \
-    // --data '{
-    //     "data": {
-    //         "signup_flow": true,
-    //         "auth_type": "app"
-    //     }
-    // }'
-    const configData = typeof config === 'string' ? JSON.parse(config) : config;
-
-    try {
-  const { data } = await this.http.axiosRef.post(
-    `${configData.base_url}/api/v1/digilocker/initialize`,
-    {
-      data: {
-        // signup_flow: true,
-        // webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
-        // state: `user_${Date.now()}`,
-         "signup_flow": true,
-        logo_url:'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
-redirect_url:`${process.env.APP_URL}/thirdParty/digilocker/callback`,
-webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
-skip_main_screen:false,
-aadhaar_xml:true
-       
-      },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${configData.api_key}`,
-        'Content-Type': 'application/json',
-      },
-    },
+  // Check for pending session
+  const pending = await this.dataSource.query(
+    `
+    SELECT client_id, verification_url
+    FROM user_kyc_sessions
+    WHERE user_id = ?
+      AND status = 'pending'
+    LIMIT 1
+    `,
+    [userId],
   );
 
-  return data;
-} catch (error) {
-  throw error;
-}
-
-    // const { data } = await this.http.axiosRef.post(
-    //   `${configData.base_url}/api/v1/digilocker/initialize`,
-    //   {
-    //     data: {
-    //       signup_flow: true,
-    //       webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
-    //       state: `user_${Date.now()}`,
-    //       //send_email: true,
-    //     },
-    //   },
-    //   {
-    //     headers: {
-    //       Authorization: `Bearer ${configData.api_key}`,
-    //       'Content-Type': 'application/json',
-    //     },
-    //   },
-    // );
-
-    
-
-    // return data;
+  if (pending.length) {
+    return {
+      success: true,
+      reused: true,
+      data: {
+        client_id: pending[0].client_id,
+        url: pending[0].verification_url,
+      },
+    };
   }
+
+  const state = JSON.stringify({
+    user_id: userId,
+    country_id: countryId,
+    category_id: categoryId,
+  });
+
+  try {
+    const { data } = await this.http.axiosRef.post(
+      `${configData.base_url}/api/v1/digilocker/initialize`,
+      {
+        data: {
+          signup_flow: true,
+          state,
+          logo_url:
+            'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+          redirect_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+          webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+          skip_main_screen: false,
+          aadhaar_xml: true,
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${configData.api_key}`,
+          'Content-Type': 'application/json',
+        },
+      },
+    );
+
+    // Save pending session
+    await this.dataSource.query(
+      `
+      INSERT INTO user_kyc_sessions
+      (
+        user_id,
+        country_id,
+        category_id,
+        client_id,
+        verification_url,
+        status,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, 'pending', NOW())
+      `,
+      [
+        userId,
+        countryId,
+        categoryId,
+        data.data.client_id,
+        data.data.url,
+      ],
+    );
+
+    return data;
+  } catch (error: any) {
+    if (
+      error.response?.status === 409 ||
+      error.response?.data?.message?.includes('already processing')
+    ) {
+      const pending = await this.dataSource.query(
+        `
+        SELECT client_id, verification_url
+        FROM user_kyc_sessions
+        WHERE user_id = ?
+          AND status = 'pending'
+        LIMIT 1
+        `,
+        [userId],
+      );
+
+      if (pending.length) {
+        return {
+          success: true,
+          reused: true,
+          data: {
+            client_id: pending[0].client_id,
+            url: pending[0].verification_url,
+          },
+        };
+      }
+
+      return {
+        success: false,
+        statusCode: 409,
+        message:
+          'A DigiLocker verification is already in progress. Please complete it or close the existing tab.',
+      };
+    }
+
+    throw error;
+  }
+}
   async callback(body: any) {
     console.log(body);
   }
