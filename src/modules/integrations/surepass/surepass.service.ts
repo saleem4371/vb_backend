@@ -1069,7 +1069,7 @@ aadhaar_xml:true
       AND document_type = 'aadhaar'
       LIMIT 1
       `,
-      [state.user_id],
+      [78],//state.user_id
     );
 
     // Already verified -> return DB data
@@ -1130,7 +1130,7 @@ aadhaar_xml:true
           AND document_type = 'aadhaar'
           LIMIT 1
           `,
-          [state.user_id],
+          [78],
         );
 
         if (!saved.length) {
@@ -1188,9 +1188,9 @@ aadhaar_xml:true
         VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
         [
-          state.category_id,
-          state.country_id,
-          state.user_id,
+          state.category_id ?? 2 ,
+          state.country_id ?? 2,
+          state.user_id ?? 78 ,
           'aadhaar',
           xml.masked_aadhaar ?? null,
           JSON.stringify(aadhaar),
