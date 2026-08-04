@@ -907,9 +907,26 @@ if (body.category === "business") {
   async verifyAdhar(
   body: any,
   userId: number,
+  
+  categoryId: any,
   countryId: number,
-  categoryId: number,
 ) {
+
+    const singular = categoryId.endsWith("s")
+    ? categoryId.slice(0, -1)
+    : categoryId;
+
+ const categories = await this.dataSource.query(
+  `SELECT id FROM category WHERE name = ? LIMIT 1`,
+  [singular],
+);
+
+if (!categories.length) {
+  throw new BadRequestException('Category not found');
+}
+
+const category = categories[0];
+
   const config = await this.integrationService.getIntegrationConfig('surepass');
   const configData =
     typeof config === 'string' ? JSON.parse(config) : config;
@@ -940,7 +957,7 @@ if (body.category === "business") {
   const state = JSON.stringify({
     user_id: userId,
     country_id: countryId,
-    category_id: categoryId,
+    category_id: category.id,
   });
 
   try {
@@ -984,7 +1001,7 @@ if (body.category === "business") {
       [
         userId,
         countryId,
-        categoryId,
+        category.id,
         data.data.client_id,
         data.data.url,
       ],
