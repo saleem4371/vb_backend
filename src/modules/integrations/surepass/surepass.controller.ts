@@ -68,40 +68,230 @@ async callback(@Query() query: any, @Res() reply: FastifyReply) {
     await this.surepassService.handleCallback(query);
 
     return reply.type('text/html').send(`
-      <!DOCTYPE html>
-      <html>
-        <head><title>DigiLocker Success</title></head>
-        <body style="font-family:Arial;text-align:center;padding-top:100px">
-          <h2>DigiLocker Verification Successful</h2>
-          <p>You can close this window now.</p>
-          <script>
-            if (window.opener) {
-              window.opener.postMessage({ type: "DIGILOCKER_SUCCESS" }, "*");
-            }
-            setTimeout(() => window.close(), 1500);
-          </script>
-        </body>
-      </html>
-    `);
-  } catch (err) {
-  //  this.logger.error('DigiLocker callback failed', err?.stack || err);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    return reply.type('text/html').send(`
-      <!DOCTYPE html>
-      <html>
-        <head><title>DigiLocker Error</title></head>
-        <body style="font-family:Arial;text-align:center;padding-top:100px">
-          <h2>Verification failed</h2>
-          <p>${err?.message || 'Something went wrong. Please try again.'}</p>
-          <script>
-            if (window.opener) {
-              window.opener.postMessage({ type: "DIGILOCKER_ERROR", message: ${JSON.stringify(err?.message || 'Unknown error')} }, "*");
-            }
-            setTimeout(() => window.close(), 3000);
-          </script>
-        </body>
-      </html>
-    `);
+<title>Verification Successful</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
+
+body{
+font-family:'Inter',sans-serif;
+height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+overflow:hidden;
+background:
+radial-gradient(circle at top left,#4F46E5,#111827 60%),
+linear-gradient(135deg,#0F172A,#1E293B);
+}
+
+.bg{
+position:fixed;
+inset:0;
+overflow:hidden;
+}
+
+.circle{
+position:absolute;
+border-radius:50%;
+filter:blur(60px);
+animation:float 12s infinite ease-in-out;
+opacity:.35;
+}
+
+.circle:nth-child(1){
+width:280px;
+height:280px;
+background:#4F46E5;
+top:-60px;
+left:-60px;
+}
+
+.circle:nth-child(2){
+width:240px;
+height:240px;
+background:#06B6D4;
+bottom:-70px;
+right:-50px;
+animation-delay:2s;
+}
+
+.circle:nth-child(3){
+width:180px;
+height:180px;
+background:#22C55E;
+top:30%;
+right:18%;
+animation-delay:5s;
+}
+
+.card{
+position:relative;
+width:420px;
+max-width:92%;
+background:rgba(255,255,255,.08);
+backdrop-filter:blur(24px);
+border:1px solid rgba(255,255,255,.15);
+border-radius:24px;
+padding:42px 34px;
+text-align:center;
+color:#fff;
+box-shadow:
+0 25px 70px rgba(0,0,0,.45);
+animation:cardIn .8s ease;
+}
+
+.icon{
+width:92px;
+height:92px;
+margin:auto;
+border-radius:50%;
+background:linear-gradient(135deg,#22C55E,#16A34A);
+display:flex;
+justify-content:center;
+align-items:center;
+box-shadow:0 0 35px rgba(34,197,94,.5);
+animation:pop .7s ease;
+}
+
+.check{
+width:28px;
+height:50px;
+border-right:5px solid #fff;
+border-bottom:5px solid #fff;
+transform:rotate(45deg);
+margin-top:-6px;
+}
+
+h1{
+margin-top:24px;
+font-size:28px;
+font-weight:700;
+}
+
+p{
+margin-top:12px;
+color:#D1D5DB;
+line-height:1.7;
+font-size:15px;
+}
+
+.loader{
+margin:32px auto 0;
+width:52px;
+height:52px;
+border:4px solid rgba(255,255,255,.15);
+border-top:4px solid #22C55E;
+border-radius:50%;
+animation:spin .9s linear infinite;
+}
+
+.footer{
+margin-top:24px;
+font-size:13px;
+color:#9CA3AF;
+}
+
+@keyframes spin{
+100%{transform:rotate(360deg);}
+}
+
+@keyframes pop{
+0%{transform:scale(.2);opacity:0;}
+70%{transform:scale(1.15);}
+100%{transform:scale(1);}
+}
+
+@keyframes cardIn{
+from{
+opacity:0;
+transform:translateY(30px) scale(.95);
+}
+to{
+opacity:1;
+transform:translateY(0) scale(1);
+}
+}
+
+@keyframes float{
+50%{
+transform:translateY(-40px) translateX(25px);
+}
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="bg">
+<div class="circle"></div>
+<div class="circle"></div>
+<div class="circle"></div>
+</div>
+
+<div class="card">
+
+<div class="icon">
+<div class="check"></div>
+</div>
+
+<h1>Verification Successful</h1>
+
+<p>
+Your DigiLocker verification has been completed successfully.
+This window will close automatically and you'll be redirected back to the application.
+</p>
+
+<div class="loader"></div>
+
+<div class="footer">
+Securely powered by DigiLocker
+</div>
+
+</div>
+
+<script>
+
+const result = ${JSON.stringify(query)};
+
+setTimeout(() => {
+
+    if(window.opener){
+        window.opener.postMessage({
+            type:"DIGILOCKER_SUCCESS",
+            payload:result
+        },"*");
+    }
+
+    window.close();
+
+},2500);
+
+setTimeout(()=>{
+    if(!window.closed){
+        document.querySelector(".footer").innerHTML =
+        'You can safely close this window.';
+    }
+},4000);
+
+</script>
+
+</body>
+</html>
+`);
   }
 }
 
