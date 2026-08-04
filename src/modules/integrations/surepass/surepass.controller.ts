@@ -293,6 +293,10 @@ setTimeout(()=>{
 </html>
 `);
   }
+  } catch (error) {
+    console.error(error);
+
+  }
 }
 
   @Post('digilocker/webhook')
