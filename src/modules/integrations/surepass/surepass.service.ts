@@ -1131,10 +1131,10 @@ async handleCallback(query: any) {
     // -----------------------------
     let categoryId: number;
 
-    if (!isNaN(Number(state.category_id))) {
-      categoryId = Number(state.category_id);
+    if (!isNaN(Number(state.country_id))) {
+      categoryId = Number(state.country_id);
     } else {
-      const categoryName = String(state.category_id);
+      const categoryName = String(state.country_id);
 
       const singular = categoryName.endsWith('s')
         ? categoryName.slice(0, -1)
@@ -1160,7 +1160,7 @@ async handleCallback(query: any) {
     // -----------------------------
     // Country
     // -----------------------------
-    const countryId = Number(state.country_id);
+    const countryId = Number(state.category_id);
 
     if (!countryId) {
       throw new Error('Invalid country_id');
