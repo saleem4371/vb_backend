@@ -1135,7 +1135,7 @@ const category = categories[0];
       AND document_type = 'aadhaar'
       LIMIT 1
       `,
-      [78],//state.user_id
+      [state.user_id],//state.user_id
     );
 
     // Already verified -> return DB data
@@ -1196,7 +1196,7 @@ const category = categories[0];
           AND document_type = 'aadhaar'
           LIMIT 1
           `,
-          [78],
+          [state.user_id],
         );
 
         if (!saved.length) {
