@@ -40,12 +40,14 @@ verifyGST(@Body() body: string,@CurrentUser() user: any) {
 verifyBank(@Body() body: string,@CurrentUser() user: any,@Headers('x-category') category:any , @Headers('x-country') country:any) {
   return this.surepassService.verifyBank(body,user?.id,category,country);
 } 
-
+  
+@UseGuards(JwtAuthGuard)
 @Post('verifyAdhar')
-verifyAdhar(@Body() body: string) {
-  return this.surepassService.verifyAdhar(body);
+verifyAdhar(@Body() body: string,@CurrentUser() user: any,@Headers('x-category') categoryId:any , @Headers('x-country') countryId:any) {
+  return this.surepassService.verifyAdhar(body,user?.id,categoryId,countryId);
 }
-// @Post('digilocker/callback')
+// @Post('digilocker/callback') body: any,
+ 
 // callback(@Body() body: string) {
 //   return this.surepassService.callback(body);
 // }
