@@ -1019,7 +1019,7 @@ aadhaar_xml:true
   }
 
   //Digilocker
-  async handleCallback(query: any) {
+ async handleCallback(query: any) {
   try {
     this.logger.log('===== DigiLocker Callback =====');
     this.logger.log(JSON.stringify(query, null, 2));
@@ -1035,43 +1035,35 @@ aadhaar_xml:true
       throw new Error('client_id is missing');
     }
 
-    // Example state:
-    // {"user_id":2,"category_id":2,"country_id":2}
+    // -----------------------------
+    // Parse state
+    // -----------------------------
     let state: any = {};
 
     if (query.state) {
       try {
-        state = JSON.parse(query.state);
+        state =
+          typeof query.state === 'string'
+            ? JSON.parse(query.state)
+            : query.state;
       } catch {
         state = {};
       }
     }
 
-    const config = await this.integrationService.getIntegrationConfig('surepass');
+    const config = await this.integrationService.getIntegrationConfig(
+      'surepass',
+    );
 
     const configData =
       typeof config === 'string' ? JSON.parse(config) : config;
 
-    // Download Aadhaar
-    const { data: aadhaar } = await this.http.axiosRef.get(
-      `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
-      {
-        headers: {
-          Authorization: `Bearer ${configData.api_key}`,
-        },
-      },
-    );
-
-    this.logger.log('===== Aadhaar Response =====');
-    this.logger.log(JSON.stringify(aadhaar, null, 2));
-
-    const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
-    const metadata = aadhaar?.data?.digilocker_metadata ?? {};
-
-    // Check existing record
+    // -----------------------------
+    // Check existing verification
+    // -----------------------------
     const existing = await this.dataSource.query(
       `
-      SELECT id
+      SELECT *
       FROM user_kyc_documents
       WHERE user_id = ?
       AND document_type = 'aadhaar'
@@ -1080,6 +1072,88 @@ aadhaar_xml:true
       [state.user_id],
     );
 
+    // Already verified -> return DB data
+    if (
+      existing.length > 0 &&
+      existing[0].verification_status === 'approved' &&
+      existing[0].doc_details
+    ) {
+      const aadhaar = JSON.parse(existing[0].doc_details);
+
+      const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
+      const metadata = aadhaar?.data?.digilocker_metadata ?? {};
+
+      return {
+        success: true,
+        alreadyVerified: true,
+        client_id: query.client_id,
+        name: xml.full_name ?? metadata.name,
+        masked_aadhaar: xml.masked_aadhaar,
+        dob: xml.dob ?? metadata.dob,
+        gender: xml.gender ?? metadata.gender,
+        mobile: metadata.mobile_number,
+        address: xml.full_address,
+        xml_url: aadhaar?.data?.xml_url,
+      };
+    }
+
+    // -----------------------------
+    // Download Aadhaar
+    // -----------------------------
+    let aadhaar: any;
+
+    try {
+      const response = await this.http.axiosRef.get(
+        `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
+        {
+          headers: {
+            Authorization: `Bearer ${configData.api_key}`,
+          },
+        },
+      );
+
+      aadhaar = response.data;
+    } catch (error: any) {
+      const err = error.response?.data;
+
+      if (
+        error.response?.status === 422 &&
+        err?.message_code === 'already_downloaded'
+      ) {
+        this.logger.warn('Aadhaar already downloaded.');
+
+        const saved = await this.dataSource.query(
+          `
+          SELECT doc_details
+          FROM user_kyc_documents
+          WHERE user_id = ?
+          AND document_type = 'aadhaar'
+          LIMIT 1
+          `,
+          [state.user_id],
+        );
+
+        if (!saved.length) {
+          throw new Error(
+            'Aadhaar already downloaded from Surepass but not found in local database.',
+          );
+        }
+
+        aadhaar = JSON.parse(saved[0].doc_details);
+      } else {
+        throw error;
+      }
+    }
+
+    this.logger.log('===== Aadhaar Response =====');
+    this.logger.log(JSON.stringify(aadhaar, null, 2));
+
+    const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
+    const metadata = aadhaar?.data?.digilocker_metadata ?? {};
+
+    // -----------------------------
+    // Save/Update DB
+    // -----------------------------
     if (existing.length > 0) {
       await this.dataSource.query(
         `
@@ -1114,9 +1188,9 @@ aadhaar_xml:true
         VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
         [
-          state.category_id ?? 2,
-          state.country_id ?? 2,
-          state.user_id ?? 70,
+          state.category_id,
+          state.country_id,
+          state.user_id,
           'aadhaar',
           xml.masked_aadhaar ?? null,
           JSON.stringify(aadhaar),
@@ -1127,6 +1201,7 @@ aadhaar_xml:true
 
     return {
       success: true,
+      alreadyVerified: false,
       client_id: query.client_id,
       name: xml.full_name ?? metadata.name,
       masked_aadhaar: xml.masked_aadhaar,
@@ -1138,7 +1213,14 @@ aadhaar_xml:true
     };
   } catch (error: any) {
     this.logger.error(error.response?.data || error.message);
-    throw error;
+
+    return {
+      success: false,
+      message:
+        error.response?.data?.message ||
+        error.message ||
+        'Something went wrong',
+    };
   }
 }
 
