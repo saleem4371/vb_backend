@@ -204,7 +204,7 @@ setTimeout(() => {
   } catch (error) {
     return reply.status(500).type('text/html').send(`
       <h2>DigiLocker Verification Failed</h2>
-      <p>${error.message}</p>
+      <p>------------</p>
     `);
   }
 }
