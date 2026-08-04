@@ -1085,7 +1085,7 @@ const category = categories[0];
   }
 
   //Digilocker
- async handleCallback(query: any) {
+async handleCallback(query: any) {
   try {
     this.logger.log('===== DigiLocker Callback =====');
     this.logger.log(JSON.stringify(query, null, 2));
@@ -1102,7 +1102,7 @@ const category = categories[0];
     }
 
     // -----------------------------
-    // Parse state
+    // Parse State
     // -----------------------------
     let state: any = {};
 
@@ -1113,8 +1113,57 @@ const category = categories[0];
             ? JSON.parse(query.state)
             : query.state;
       } catch {
-        state = {};
+        throw new Error('Invalid state');
       }
+    }
+
+    this.logger.log('===== Parsed State =====');
+    this.logger.log(JSON.stringify(state, null, 2));
+
+    const userId = Number(state.user_id);
+
+    if (!userId) {
+      throw new Error('Invalid user_id');
+    }
+
+    // -----------------------------
+    // Category
+    // -----------------------------
+    let categoryId: number;
+
+    if (!isNaN(Number(state.category_id))) {
+      categoryId = Number(state.category_id);
+    } else {
+      const categoryName = String(state.category_id);
+
+      const singular = categoryName.endsWith('s')
+        ? categoryName.slice(0, -1)
+        : categoryName;
+
+      const categories = await this.dataSource.query(
+        `
+        SELECT id
+        FROM category
+        WHERE LOWER(name)=LOWER(?)
+        LIMIT 1
+        `,
+        [singular],
+      );
+
+      if (!categories.length) {
+        throw new Error(`Category not found : ${singular}`);
+      }
+
+      categoryId = categories[0].id;
+    }
+
+    // -----------------------------
+    // Country
+    // -----------------------------
+    const countryId = Number(state.country_id);
+
+    if (!countryId) {
+      throw new Error('Invalid country_id');
     }
 
     const config = await this.integrationService.getIntegrationConfig(
@@ -1125,49 +1174,24 @@ const category = categories[0];
       typeof config === 'string' ? JSON.parse(config) : config;
 
     // -----------------------------
-    // Check existing verification
+    // Existing Record
     // -----------------------------
     const existing = await this.dataSource.query(
       `
       SELECT *
       FROM user_kyc_documents
-      WHERE user_id = ?
-      AND document_type = 'aadhaar'
+      WHERE user_id=?
+      AND document_type='aadhaar'
       LIMIT 1
       `,
-      [state.user_id],//state.user_id
+      [userId],
     );
 
-    // Already verified -> return DB data
-    if (
-      existing.length > 0 &&
-      existing[0].verification_status === 'approved' &&
-      existing[0].doc_details
-    ) {
-      const aadhaar = JSON.parse(existing[0].doc_details);
-
-      const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
-      const metadata = aadhaar?.data?.digilocker_metadata ?? {};
-
-      return {
-        success: true,
-        alreadyVerified: true,
-        client_id: query.client_id,
-        name: xml.full_name ?? metadata.name,
-        masked_aadhaar: xml.masked_aadhaar,
-        dob: xml.dob ?? metadata.dob,
-        gender: xml.gender ?? metadata.gender,
-        mobile: metadata.mobile_number,
-        address: xml.full_address,
-        xml_url: aadhaar?.data?.xml_url,
-      };
-    }
+    let aadhaar: any;
 
     // -----------------------------
     // Download Aadhaar
     // -----------------------------
-    let aadhaar: any;
-
     try {
       const response = await this.http.axiosRef.get(
         `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
@@ -1186,89 +1210,85 @@ const category = categories[0];
         error.response?.status === 422 &&
         err?.message_code === 'already_downloaded'
       ) {
-        this.logger.warn('Aadhaar already downloaded.');
+        this.logger.warn('Aadhaar already downloaded');
 
-        const saved = await this.dataSource.query(
-          `
-          SELECT doc_details
-          FROM user_kyc_documents
-          WHERE user_id = ?
-          AND document_type = 'aadhaar'
-          LIMIT 1
-          `,
-          [state.user_id],
-        );
-
-        if (!saved.length) {
+        if (!existing.length) {
           throw new Error(
-            'Aadhaar already downloaded from Surepass but not found in local database.',
+            'Aadhaar already downloaded but not available in database.',
           );
         }
 
-        aadhaar = JSON.parse(saved[0].doc_details);
+        aadhaar = JSON.parse(existing[0].doc_details);
       } else {
         throw error;
       }
     }
 
-    this.logger.log('===== Aadhaar Response =====');
     this.logger.log(JSON.stringify(aadhaar, null, 2));
 
     const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
     const metadata = aadhaar?.data?.digilocker_metadata ?? {};
 
     // -----------------------------
-    // Save/Update DB
+    // Save / Update
     // -----------------------------
-    if (existing.length > 0) {
+    if (existing.length) {
       await this.dataSource.query(
         `
         UPDATE user_kyc_documents
         SET
-          document_number = ?,
-          doc_details = ?,
-          verification_status = ?,
-          updated_at = NOW()
-        WHERE id = ?
+          document_number=?,
+          doc_details=?,
+          verification_status='approved',
+          updated_at=NOW()
+        WHERE id=?
         `,
         [
-          xml.masked_aadhaar ?? null,
+          xml.masked_aadhaar,
           JSON.stringify(aadhaar),
-          'approved',
           existing[0].id,
         ],
       );
     } else {
-      await this.dataSource.query(
-        `
-        INSERT INTO user_kyc_documents
-        (
-          category_id,
-          country_id,
-          user_id,
-          document_type,
-          document_number,
-          doc_details,
-          verification_status
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-        [
-          state.category_id ?? 2 ,
-          state.country_id ?? 2,
-          state.user_id ?? 78 ,
-          'aadhaar',
-          xml.masked_aadhaar ?? null,
-          JSON.stringify(aadhaar),
-          'approved',
-        ],
-      );
+      try {
+        await this.dataSource.query(
+          `
+          INSERT INTO user_kyc_documents
+          (
+            category_id,
+            country_id,
+            user_id,
+            document_type,
+            document_number,
+            doc_details,
+            verification_status
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            categoryId,
+            countryId,
+            userId,
+            'aadhaar',
+            xml.masked_aadhaar,
+            JSON.stringify(aadhaar),
+            'approved',
+          ],
+        );
+      } catch (e) {
+        this.logger.error('Insert Failed');
+        this.logger.error(e);
+        throw e;
+      }
     }
 
     return {
       success: true,
-      alreadyVerified: false,
       client_id: query.client_id,
+      alreadyVerified: existing.length > 0,
+      user_id: userId,
+      country_id: countryId,
+      category_id: categoryId,
       name: xml.full_name ?? metadata.name,
       masked_aadhaar: xml.masked_aadhaar,
       dob: xml.dob ?? metadata.dob,
@@ -1278,7 +1298,13 @@ const category = categories[0];
       xml_url: aadhaar?.data?.xml_url,
     };
   } catch (error: any) {
-    this.logger.error(error.response?.data || error.message);
+    this.logger.error('===== DigiLocker Error =====');
+
+    if (error.response?.data) {
+      this.logger.error(JSON.stringify(error.response.data, null, 2));
+    } else {
+      this.logger.error(error.stack || error.message);
+    }
 
     return {
       success: false,
@@ -1289,7 +1315,6 @@ const category = categories[0];
     };
   }
 }
-
   /**
    * Handles Surepass webhook
    */
