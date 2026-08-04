@@ -208,10 +208,10 @@ setTimeout(() => {
     `);
   }
 }
-
+ @UseGuards(JwtAuthGuard)
 @Get('initializeDigilocker')
-initializeDigilocker(@Body() body: string) {
-  return this.surepassService.verifyAdhar(body);
+initializeDigilocker(@Body() body: string,@CurrentUser() user: any,@Headers('x-category') categoryId:any , @Headers('x-country') countryId:any) {
+  return this.surepassService.verifyAdhar(body, user?.id,categoryId,countryId);
 }
  @UseGuards(JwtAuthGuard)
 @Post('UploadDocument')
