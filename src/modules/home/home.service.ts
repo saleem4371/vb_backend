@@ -172,11 +172,11 @@ AND pls.user_id = pl.user_id
 /* Unregistered venue */
 LEFT JOIN unrigistered_venues uv
     ON uv.id = CAST(pl.property_id AS UNSIGNED)
-    AND pl.property_id REGEXP '^[0-9]+$'
+    AND pl.property_id REGEXP '^[0-9]+$' AND uv.status = 1
 
 WHERE pl.user_id = ? AND pv.propety_category = ? OR uv.property_type = ?
 
-ORDER BY pl.id DESC;
+ORDER BY pl.viewed_at DESC;
 `;
     const result = await this.dataSource.query(query, [
       userId,
