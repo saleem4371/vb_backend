@@ -733,10 +733,10 @@ async findById(id: string) {
 
 //send Whatsapp
 
-await this.twilioService.sendWhatsApp({
-  to: identifier,
-  body: `OTP sent successfully - Your OTP is ${otp}`
-});
+// await this.twilioService.sendWhatsApp({
+//   to: identifier,
+//   body: `OTP sent successfully - Your OTP is ${otp}`
+// });
 
   }
 
