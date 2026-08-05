@@ -212,6 +212,106 @@ export class PaxService {
 
     const bookingId = result.insertId;
 
+// -------------------------
+// Venue
+// -------------------------
+const venueResult: any = await this.dataSource.query(
+  `
+  INSERT INTO booking_venues
+  (
+    booking_id,
+    child_venue_id,
+    venue_name_snapshot
+  )
+  VALUES (?, ?, ?)
+  `,
+  [
+    bookingId,
+    body.venue_id,
+    body.venue_name,
+  ],
+);
+
+const bookingVenueId = venueResult.insertId;
+
+// -------------------------
+// Event Date
+// -------------------------
+const eventResult: any = await this.dataSource.query(
+  `
+  INSERT INTO booking_event_dates
+  (
+    booking_id,
+    event_date
+  )
+  VALUES (?, ?)
+  `,
+  [
+    bookingId,
+    body.event_date,
+  ],
+);
+
+const eventDateId = eventResult.insertId;
+
+// -------------------------
+// Shift
+// -------------------------
+await this.dataSource.query(
+  `
+  INSERT INTO booking_shifts
+  (
+    booking_id,
+    event_date_id,
+    venue_id,
+    shift_name,
+    start_time,
+    end_time,
+    price,
+    status
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, 'active')
+  `,
+  [
+    bookingId,
+    eventDateId,
+    bookingVenueId,
+    body.shift_name,
+    body.start_time,
+    body.end_time,
+    body.base_amount,
+  ],
+);
+
+// -------------------------
+// Customer
+// -------------------------
+await this.dataSource.query(
+  `
+  INSERT INTO booking_parties
+  (
+    booking_id,
+    party_type,
+    party_id,
+    name,
+    phone,
+    email
+  )
+  VALUES (?, 'customer', ?, ?, ?, ?)
+  `,
+  [
+    bookingId,
+    user_id,
+    body.name,
+    body.phone,
+    body.email,
+  ],
+);
+
+// -------------------------
+// Package Items
+// -------------------------
+
     // Insert Package/Custom Menu
     await this.insertPaxPackages(bookingId, body);
 
