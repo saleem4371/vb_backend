@@ -41,6 +41,7 @@ private readonly notificationService: NotificationService,
     bs.end_time,
     bs.pax,
     bs.price,
+    b.total_pax,
 
     cv.child_venue_name,
     pv.venue_city,
@@ -240,7 +241,7 @@ const upcomingBookings = await this.dataSource.query(upcomingSql, [id]);
 
 return {
   notification: notifications,
-  currentBooking: currentBooking ?? null,
+  currentBooking: currentBooking,
   reservationHold: reservationHold ?? null,
   upcomingBookings,
 };
@@ -292,20 +293,19 @@ async allbookingData(id: number) {
 
  CASE
     WHEN b.status = 'cancelled' THEN 'cancelled'
-
-    WHEN b.booking_type = 'enquiry' THEN 'enquiry'
-
-    WHEN b.booking_type = 'reserve' THEN 'reservation'
-
-    WHEN b.booking_type NOT IN ('enquiry', 'reserve')
+   
+  WHEN LOWER(TRIM(b.booking_type)) = 'pax' THEN 'pax'
+    WHEN LOWER(TRIM(b.booking_type)) = 'enquiry' THEN 'enquiry'
+    WHEN LOWER(TRIM(b.booking_type)) = 'reserve' THEN 'reservation'
+    WHEN b.booking_type NOT IN ('enquiry', 'reserve','pax')
          AND bed.event_date > CURDATE()
     THEN 'upcoming'
 
-    WHEN b.booking_type NOT IN ('enquiry', 'reserve')
+    WHEN b.booking_type NOT IN ('enquiry', 'reserve','pax')
          AND bed.event_date = CURDATE()
     THEN 'ongoing'
 
-    ELSE 'completed'
+    ELSE 'Completed'
 END AS bookingStatus,
 
     pv.venue_name AS vendorName,
@@ -409,7 +409,7 @@ LEFT JOIN users u
 WHERE
     b.created_by = ?
 
-ORDER BY b.created_at DESC;`;
+ORDER BY b.created_at DESC`;
 
 
 
