@@ -2054,41 +2054,111 @@ ORDER BY uw.id DESC;
 
 //     return likedProperty;
 //   }
-async likedProperty(userId: number, country: number, category: number) {
+async likedProperty(
+  userId: number,
+  country: number,
+  category: number,
+) {
+  const bucketUrl = process.env.AWS_BUCKET_URL;
+
   const query = `
     SELECT
       cv.child_venue_id AS childVenueId,
+      cv.parent_venue_id AS parentVenueId,
       cv.child_venue_name AS venueName,
 
-      COALESCE(lc.totalLikes, 0) AS totalLikes,
+      cv.guest_rooms AS maxGuests,
+      cv.banquet_round AS bedrooms,
 
+      pv.venue_name AS parentVenueName,
+      pv.created_by,
+      pv.venue_city AS city,
+      pv.venue_state AS state,
+      pv.venue_country AS country,
+      pv.rating,
+      pv.user_ratings_total AS reviewCount,
+      pv.user_ratings_total AS featured,
+      pv.lat,
+      pv.lng,
+      pv.propety_category AS category,
+
+      vc.name AS venueType,
+ /* Cover Image */
+    (
+        SELECT vg.attachment
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+          AND vg.image_type = 1
+        LIMIT 1
+    ) AS coverImage,
+    /* Gallery */
+    (
+        SELECT JSON_ARRAYAGG(
+            JSON_OBJECT(
+                'image', vg.attachment
+            )
+        )
+        FROM venue_gallery vg
+        WHERE vg.child_venue_id = cv.child_venue_id
+    ) AS images,
+
+      /* Total Likes */
+      (
+        SELECT COUNT(*)
+        FROM property_likes pl2
+        WHERE pl2.property_id = cv.child_venue_id
+      ) AS totalLikes,
+
+      1 AS isLiked,
+
+      /* Minimum Price */
       CASE
-        WHEN ul.user_id IS NOT NULL THEN 1
-        ELSE 0
-      END AS isLiked
+        WHEN pv.propety_category = 'farmstay' THEN
+          MAX(
+            CASE
+              WHEN pp.pricing_key = 'nightly'
+              THEN pp.amount
+            END
+          )
+        ELSE
+          (
+            SELECT MIN(vst.price)
+            FROM venue_shift_timing vst
+            WHERE vst.child_venue_id = cv.child_venue_id
+          )
+      END AS minPrice
 
-    FROM venue_child cv
+    FROM property_likes pl
 
-    /* Total likes from all users */
-    LEFT JOIN (
-      SELECT
-        property_id,
-        COUNT(*) AS totalLikes
-      FROM property_likes
-      GROUP BY property_id
-    ) lc
-      ON lc.property_id = cv.child_venue_id
+    INNER JOIN venue_child cv
+      ON cv.child_venue_id = pl.property_id
 
-    /* Current logged-in user's like */
-    LEFT JOIN property_likes ul
-      ON ul.property_id = cv.child_venue_id
-      AND ul.user_id = ?
+    INNER JOIN venue_parent pv
+      ON pv.parent_venue_id = cv.parent_venue_id
 
+    LEFT JOIN property_pricing pp
+      ON pp.child_venue_id = cv.child_venue_id
+      AND pp.enabled = 1
 
-    ORDER BY cv.child_venue_name ASC
+    LEFT JOIN venue_categories vc
+      ON vc.id = cv.venue_category_id
+
+    WHERE
+      pl.user_id = ?
+
+    GROUP BY
+      cv.child_venue_id
+
+    ORDER BY
+      cv.child_venue_name ASC
   `;
 
-  return await this.dataSource.query(query, [userId, country, category]);
+  return await this.dataSource.query(query, [
+    userId,
+    country,
+    category,
+    category,
+  ]);
 }
 
 // async likedProperty(userId: number,country: any, category: any) {
