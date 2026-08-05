@@ -25,11 +25,13 @@ import { TwilioService } from '../../integrations/twilio/twilio.service';
 @Injectable()
 export class RazorpayService {
   constructor(
+     private readonly socketService: SocketService,
     private readonly integrationService: IntegrationService,
     private readonly http: HttpService,
     private readonly dataSource: DataSource,
     private readonly zohoService: ZohoService,
     private readonly twilioService: TwilioService,
+   
 
      private invoiceService: InvoiceService,
     private readonly notificationService: NotificationService,
@@ -858,11 +860,11 @@ export class RazorpayService {
     );
 
     // Realtime
-    // this.socketService.realtime(
-    //   id.toString(),
-    //   'Booking',
-    //   `Booking ${code} created`
-    // );
+    this.socketService.realtime(
+      id.toString(),
+      'Booking',
+      `Booking ${code} created`
+    );
 
     // Email
     const invoiceData = {
@@ -880,10 +882,10 @@ export class RazorpayService {
     });
 
     //twilioService
-  await this.twilioService.sendWhatsApp({
-  to: `+91${customerPhone}`,
-  body: `Your ${reserveType} booking has been received successfully.📌 Booking ID: ${code}`
-});
+//   await this.twilioService.sendWhatsApp({
+//   to: `+91${customerPhone}`,
+//   body: `Your ${reserveType} booking has been received successfully.📌 Booking ID: ${code}`
+// });
     //ZOHO 
 
     //Payment
@@ -923,18 +925,22 @@ const subtotalWithoutExcluded = chargeValues.reduce((total, charge) => {
     const commison  = subtotalWithoutExcluded*5/100; // Calculate Commision
 
 
-    await this.createZohoTransaction({
-      customer: customerName,
-      email: customerEmail,
-      phone: customerPhone,
-      bookingId: code,
-     
-        total_amount: pricing.grandTotal,
-        category:singular,
-        convenienceFee:pricing.convenienceFee,
-        charge_amount:commison
+    //-------------------------------------------------------//
+    //  ZOHO ACTIVATION //
+    //-------------------------------------------------------//
 
-    });
+    // await this.createZohoTransaction({
+    //   customer: customerName,
+    //   email: customerEmail,
+    //   phone: customerPhone,
+    //   bookingId: code,
+     
+    //     total_amount: pricing.grandTotal,
+    //     category:singular,
+    //     convenienceFee:pricing.convenienceFee,
+    //     charge_amount:commison
+
+    // });
 
      //wallets
 
@@ -1310,15 +1316,33 @@ async addPayment(bookingId:any,paid:any,id:any ,payment:any)
   const transactionId = payment.razorpay_payment_id || null;
   const paymentMethod = payment.payment_method || 'Online';
 
+// const charges = await this.dataSource.query(
+//   `
+//   SELECT
+//       charge_type,
+//       total_price
+//   FROM booking_charges
+//   WHERE booking_id = ?
+//     AND charge_type IN ('addon','security_deposit','base')
+//   ORDER BY FIELD(charge_type,'addon','security_deposit','base')
+//   `,
+//   [bookingId],
+// );
+
 const charges = await this.dataSource.query(
   `
-  SELECT
-      charge_type,
-      total_price
-  FROM booking_charges
-  WHERE booking_id = ?
-    AND charge_type IN ('addon','security_deposit','base')
-  ORDER BY FIELD(charge_type,'addon','security_deposit','base')
+ SELECT
+    c.charge_type,
+    CASE
+        WHEN c.charge_type IN ('base', 'addon','convenience_fee')
+            THEN ROUND(c.total_price * 1.18, 2)
+        ELSE
+            c.total_price
+    END AS total_price
+FROM booking_charges c
+WHERE c.booking_id = ?
+  AND c.charge_type IN ('addon', 'base', 'security_deposit','convenience_fee')
+ORDER BY FIELD(c.charge_type, 'addon', 'security_deposit', 'base','convenience_fee');
   `,
   [bookingId],
 );
