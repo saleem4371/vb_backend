@@ -56,9 +56,22 @@ export class ChatController {
    @UseGuards(JwtAuthGuard)
    @Post('send_messages')
   async send_messages(
-     @Body() body: any,
+     @Req() req: FastifyRequest,
      @CurrentUser() user: any
   ) {
+
+    const parts = req.parts();
+
+  const body: any = {};
+  let file: any = null;
+
+  for await (const part of parts) {
+    if (part.type === 'file') {
+      file = part;
+    } else {
+      body[part.fieldname] = part.value;
+    }
+  }
     return await this.chatService.send_messages(
       body,
       user?.id

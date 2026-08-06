@@ -2,8 +2,11 @@ import { Injectable,BadRequestException,
   ConflictException, } from '@nestjs/common';
 import { DataSource, Repository, Not, IsNull, LessThan } from 'typeorm';
 import { StorageService } from 'src/common/storage/storage.service';
+import { FastifyRequest } from 'fastify';
 
 import { v4 as uuidv4 } from "uuid";
+
+import { SocketService } from '../../socket/socket.service';
 
 type UploadFile = {
   id: string;
@@ -18,6 +21,7 @@ export class ChatService {
   constructor(
     private dataSource: DataSource,
     private storageService: StorageService,
+    private socketService: SocketService,
   ) {}
 
   async startConversations(userId: any, id: any, country: any,body:any) {
@@ -192,114 +196,192 @@ await this.dataSource.query(
     VALUES
       (?, 'user', ?, ? ,? , NOW() )
     `,
-    [body.conservation_id, id, body.text,'me'],
+    [body.conversationId, id, body.message,'me'],
   );
+
+  const [conversation] = await this.dataSource.query(
+  `
+  SELECT
+    customer_id,
+    vendor_id
+  FROM conversations
+  WHERE id = ?
+  `,
+  [body.conversationId],
+);
+
+console.log(conversation)
+let receiverId: number;
+
+if (conversation.customer_id === id) {
+  receiverId = conversation.vendor_id;
+} else {
+  receiverId = conversation.customer_id;
+}
+
+//Realtime
+this.socketService.realtime(
+  receiverId.toString(),
+  'Massage ',
+  body.message
+);
 }
 
 async all_messages(body: any, id: number) {
   // 1. Get conversations
   const conversations = await this.dataSource.query(
-    `
-    SELECT
-    c.id,
-    c.category,
-    c.subject,
-    c.reference_id,
-    c.is_pinned,
-    c.last_message,
-    c.last_message_at,
-    c.unread_count,
-    c.created_by,
+  `
+  SELECT
+      c.id,
+      c.category,
+      c.subject,
+      c.reference_type,
+      c.reference_id,
+      c.customer_id,
+      c.vendor_id,
+      c.is_pinned,
+      c.last_message,
+      c.last_message_at,
+      c.unread_count,
+      c.created_by,
 
-    bp.name AS customer_name,
-    bp.phone,
-    bp.email
+      b.booking_code,
+      b.booking_type,
 
-FROM conversations c
+      bp.name AS customer_name,
+      bp.phone,
+      bp.email,
 
-LEFT JOIN bookings b
-    ON b.id = c.reference_id
+      vp.venue_name,
+      vc.child_venue_name
 
-LEFT JOIN booking_parties bp
-    ON bp.booking_id = b.id
-    AND bp.party_type = 'customer'
+  FROM conversations c
 
+  LEFT JOIN bookings b
+      ON b.id = c.reference_id
 
+  LEFT JOIN booking_parties bp
+      ON bp.booking_id = b.id
+     AND bp.party_type = 'customer'
 
-ORDER BY
-    c.is_pinned DESC,
-    c.last_message_at DESC;
-    `,
-  //  [id],
-  );
+  LEFT JOIN venue_parent vp
+      ON vp.parent_venue_id = c.vendor_id
+  LEFT JOIN venue_child vc
+      ON vc.child_venue_id = c.venue_id
+
+  WHERE c.customer_id = ?
+     OR c.vendor_id = ?
+
+  ORDER BY
+      c.is_pinned DESC,
+      c.last_message_at DESC
+  `,
+  [id, id],
+);
 //WHERE c.created_by = ?
   // 2. Get messages
   const messages = await this.dataSource.query(
-    `
-    SELECT
-      id,
-      conversation_id,
-      sender_type,
-      sender_id,
-      message,
-      role,
-      sent_at
-    FROM messages
-    ORDER BY sent_at ASC
-    `,
-  );
+  `
+  SELECT
+      m.id,
+      m.conversation_id,
+      m.sender_type,
+      m.sender_id,
+      m.message,
+      m.role,
+      m.sent_at,
+
+      c.customer_id,
+      c.vendor_id
+
+  FROM messages m
+
+  INNER JOIN conversations c
+      ON c.id = m.conversation_id
+
+  ORDER BY m.sent_at ASC
+  `,
+);
 
   // 3. Format response
-  const response = conversations.map((conversation: any) => ({
-    id: String(conversation.id),
-    category: conversation.category,
+ const response = conversations.map((conversation: any) => ({
+  id: String(conversation.id),
 
-    contact: {
-      name: conversation.customer_name,
-      initials: conversation.customer_name
-        ? conversation.customer_name
-            .split(" ")
-            .map((x: string) => x[0])
-            .join("")
-            .toUpperCase()
-        : "--",
-      color: "from-violet-500 to-purple-500",
-      isOnline: false,
-      phone: conversation.phone,
-      email: conversation.email,
-    },
+  category: conversation.category,
 
-    venue: conversation.venue_name,
+  customerId: conversation.customer_id,
 
-    subject:
-      conversation.subject ||
-      `Booking #${conversation.reference_id}`,
+  vendorId: conversation.vendor_id,
 
-    lastMessage: conversation.last_message || "",
+  contact: {
+    name: conversation.customer_name,
+    initials: conversation.customer_name
+      ? conversation.customer_name
+          .split(" ")
+          .map((x: string) => x[0])
+          .join("")
+          .toUpperCase()
+      : "--",
+    color: "from-violet-500 to-purple-500",
+    isOnline: false,
+    phone: conversation.phone,
+    email: conversation.email,
+  },
 
-    time: conversation.last_message_at,
+  venue: conversation.child_venue_name,
+  booking_type: conversation.booking_type,
+  // venue: conversation.venue_name,?
 
-    unread: Number(conversation.unread_count || 0),
+  subject:
+    `Booking #${conversation.booking_code}`,
+    booking_code:conversation.booking_code,
 
-    pinned: Boolean(conversation.is_pinned),
+  lastMessage: conversation.last_message || "",
 
-    messages: messages
-      .filter(
-        (m: any) => Number(m.conversation_id) === Number(conversation.id),
-      )
-      .map((m: any) => ({
-        id: String(m.id),
-        role: m.role,
-        senderType: m.sender_type,
-        senderId: m.sender_id,
-        text: m.message,
-        time: new Date(m.sent_at).toLocaleTimeString("en-IN", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        date: new Date(m.sent_at).toLocaleDateString("en-IN"),
-      })),
-  }));
+  time: conversation.last_message_at,
+
+  unread: Number(conversation.unread_count || 0),
+
+  pinned: Boolean(conversation.is_pinned),
+
+  messages: messages
+    .filter(
+      (m: any) => Number(m.conversation_id) === Number(conversation.id),
+    )
+    .map((m: any) => ({
+      id: String(m.id),
+
+      senderId: m.sender_id,
+
+      senderType: m.sender_type,
+
+      receiverId:
+        m.sender_id == conversation.customer_id
+          ? conversation.vendor_id
+          : conversation.customer_id,
+
+      receiverType:
+        m.sender_id == conversation.customer_id
+          ? "vendor"
+          : "customer",
+
+      role:
+        m.sender_type === "system"
+          ? "system"
+          : m.sender_id == id
+          ? "me"
+          : "them",
+
+      text: m.message,
+
+      time: new Date(m.sent_at).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+
+      date: new Date(m.sent_at).toLocaleDateString("en-IN"),
+    })),
+}));
 
   return {
     success: true,
