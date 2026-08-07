@@ -87,19 +87,19 @@ import { AccountModule } from './modules/account/account.module';
     }),
 
     /* DATABASE */
-    TypeOrmModule.forRoot({
+TypeOrmModule.forRoot({
       type: 'mysql',
-      host: '13.50.209.14',
-      port: 3306,
-      username: 'vb_user',
-      password: 'Syfte_2020',
-      database: 'vb_platform',
+      host: process.env.DB_HOST,
+      port: Number(process.env.DB_PORT || 3306),
+      username: process.env.DB_USERNAME,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_DATABASE,
       autoLoadEntities: true,
       synchronize: false,
       logging: true,
       connectTimeout: 10000,
+      timezone: process.env.DB_TIMEZONE || '+05:30',
     }),
-
     GatewaysModule,
     SocketModule,
 
@@ -176,7 +176,6 @@ import { AccountModule } from './modules/account/account.module';
     
   ],
 
-  /* ✅ FIX IS HERE */
   providers: [
     {
       provide: APP_INTERCEPTOR,
