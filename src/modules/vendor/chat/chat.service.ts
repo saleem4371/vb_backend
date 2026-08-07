@@ -229,164 +229,300 @@ this.socketService.realtime(
 
 async all_messages(body: any, id: number) {
   // 1. Get conversations
+  
   const conversations = await this.dataSource.query(
   `
   SELECT
-      c.id,
-      c.category,
-      c.subject,
-      c.reference_type,
-      c.reference_id,
-      c.customer_id,
-      c.vendor_id,
-      c.is_pinned,
-      c.last_message,
-      c.last_message_at,
-      c.unread_count,
-      c.created_by,
+    c.id,
+    c.category,
+    c.subject,
+    c.reference_type,
+    c.reference_id,
+    c.customer_id,
+    c.vendor_id,
+    c.venue_id,
+    c.is_pinned,
+    c.created_by,
 
-      b.booking_code,
-      b.booking_type,
+    b.booking_code,
+    b.booking_type,
 
-      bp.name AS customer_name,
-      bp.phone,
-      bp.email,
+    bp.name AS customer_name,
+    bp.phone,
+    bp.email,
 
-      vp.venue_name,
-      vc.child_venue_name
+    vp.venue_name,
+    vc.child_venue_name,
+
+    -- Latest message
+    lm.message AS last_message,
+    lm.sent_at AS last_message_at
 
   FROM conversations c
 
   LEFT JOIN bookings b
-      ON b.id = c.reference_id
+    ON b.id = c.reference_id
 
   LEFT JOIN booking_parties bp
-      ON bp.booking_id = b.id
-     AND bp.party_type = 'customer'
+    ON bp.booking_id = b.id
+    AND bp.party_type = 'customer'
 
   LEFT JOIN venue_parent vp
-      ON vp.parent_venue_id = c.vendor_id
+    ON vp.parent_venue_id = c.vendor_id
+
   LEFT JOIN venue_child vc
-      ON vc.child_venue_id = c.venue_id
+    ON vc.child_venue_id = c.venue_id
+
+  -- Get latest message for each conversation
+  LEFT JOIN messages lm
+    ON lm.id = (
+      SELECT m2.id
+      FROM messages m2
+      WHERE m2.conversation_id = c.id
+      ORDER BY m2.sent_at DESC, m2.id DESC
+      LIMIT 1
+    )
 
   WHERE c.customer_id = ?
      OR c.vendor_id = ?
 
   ORDER BY
-      c.is_pinned DESC,
-      c.last_message_at DESC
+    c.is_pinned DESC,
+    lm.sent_at DESC,
+    c.id DESC
   `,
   [id, id],
 );
-//WHERE c.created_by = ?
-  // 2. Get messages
+  // 2. Get all messages
   const messages = await this.dataSource.query(
-  `
-  SELECT
+    `
+    SELECT
       m.id,
       m.conversation_id,
       m.sender_type,
       m.sender_id,
       m.message,
       m.role,
+      m.is_read,
       m.sent_at,
 
       c.customer_id,
       c.vendor_id
 
-  FROM messages m
+    FROM messages m
 
-  INNER JOIN conversations c
+    INNER JOIN conversations c
       ON c.id = m.conversation_id
 
-  ORDER BY m.sent_at ASC
-  `,
-);
+    ORDER BY m.sent_at ASC
+    `,
+  );
 
-  // 3. Format response
- const response = conversations.map((conversation: any) => ({
-  id: String(conversation.id),
+  // 3. Get online status of users
+  const userIds = new Set<number>();
 
-  category: conversation.category,
+  conversations.forEach((c: any) => {
+    if (c.customer_id) userIds.add(Number(c.customer_id));
+    if (c.vendor_id) userIds.add(Number(c.vendor_id));
+  });
 
-  customerId: conversation.customer_id,
+  let onlineUsers: any[] = [];
 
-  vendorId: conversation.vendor_id,
+  if (userIds.size > 0) {
+    onlineUsers = await this.dataSource.query(
+      `
+      SELECT
+        id,
+        is_online
+      FROM users
+      WHERE id IN (?)
+      `,
+      [Array.from(userIds)],
+    );
+  }
 
-  contact: {
-    name: conversation.customer_name,
-    initials: conversation.customer_name
-      ? conversation.customer_name
-          .split(" ")
-          .map((x: string) => x[0])
-          .join("")
-          .toUpperCase()
-      : "--",
-    color: "from-violet-500 to-purple-500",
-    isOnline: false,
-    phone: conversation.phone,
-    email: conversation.email,
-  },
+  const onlineMap = new Map(
+    onlineUsers.map((u: any) => [
+      Number(u.id),
+      Boolean(u.is_online),
+    ]),
+  );
 
-  venue: conversation.child_venue_name,
-  booking_type: conversation.booking_type,
-  // venue: conversation.venue_name,?
+  // 4. Format response
+  const response = conversations.map((conversation: any) => {
+    const conversationMessages = messages.filter(
+      (m: any) =>
+        Number(m.conversation_id) === Number(conversation.id),
+    );
 
-  subject:
-    `Booking #${conversation.booking_code}`,
-    booking_code:conversation.booking_code,
+    // Latest message
+    const lastMessage =
+      conversationMessages.length > 0
+        ? conversationMessages[conversationMessages.length - 1]
+        : null;
 
-  lastMessage: conversation.last_message || "",
+    // Unread messages
+    // Only count messages received by logged-in user
+    const unreadCount = conversationMessages.filter(
+      (m: any) =>
+        Number(m.is_read) === 0 &&
+        Number(m.sender_id) !== Number(id),
+    ).length;
 
-  time: conversation.last_message_at,
+    // Other person in conversation
+    const otherUserId =
+      Number(conversation.customer_id) === Number(id)
+        ? Number(conversation.vendor_id)
+        : Number(conversation.customer_id);
 
-  unread: Number(conversation.unread_count || 0),
+    return {
+      id: String(conversation.id),
 
-  pinned: Boolean(conversation.is_pinned),
+      category: conversation.category,
 
-  messages: messages
-    .filter(
-      (m: any) => Number(m.conversation_id) === Number(conversation.id),
-    )
-    .map((m: any) => ({
-      id: String(m.id),
+      customerId: conversation.customer_id,
 
-      senderId: m.sender_id,
+      vendorId: conversation.vendor_id,
 
-      senderType: m.sender_type,
+      contact: {
+        name: conversation.customer_name,
 
-      receiverId:
-        m.sender_id == conversation.customer_id
-          ? conversation.vendor_id
-          : conversation.customer_id,
+        initials: conversation.customer_name
+          ? conversation.customer_name
+              .split(' ')
+              .map((x: string) => x[0])
+              .join('')
+              .toUpperCase()
+          : '--',
 
-      receiverType:
-        m.sender_id == conversation.customer_id
-          ? "vendor"
-          : "customer",
+        color: 'from-violet-500 to-purple-500',
 
-      role:
-        m.sender_type === "system"
-          ? "system"
-          : m.sender_id == id
-          ? "me"
-          : "them",
+        // Other user online status
+        isOnline: onlineMap.get(otherUserId) || false,
 
-      text: m.message,
+        phone: conversation.phone,
+        email: conversation.email,
+      },
 
-      time: new Date(m.sent_at).toLocaleTimeString("en-IN", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      venue: conversation.child_venue_name,
 
-      date: new Date(m.sent_at).toLocaleDateString("en-IN"),
-    })),
-}));
+      booking_type: conversation.booking_type,
+
+      subject: `Booking #${conversation.booking_code}`,
+
+      booking_code: conversation.booking_code,
+
+      // Latest message from messages table
+      lastMessage: lastMessage?.message || '',
+
+      // Latest message time
+      time: lastMessage?.sent_at || null,
+
+      // Unread messages from messages table
+      unread: unreadCount,
+
+      pinned: Boolean(conversation.is_pinned),
+
+      messages: conversationMessages.map((m: any) => ({
+        id: String(m.id),
+
+        senderId: m.sender_id,
+
+        senderType: m.sender_type,
+
+        receiverId:
+          Number(m.sender_id) === Number(conversation.customer_id)
+            ? conversation.vendor_id
+            : conversation.customer_id,
+
+        receiverType:
+          Number(m.sender_id) === Number(conversation.customer_id)
+            ? 'vendor'
+            : 'customer',
+
+        role:
+          m.sender_type === 'system'
+            ? 'system'
+            : Number(m.sender_id) === Number(id)
+              ? 'me'
+              : 'them',
+
+        text: m.message,
+
+        isRead: Boolean(m.is_read),
+
+        time: new Date(m.sent_at).toLocaleTimeString('en-IN', {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+
+        date: new Date(m.sent_at).toLocaleDateString('en-IN'),
+      })),
+    };
+  });
 
   return {
     success: true,
     data: response,
   };
+}
+
+async message_read(conversationId: number, userId: number) {
+  try {
+    // Verify that the user belongs to this conversation
+    const [conversation] = await this.dataSource.query(
+      `
+        SELECT id, customer_id, vendor_id
+        FROM conversations
+        WHERE id = ?
+        LIMIT 1
+      `,
+      [conversationId],
+    );
+
+    if (!conversation) {
+      return {
+        success: false,
+        message: 'Conversation not found',
+      };
+    }
+
+    if (
+      Number(conversation.customer_id) !== Number(userId) &&
+      Number(conversation.vendor_id) !== Number(userId)
+    ) {
+      return {
+        success: false,
+        message: 'Unauthorized access to conversation',
+      };
+    }
+
+    // Mark unread messages as read
+    const result = await this.dataSource.query(
+      `
+        UPDATE messages
+        SET is_read = 1,
+            read_at = NOW()
+        WHERE conversation_id = ?
+          AND sender_id != ?
+          AND is_read = 0
+      `,
+      [conversationId, userId],
+    );
+
+    return {
+      success: true,
+      message: 'Messages marked as read',
+      affected: result.affectedRows ?? 0,
+    };
+  } catch (error) {
+    console.error('message_read error:', error);
+
+    return {
+      success: false,
+      message: 'Failed to mark messages as read',
+    };
+  }
 }
 
 

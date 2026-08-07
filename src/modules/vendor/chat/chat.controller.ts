@@ -10,7 +10,8 @@ import {
   Body,
   Query,
   Delete,
-  Headers
+  Headers,
+  ParseIntPipe
 } from '@nestjs/common';
 import type {
   FastifyRequest,
@@ -89,5 +90,14 @@ export class ChatController {
       user?.id
     );
   }
+  
+@UseGuards(JwtAuthGuard)
+@Post('messages/:id/read')
+async message_read(
+  @Param('id', ParseIntPipe) id: number,
+  @CurrentUser() user: any,
+) {
+  return this.chatService.message_read(id, user.id);
+}
   
 }
