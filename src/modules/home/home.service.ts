@@ -419,30 +419,43 @@ async find_your_tier(uid: number) {
   const bookingAmount = Number(booking.booking_amount);
 
   // Get all tiers
-  const tiers = await this.dataSource.query(`
+  const tiers = await this.dataSource.query(
+    `
     SELECT *
     FROM member_tier
     ORDER BY min_booking ASC
-  `);
+    `,
+  );
 
   let currentTier = null;
 
-  for (const tier of tiers) {
-    // Special condition for Diamond
-    if (tier.name === "Diamond") {
-      if (
-        (bookingCount >= tier.min_booking &&
-          bookingAmount >= Number(tier.book_amount)) ||
-        bookingCount >= tier.max_booking
-      ) {
-        currentTier = tier;
+  // No bookings → first tier (Bronze)
+  if (bookingCount === 0) {
+    currentTier = tiers[0] || null;
+  } else {
+    for (const tier of tiers) {
+
+      // Diamond
+      if (tier.name === 'Diamond') {
+        if (
+          (
+            bookingCount >= Number(tier.min_booking) &&
+            bookingAmount >= Number(tier.book_amount)
+          ) ||
+          bookingCount >= Number(tier.max_booking)
+        ) {
+          currentTier = tier;
+        }
       }
-    } else {
-      if (
-        bookingCount >= tier.min_booking &&
-        bookingCount <= tier.max_booking
-      ) {
-        currentTier = tier;
+
+      // Other tiers
+      else {
+        if (
+          bookingCount >= Number(tier.min_booking) &&
+          bookingCount <= Number(tier.max_booking)
+        ) {
+          currentTier = tier;
+        }
       }
     }
   }
