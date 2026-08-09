@@ -423,40 +423,30 @@ async find_your_tier(uid: number) {
     `
     SELECT *
     FROM member_tier
-    ORDER BY min_booking ASC
+    ORDER BY max_booking ASC
     `,
   );
 
-  let currentTier = null;
+  let currentTier = tiers[0] || null;
 
-  // No bookings → first tier (Bronze)
-  if (bookingCount === 0) {
-    currentTier = tiers[0] || null;
-  } else {
-    for (const tier of tiers) {
+  for (const tier of tiers) {
+    const maxBooking = Number(tier.max_booking);
+    const bookAmount = Number(tier.book_amount);
 
-      // Diamond
-      if (tier.name === 'Diamond') {
-        if (
-          (
-            bookingCount >= Number(tier.min_booking) &&
-            bookingAmount >= Number(tier.book_amount)
-          ) ||
-          bookingCount >= Number(tier.max_booking)
-        ) {
-          currentTier = tier;
-        }
+    // Diamond
+    if (tier.name === 'Diamond') {
+      if (
+        bookingCount >= maxBooking ||
+        bookingAmount >= bookAmount
+      ) {
+        currentTier = tier;
       }
+    }
 
-      // Other tiers
-      else {
-        if (
-          bookingCount >= Number(tier.min_booking) &&
-          bookingCount <= Number(tier.max_booking)
-        ) {
-          currentTier = tier;
-        }
-      }
+    // Other tiers: ONLY max_booking
+    else if (bookingCount <= maxBooking) {
+      currentTier = tier;
+      break;
     }
   }
 
@@ -465,6 +455,7 @@ async find_your_tier(uid: number) {
     bookingAmount,
     tier: currentTier,
   };
+}
 }
 /*  AND invoice_date IS NOT NULL
       AND invoice_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
