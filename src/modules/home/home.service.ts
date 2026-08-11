@@ -457,7 +457,3 @@ async find_your_tier(uid: number) {
   };
 }
 }
-/*  AND invoice_date IS NOT NULL
-      AND invoice_date >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
-      AND invoice_date < DATE_ADD(DATE_FORMAT(CURDATE(), '%Y-%m-01'), INTERVAL 12 MONTH) */
-}
