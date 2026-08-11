@@ -142,6 +142,12 @@ export class PaxService {
       [body.event_type || body.event?.event_type],
     );
 
+     //Find Which Vendor Under 
+     const [vendor_detial] = await this.dataSource.query(
+      `SELECT created_by,child_venue_name FROM venue_child WHERE child_venue_id = ? LIMIT 1`,
+      [body.venue_id],
+    );
+
     const eventTypeId = eventRows.length ? eventRows[0].id : null;
 
     // Insert Booking
@@ -181,7 +187,7 @@ export class PaxService {
         'pax',
         1, // category id
         country,
-        'active',
+        'New',
 
         Number(body.adult_count || 0) + Number(body.child_count || 0),
 
@@ -192,7 +198,7 @@ export class PaxService {
 
         body.notes || null,
 
-        user_id,
+        vendor_detial.created_by,// Venue create by vendor ID
         user_id,
         user_id,
 
@@ -228,7 +234,7 @@ const venueResult: any = await this.dataSource.query(
   [
     bookingId,
     body.venue_id,
-    body.venue_name,
+    vendor_detial.child_venue_name,
   ],
 );
 
@@ -302,18 +308,136 @@ await this.dataSource.query(
   [
     bookingId,
     user_id,
-    body.name,
-    body.phone,
-    body.email,
+    body.contact_name,
+    body.contact_phone,
+    body.contact_email,
   ],
 );
-
 // -------------------------
 // Package Items
 // -------------------------
 
     // Insert Package/Custom Menu
     await this.insertPaxPackages(bookingId, body);
+
+ // ============================================================
+    // 11. FIRST STATUS LOG
+    // ============================================================
+
+    await this.dataSource.query(
+      `
+      INSERT INTO booking_status_logs
+      (
+        booking_id,
+        previous_status_code,
+        status_code,
+        status,
+        message,
+        changed_by,
+        changed_by_type,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ? , ?, NOW())
+      `,
+      [
+        bookingId,
+
+        // First status has no previous status
+        null,
+
+        "REQUESTED",
+
+        "submited",
+
+        "Booking request received from customer",
+
+        user_id,
+
+        "customer",
+      ],
+    );
+
+    // ============================================================
+    // 12. Create Conversation
+    // ============================================================
+
+    const conversationResult: any = await this.dataSource.query(
+      `
+      INSERT INTO conversations
+      (
+        category,
+        subject,
+        venue_id,
+        customer_id,
+        vendor_id,
+        reference_type,
+        reference_id,
+        created_by,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `,
+      [
+        1,
+
+        `Booking Request #${code}`,
+
+        body.venue_id,
+
+        user_id,
+
+        vendor_detial.created_by,
+
+        "booking",
+
+        bookingId,
+
+        user_id,
+      ],
+    );
+
+    const conversationId = conversationResult.insertId;
+
+    if (!conversationId) {
+      throw new Error("Failed to create booking conversation");
+    }
+
+    // ============================================================
+    // 13. First Conversation Message
+    // ============================================================
+
+    await this.dataSource.query(
+      `
+      INSERT INTO messages
+      (
+        conversation_id,
+        sender_type,
+        sender_id,
+        role,
+        message,
+        is_read,
+        sent_at,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW())
+      `,
+      [
+        conversationId,
+
+        "user",
+
+        user_id,
+
+        "me",
+
+        `Booking request #${code} has been submitted successfully.`,
+
+        0,
+      ],
+    );
+
+    
 
     return {
       success: true,

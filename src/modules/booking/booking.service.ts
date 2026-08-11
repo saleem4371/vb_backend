@@ -249,168 +249,475 @@ return {
 }  
 
 async allbookingData(id: number) {
-
-  const currentSql = `SELECT
+const currentSql = `
+SELECT
     b.id AS id,
     b.booking_code AS bookingId,
-   CONCAT(c.name, 's') AS name,
+    b.estimated_total,
+
+    CONCAT(c.name, 's') AS name,
 
     cv.child_venue_name AS propertyName,
     cv.created_by AS vendor_id,
     cv.child_venue_id AS childVenueId,
 
+    /* =====================================================
+       VENUE IMAGE
+       ===================================================== */
     (
         SELECT vg.attachment
         FROM venue_gallery vg
-        WHERE vg.child_venue_id = bv.child_venue_id
+        WHERE vg.child_venue_id = cv.child_venue_id
           AND vg.image_type = 1
         LIMIT 1
     ) AS image,
 
     pv.propety_category AS category,
 
-    bed.event_date AS date,
+    /* =====================================================
+       EVENT DATE
+       14 Aug 2026
+       OR
+       14 - 16 Aug 2026
+       ===================================================== */
+    CASE
+        WHEN bed.start_date = bed.end_date THEN
+            DATE_FORMAT(bed.start_date, '%d %b %Y')
 
+        ELSE
+            CONCAT(
+                DATE_FORMAT(bed.start_date, '%d'),
+                ' - ',
+                DATE_FORMAT(bed.end_date, '%d %b %Y')
+            )
+    END AS date,
+
+    /* =====================================================
+       RAW START / END DATE
+       ===================================================== */
+    bed.start_date AS startDate,
+    bed.end_date AS endDate,
+
+    /* Existing fields */
     cv.guest_rooms AS nights,
     cv.guest_rooms AS guests,
 
-    bs.shift_name AS shiftLabel,
+    /* =====================================================
+       SHIFT
+       ===================================================== */
+    bs.shiftLabel AS shiftLabel,
+    bs.shiftTime AS shiftTime,
 
-    CONCAT(
-        TIME_FORMAT(bs.start_time, '%h:%i %p'),
-        ' - ',
-        TIME_FORMAT(bs.end_time, '%h:%i %p')
-    ) AS shiftTime,
-
-    COALESCE(bs.price, 0) AS amountINR,
-
-  
+    COALESCE(bs.amountINR, 0) AS amountINR,
 
     b.notes AS specialRequest,
 
-    /* Booking */
+    /* =====================================================
+       BOOKING
+       ===================================================== */
     b.booking_type AS bookingType,
 
- CASE
-    WHEN b.status = 'cancelled' THEN 'cancelled'
-   
-  WHEN LOWER(TRIM(b.booking_type)) = 'pax' THEN 'pax'
-    WHEN LOWER(TRIM(b.booking_type)) = 'enquiry' THEN 'enquiry'
-    WHEN LOWER(TRIM(b.booking_type)) = 'reserve' THEN 'reservation'
-    WHEN b.booking_type NOT IN ('enquiry', 'reserve','pax')
-         AND bed.event_date > CURDATE()
-    THEN 'upcoming'
+    CASE
+        WHEN b.status = 'cancelled'
+            THEN 'cancelled'
 
-    WHEN b.booking_type NOT IN ('enquiry', 'reserve','pax')
-         AND bed.event_date = CURDATE()
-    THEN 'ongoing'
+        WHEN LOWER(TRIM(b.booking_type)) = 'pax'
+            THEN 'pax'
 
-    ELSE 'Completed'
-END AS bookingStatus,
+        WHEN LOWER(TRIM(b.booking_type)) = 'enquiry'
+            THEN 'enquiry'
 
+        WHEN LOWER(TRIM(b.booking_type)) = 'reserve'
+            THEN 'reservation'
+
+        WHEN LOWER(TRIM(b.booking_type)) NOT IN (
+            'enquiry',
+            'reserve',
+            'pax'
+        )
+        AND bed.start_date > CURDATE()
+            THEN 'upcoming'
+
+        WHEN LOWER(TRIM(b.booking_type)) NOT IN (
+            'enquiry',
+            'reserve',
+            'pax'
+        )
+        AND CURDATE() BETWEEN bed.start_date AND bed.end_date
+            THEN 'ongoing'
+
+        ELSE 'Completed'
+    END AS bookingStatus,
+
+    /* =====================================================
+       VENDOR
+       ===================================================== */
     pv.venue_name AS vendorName,
     pv.venue_name AS vendorGSTIN,
     pv.venue_address AS address,
     pv.venue_state AS placeOfSupply,
+
     u.state AS customerState,
 
+    /* =====================================================
+       RESERVATION
+       ===================================================== */
     b.reservation_end_date AS holdExpiresAt,
+
     b.total_amount AS total_amount,
 
-    DATEDIFF(bed.event_date, CURDATE()) AS daysLeft,
-    bed.event_date  as eventDate ,
+    /* =====================================================
+       DAYS LEFT
+       ===================================================== */
+    DATEDIFF(
+        bed.start_date,
+        CURDATE()
+    ) AS daysLeft,
 
-    /* Payment Summary */
+    /* =====================================================
+       EVENT DATE
+       ===================================================== */
+    CASE
+        WHEN bed.start_date = bed.end_date THEN
+            DATE_FORMAT(
+                bed.start_date,
+                '%Y-%m-%d'
+            )
+
+        ELSE
+            CONCAT(
+                DATE_FORMAT(
+                    bed.start_date,
+                    '%Y-%m-%d'
+                ),
+                ' - ',
+                DATE_FORMAT(
+                    bed.end_date,
+                    '%Y-%m-%d'
+                )
+            )
+    END AS eventDate,
+
+    /* =====================================================
+       PAYMENT SUMMARY
+       ===================================================== */
     COALESCE(ps.totalPaid, 0) AS totalPaid,
 
-    COALESCE(bs.price, 0) AS totalAmount,
+    COALESCE(bs.amountINR, 0) AS totalAmount,
 
     GREATEST(
-        COALESCE(bs.price, 0) - COALESCE(ps.totalPaid, 0),
+        COALESCE(bs.amountINR, 0)
+        -
+        COALESCE(ps.totalPaid, 0),
         0
     ) AS pendingAmount,
 
     CASE
-        WHEN COALESCE(ps.totalPaid, 0) >= COALESCE(bs.price, 0)
+        WHEN COALESCE(ps.totalPaid, 0)
+             >= COALESCE(bs.amountINR, 0)
             THEN 'Paid'
+
         WHEN COALESCE(ps.totalPaid, 0) = 0
             THEN 'Unpaid'
+
         ELSE 'Pending'
     END AS paymentStatus,
 
+    /* =====================================================
+       LATEST PAYMENT
+       ===================================================== */
     bp.payment_method AS paymentMode,
     bp.transaction_id,
     bp.payment_date,
     bp.paid_at,
-    COALESCE(ps.paymentHistory, JSON_ARRAY()) AS paymentHistory
+
+    /* =====================================================
+       PAYMENT HISTORY
+       ===================================================== */
+    COALESCE(
+        ps.paymentHistory,
+        JSON_ARRAY()
+    ) AS paymentHistory,
+
+    /* =====================================================
+       PAX / PACKAGE DETAILS
+       ===================================================== */
+    COALESCE(
+        (
+            SELECT JSON_ARRAYAGG(
+                JSON_OBJECT(
+                    'id',
+                    pax.id,
+
+                    'bookingId',
+                    pax.booking_id,
+
+                    'packageId',
+                    pax.package_id,
+
+                    'packageName',
+                    pax.package_name,
+
+                    'paxCount',
+                    pax.pax_count,
+
+                    'pricePerPax',
+                    pax.price_per_pax,
+
+                    'total',
+                    pax.total,
+
+                    'createdAt',
+                    pax.created_at,
+
+                    'updatedAt',
+                    pax.updated_at,
+
+                    'items',
+                    COALESCE(
+                        (
+                            SELECT JSON_ARRAYAGG(
+                                JSON_OBJECT(
+                                    'id',
+                                    ppi.id,
+
+                                    'categoryId',
+                                    ppi.category_id,
+
+                                    'itemId',
+                                    ppi.item_id,
+
+                                    'itemName',
+                                    COALESCE(
+                                        pil.item_name,
+                                        ppi.item_name
+                                    ),
+
+                                    'itemPrice',
+                                    COALESCE(
+                                        pil.item_price,
+                                        0
+                                    ),
+
+                                    'itemPrice1',
+                                    COALESCE(
+                                        pil.item_price_1,
+                                        0
+                                    ),
+
+                                    'createdAt',
+                                    ppi.created_at,
+
+                                    'image',
+                                    pil.image,
+
+                                    'foodPre',
+                                    pil.food_pre
+                                )
+                            )
+
+                            FROM booking_pax_items ppi
+
+                            LEFT JOIN package_items_list pil
+                                ON pil.id = ppi.item_id
+
+                            WHERE ppi.booking_pax_id = pax.id
+                        ),
+                        JSON_ARRAY()
+                    )
+                )
+            )
+
+            FROM booking_pax pax
+
+            WHERE pax.booking_id = b.id
+        ),
+        JSON_ARRAY()
+    ) AS paxPackages
 
 FROM bookings b
 
+/* =====================================================
+   BOOKING VENUES
+   ===================================================== */
 INNER JOIN booking_venues bv
     ON bv.booking_id = b.id
 
+/* =====================================================
+   CATEGORY
+   ===================================================== */
 INNER JOIN category c
     ON c.id = b.category
 
+/* =====================================================
+   CHILD VENUE
+   ===================================================== */
 INNER JOIN venue_child cv
     ON cv.child_venue_id = bv.child_venue_id
 
+/* =====================================================
+   PARENT VENUE
+   ===================================================== */
 LEFT JOIN venue_parent pv
     ON pv.parent_venue_id = cv.parent_venue_id
 
-INNER JOIN booking_event_dates bed
+/* =====================================================
+   EVENT DATES
+
+   IMPORTANT:
+   Instead of joining every event_date row,
+   we get only MIN and MAX.
+
+   Example:
+   2026-08-14
+   2026-08-15
+   2026-08-16
+
+   becomes:
+
+   start_date = 2026-08-14
+   end_date   = 2026-08-16
+   ===================================================== */
+INNER JOIN (
+    SELECT
+        booking_id,
+
+        MIN(event_date) AS start_date,
+
+        MAX(event_date) AS end_date
+
+    FROM booking_event_dates
+
+    GROUP BY booking_id
+) bed
     ON bed.booking_id = b.id
 
-LEFT JOIN booking_shifts bs
-    ON bs.booking_id = b.id
-   AND bs.event_date_id = bed.id
-   AND bs.venue_id = bv.id
+/* =====================================================
+   BOOKING SHIFTS
 
-/* Payment Summary + History */
+   Aggregate all shifts for the booking/venue
+   so shifts don't create duplicate booking rows.
+   ===================================================== */
 LEFT JOIN (
     SELECT
         booking_id,
-        SUM(amount_paid) AS totalPaid,
+        venue_id,
+
+        GROUP_CONCAT(
+            DISTINCT shift_name
+            ORDER BY start_time
+            SEPARATOR ', '
+        ) AS shiftLabel,
+
+        GROUP_CONCAT(
+            DISTINCT CONCAT(
+                TIME_FORMAT(start_time, '%h:%i %p'),
+                ' - ',
+                TIME_FORMAT(end_time, '%h:%i %p')
+            )
+            ORDER BY start_time
+            SEPARATOR ', '
+        ) AS shiftTime,
+
+        SUM(
+            COALESCE(price, 0)
+        ) AS amountINR
+
+    FROM booking_shifts
+
+    GROUP BY
+        booking_id,
+        venue_id
+
+) bs
+    ON bs.booking_id = b.id
+    AND bs.venue_id = bv.id
+
+/* =====================================================
+   PAYMENT SUMMARY + PAYMENT HISTORY
+   ===================================================== */
+LEFT JOIN (
+    SELECT
+        booking_id,
+
+        SUM(
+            COALESCE(amount_paid, 0)
+        ) AS totalPaid,
+
         JSON_ARRAYAGG(
             JSON_OBJECT(
-                'id', id,
-                'paymentDate', payment_date,
-                'paymentType', payment_type,
-                'paymentMethod', payment_method,
-                'transactionId', transaction_id,
-                'amountPaid', amount_paid,
-                'paymentStatus', payment_status,
-                'paidAt', paid_at
+                'id',
+                id,
+
+                'paymentDate',
+                payment_date,
+
+                'paymentType',
+                payment_type,
+
+                'paymentMethod',
+                payment_method,
+
+                'transactionId',
+                transaction_id,
+
+                'amountPaid',
+                amount_paid,
+
+                'paymentStatus',
+                payment_status,
+
+                'paidAt',
+                paid_at
             )
         ) AS paymentHistory
-    FROM booking_payments
-    GROUP BY booking_id
-) ps
-ON ps.booking_id = b.id
 
-/* Latest Payment */
+    FROM booking_payments
+
+    GROUP BY booking_id
+
+) ps
+    ON ps.booking_id = b.id
+
+/* =====================================================
+   LATEST PAYMENT
+   ===================================================== */
 LEFT JOIN (
-    SELECT p1.*
+    SELECT
+        p1.*
     FROM booking_payments p1
+
     INNER JOIN (
         SELECT
             booking_id,
             MAX(id) AS id
+
         FROM booking_payments
+
         GROUP BY booking_id
+
     ) p2
         ON p1.id = p2.id
-) bp
-ON bp.booking_id = b.id
 
+) bp
+    ON bp.booking_id = b.id
+
+/* =====================================================
+   CUSTOMER
+   ===================================================== */
 LEFT JOIN users u
     ON u.id = b.created_by
 
-WHERE
-    b.created_by = ?
+/* =====================================================
+   USER FILTER
+   ===================================================== */
+WHERE b.created_by = ?
 
-ORDER BY b.created_at DESC`;
-
+/* =====================================================
+   LATEST BOOKINGS FIRST
+   ===================================================== */
+ORDER BY b.created_at DESC;
+`;
 
 
 
@@ -601,4 +908,329 @@ async createLog(
 );
 
 }
+
+async getUnreadMessageCount(userId: number) {
+  const [result] = await this.dataSource.query(
+    `
+    SELECT COUNT(*) AS unread_count
+    FROM messages m
+    INNER JOIN conversations c
+      ON c.id = m.conversation_id
+    WHERE m.sender_id != ?
+      AND m.is_read = 0
+      AND (
+        c.customer_id = ?
+        OR c.vendor_id = ?
+      )
+    `,
+    [userId, userId, userId],
+  );
+
+  return {
+    success: true,
+    unreadCount: Number(result?.unread_count ?? 0),
+  };
+}
+
+async getMessageTemplate(actionKey: string) {
+  const rows = await this.dataSource.query(
+    `
+    SELECT
+      id,
+      action_key,
+      title,
+      message,
+      message_type,
+      color
+    FROM message_templates
+    WHERE action_key = ?
+      AND is_active = 1
+    LIMIT 1
+    `,
+    [actionKey],
+  );
+
+  return rows[0] || null;
+}
+private replaceTemplateVariables(
+  template: string,
+  data: any,
+) {
+  return template
+    .replace(
+      /{{customerName}}/g,
+      data.customerName || 'Customer',
+    )
+    .replace(
+      /{{bookingRef}}/g,
+      data.bookingRef || '',
+    )
+    .replace(
+      /{{eventDate}}/g,
+      data.eventDate || '',
+    )
+    .replace(
+      /{{venueName}}/g,
+      data.venueName || '',
+    )
+    .replace(
+      /{{finalAmount}}/g,
+      data.finalAmount || '',
+    );
+}
+
+async createQuotationChatMessage(
+  bookingId: number,
+  conversationId: number,
+  vendorId: number,
+  quotation: any,
+) {
+  const template = await this.getMessageTemplate(
+    'quotation_sent',
+  );
+
+  if (!template) {
+    throw new Error(
+      'Quotation message template not found',
+    );
+  }
+
+  //Status Update
+
+   await this.dataSource.query(
+      `
+      INSERT INTO booking_status_logs
+      (
+        booking_id,
+        previous_status_code,
+        status_code,
+        status,
+        message,
+        changed_by,
+        changed_by_type,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ? , ?, NOW())
+      `,
+      [
+        bookingId,
+
+        // First status has no previous status
+        null,
+
+        "QUOATION",
+
+        "Negotiating",
+
+        "Booking Negotiating to customer",
+
+        vendorId,
+
+        "vendor",
+      ],
+    );
+
+    await this.dataSource.query(
+      ` UPDATE bookings SET status = ? WHERE id = ? `,['Negotiating',bookingId]);
+
+  //Negotiating
+
+//   const message = this.replaceTemplateVariables(
+//     template.message,
+//     {
+//       customerName: quotation.customerName,
+//       bookingRef: quotation.bookingRef,
+//       eventDate: quotation.eventDate,
+//       venueName: quotation.venueName,
+//       finalAmount: quotation.finalAmount,
+//     },
+//   );
+
+//   const metadata = {
+//     quotation_id: quotation.quotationId,
+
+//     original_amount: Number(
+//       quotation.originalAmount || 0,
+//     ),
+
+//     discount_amount: Number(
+//       quotation.discountAmount || 0,
+//     ),
+
+//     additional_charges: Number(
+//       quotation.additionalCharges || 0,
+//     ),
+
+//     final_amount: Number(
+//       quotation.finalAmount || 0,
+//     ),
+
+//     notes: quotation.notes || '',
+//   };
+
+//   const result = await this.dataSource.query(
+//     `
+//     INSERT INTO messages
+//     (
+//       conversation_id,
+//       sender_type,
+//       sender_id,
+//       message,
+//       message_type,
+//       metadata,
+//       role,
+//       attachment_url,
+//       reply_to,
+//       is_read,
+//       sent_at,
+//       created_at
+//     )
+//     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+//     `,
+//     [
+//       conversationId,
+//       'vendor',
+//       vendorId,
+//       message,
+//       template.message_type,
+//       JSON.stringify(metadata),
+//       'vendor',
+//       null,
+//       0,
+//       0,
+//     ],
+//   );
+
+const message = `Hello ${quotation.booking_ref}, your quotation for ${quotation.venue_name} is ready. The final amount is ${quotation.final_amount || 0}. Please review it and let us know if you have any questions.`;
+const metadata = {
+  quotation_id: quotation.booking_ref,
+
+  original_amount: Number(
+    quotation.original_amount || 0,
+  ),
+
+  discount_amount: Number(
+    quotation.discount_amount || 0,
+  ),
+
+  additional_charges: Number(
+    quotation.additional_charges || 0,
+  ),
+
+  final_amount: Number(
+    quotation.final_amount || 0,
+  ),
+
+  notes: quotation.notes || '',
+};
+
+const result = await this.dataSource.query(
+  `
+  INSERT INTO messages
+  (
+    conversation_id,
+    sender_type,
+    sender_id,
+    message,
+    message_type,
+    metadata,
+    role,
+    attachment_url,
+    reply_to,
+    is_read,
+    sent_at,
+    created_at
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+  `,
+  [
+    conversationId,
+    'user',
+    vendorId,
+    message,
+    'quotation',
+    JSON.stringify(metadata),
+    'them',
+    null,
+    0,
+    0,
+  ],
+);
+
+  const rows = await this.dataSource.query(
+    `
+    SELECT
+      id,
+      conversation_id,
+      sender_type,
+      sender_id,
+      message,
+      message_type,
+      metadata,
+      role,
+      attachment_url,
+      reply_to,
+      is_read,
+      read_at,
+      sent_at,
+      created_at
+    FROM messages
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [result.insertId],
+  );
+
+  const newMessage = rows[0];
+
+  return newMessage;
+}
+
+
+async cancelpax(
+  userId: number,
+  body: any
+) {
+
+//Status Update
+
+   await this.dataSource.query(
+      `
+      INSERT INTO booking_status_logs
+      (
+        booking_id,
+        previous_status_code,
+        status_code,
+        status,
+        message,
+        changed_by,
+        changed_by_type,
+        created_at
+      )
+      VALUES (?, ?, ?, ?, ?, ? , ?, NOW())
+      `,
+      [
+        body.id,
+        null,
+        "QUOATION",
+        "Cancelled",
+        "Booking Cancelled By vendor",
+        userId,
+        "vendor",
+      ],
+    );
+  await this.dataSource.query(
+  `UPDATE bookings 
+   SET status = ?,
+       cancellation_reason = ?,
+       cancellation_date = NOW()
+   WHERE id = ?`,
+  [
+    'Cancelled',
+    body.reason,
+    body.id,
+  ],
+);}
+
+
 }

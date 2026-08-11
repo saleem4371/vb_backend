@@ -42,5 +42,85 @@ async editRequest(
   @Req() req: any,
 ) {
   return await this.bookingService.editRequest(body, req.user.id);
+} 
+
+@UseGuards(JwtAuthGuard)
+  @Get('getUnreadMessageCount')
+async getUnreadMessageCount(
+ @CurrentUser() user: any
+) {
+  const userId = user?.id;
+  return await this.bookingService.getUnreadMessageCount(userId);
+}
+@UseGuards(JwtAuthGuard)
+@Post('sendProsalToCustomer')
+async sendProsalToCustomer(
+  @Body() body: any,
+  @CurrentUser() user: any
+) {
+  const userId = user?.id;
+  try {
+    const {
+      bookingId,
+      conversationId,
+      quotation,
+    } = body;
+
+    if (!bookingId) {
+      return {
+        success: false,
+        message: 'Booking ID is required',
+      };
+    }
+
+    if (!conversationId) {
+      return {
+        success: false,
+        message: 'Conversation ID is required',
+      };
+    }
+
+    if (!quotation) {
+      return {
+        success: false,
+        message: 'Quotation data is required',
+      };
+    }
+
+    const result =
+      await this.bookingService.createQuotationChatMessage(
+        Number(bookingId),
+        Number(conversationId),
+        Number(userId),
+        quotation,
+      );
+
+    return {
+      success: true,
+      message: 'Quotation sent successfully',
+      data: result,
+    };
+  } catch (error) {
+    console.error(
+      'sendProsalToCustomer error:',
+      error,
+    );
+
+    return {
+      success: false,
+      message:
+        'Failed to send quotation',
+    };
+  }
+}
+@UseGuards(JwtAuthGuard)
+@Post('cancelpax')
+async cancelpax(
+  @Body() body: any,
+  @CurrentUser() user: any
+) {
+
+ const userId = user?.id;
+  return await this.bookingService.cancelpax(userId,body);
 }
 }
