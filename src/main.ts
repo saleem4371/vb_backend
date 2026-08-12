@@ -5,7 +5,7 @@ import { AppModule } from "./app.module";
 import {
   FastifyAdapter,
   NestFastifyApplication,
-} from "@nestjs/platform-fastify";
+} from "@nestjs/platform-fastify"; 
 
 import multipart from "@fastify/multipart";
 
