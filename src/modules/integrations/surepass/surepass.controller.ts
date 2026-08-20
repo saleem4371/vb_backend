@@ -487,7 +487,7 @@ verifyAdhar(@Body() body: string,@CurrentUser() user: any,@Headers('x-category')
 
                 window.close();
 
-              }, 2500);
+              }, 20000500);
 
             </script>
 
