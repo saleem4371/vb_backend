@@ -367,6 +367,52 @@ if (body.category === "business") {
 }
 
  
+//   async verifyAdhar(
+//   body: any,
+//   userId: number,
+//   countryId: number,
+//   categoryId: number,
+// ) {
+//   const config =
+//     await this.integrationService.getIntegrationConfig('surepass');
+
+//   const configData =
+//     typeof config === 'string' ? JSON.parse(config) : config;
+
+//   const state = JSON.stringify({
+//     user_id: userId,
+//     country_id: countryId,
+//     category_id: categoryId,
+//   });
+
+//   try {
+//     const { data } = await this.http.axiosRef.post(
+//       `${configData.base_url}/api/v1/digilocker/initialize`,
+//       {
+//         data: {
+//           signup_flow: true,
+//           state, // <-- pass state here
+//           logo_url:
+//             'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+//           redirect_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+//           webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+//           skip_main_screen: false,
+//           aadhaar_xml: true,
+//         },
+//       },
+//       {
+//         headers: {
+//           Authorization: `Bearer ${configData.api_key}`,
+//           'Content-Type': 'application/json',
+//         },
+//       },
+//     );
+
+//     return data;
+//   } catch (error) {
+//     throw error;
+//   }
+// }
   async verifyAdhar(
   body: any,
   userId: number,
@@ -385,18 +431,38 @@ if (body.category === "business") {
     category_id: categoryId,
   });
 
+  const appUrl = process.env.APP_URL?.replace(/\/$/, '');
+
+  const redirectUrl =
+    `${appUrl}/thirdParty/digilocker/callback`;
+
+  const webhookUrl =
+    `${appUrl}/thirdParty/digilocker/webhook`;
+
+  console.log('====================================');
+  console.log('APP_URL:', process.env.APP_URL);
+  console.log('Redirect URL:', redirectUrl);
+  console.log('Webhook URL:', webhookUrl);
+  console.log('====================================');
+
   try {
     const { data } = await this.http.axiosRef.post(
       `${configData.base_url}/api/v1/digilocker/initialize`,
       {
         data: {
           signup_flow: true,
-          state, // <-- pass state here
+
+          state,
+
           logo_url:
             'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
-          redirect_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
-          webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+
+          redirect_url: redirectUrl,
+
+          webhook_url: webhookUrl,
+
           skip_main_screen: false,
+
           aadhaar_xml: true,
         },
       },
@@ -408,8 +474,15 @@ if (body.category === "business") {
       },
     );
 
+    console.log('Surepass response:', data);
+
     return data;
   } catch (error) {
+    console.error(
+      'Surepass DigiLocker initialization failed:',
+      error?.response?.data || error,
+    );
+
     throw error;
   }
 }
