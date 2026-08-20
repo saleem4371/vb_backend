@@ -1,777 +1,863 @@
-import { Injectable, BadRequestException , Logger} from '@nestjs/common';
-
+import {
+  Injectable,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { IntegrationService } from '../integSettings/integSettings.service';
-
 import { DataSource } from 'typeorm';
 import { StorageService } from 'src/common/storage/storage.service';
 
 @Injectable()
 export class SurepassService {
+  private readonly logger = new Logger(SurepassService.name);
+
   constructor(
     private readonly integrationService: IntegrationService,
     private readonly http: HttpService,
-    private dataSource: DataSource,
-    private storageService: StorageService,
-    
+    private readonly dataSource: DataSource,
+    private readonly storageService: StorageService,
   ) {}
 
-   private readonly logger = new Logger(SurepassService.name);
+  // ============================================================
+  // COMMON HELPERS
+  // ============================================================
 
-async verifyPan(body: any, id: any, category: any, country: any) {
-  const config = await this.integrationService.getIntegrationConfig("surepass");
-  const configData =
-    typeof config === "string" ? JSON.parse(config) : config;
+  private getSingularCategory(category: any): string {
+    const value = String(category || '').trim();
 
-  const singular = category.endsWith("s")
-    ? category.slice(0, -1)
-    : category;
+    if (!value) {
+      throw new BadRequestException('Category is required');
+    }
 
-  const [categoryData] = await this.dataSource.query(
-    `SELECT * FROM category WHERE name = ? LIMIT 1`,
-    [singular],
-  );
-
-  try {
-    // PAN Verification
-   // Check if PAN already exists
-// Check if this PAN already exists for this user
-const [existingPan] = await this.dataSource.query(
-  `
-  SELECT *
-  FROM user_kyc_documents
-  WHERE document_type = 'pan'
-    AND document_number = ?
-  ORDER BY id DESC
-  LIMIT 1
-  `,
-  [body.pan],
-);
-
-let panData: any;
-
-// If PAN exists for this user, use stored data
-if (existingPan) {
-  panData = JSON.parse(existingPan.doc_details || "{}");
-} else {
-  // Call Surepass only if PAN is not already stored for this user
-  const panResponse = await this.http.axiosRef.post(
-    `${configData.base_url}/api/v1/pan/pan-comprehensive`,
-    {
-      id_number: body.pan,
-      get_address: true,
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${configData.api_key}`,
-        "Content-Type": "application/json",
-      },
-    },
-  );
-
-  panData = panResponse.data.data;
-}
-
-// ALWAYS INSERT (new auto-increment ID)
-await this.dataSource.query(
-  `
-  INSERT INTO user_kyc_documents
-  (
-    category_id,
-    country_id,
-    user_id,
-    document_type,
-    document_number,
-    file_url,
-    verification_status,
-    doc_details,
-    verified_by,
-    verified_at,
-    created_at
-  )
-  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-  `,
-  [
-    categoryData.id,
-    country,
-    id,
-    "pan",
-    body.pan,
-    "",
-    "pending",
-    JSON.stringify(panData),
-    0,
-    null,
-  ],
-);
-
-// ------------------------------------------------------------------
-// PAN NOT FOUND -> CALL SUREPASS API
-// ------------------------------------------------------------------
-
-
-
-    // GST Verification (Business Only)
-  // GST Verification (Business Only)
-if (body.category === "business") {
-  let gstData: any = null;
-  let gstin = "";
-
-  // Check if GST already exists for this user
-  const [existingGST] = await this.dataSource.query(
-    `
-    SELECT *
-    FROM user_kyc_documents
-    WHERE  document_type = 'gst' AND user_id = ?
-    ORDER BY id DESC
-    LIMIT 1
-    `,
-    [existingPan.user_id],
-  );
-
-  if (existingGST) {
-    // Use existing GST data
-    gstData = JSON.parse(existingGST.doc_details || "{}");
-    gstin = existingGST.document_number;
-  } else {
-    // Call Surepass GST API
-    const gstResponse = await this.http.axiosRef.post(
-      `${configData.base_url}/api/v1/corporate/gstin-by-pan`,
-      {
-        id_number: body.pan,
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${configData.api_key}`,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    gstData = gstResponse.data?.data;
-    gstin = gstData?.gstin_list?.[0]?.gstin || "";
+    return value.endsWith('s') ? value.slice(0, -1) : value;
   }
 
-  // Always INSERT a new GST record
-  if (gstData) {
-    await this.dataSource.query(
-      `
-      INSERT INTO user_kyc_documents
-      (
-        category_id,
-        country_id,
-        user_id,
-        document_type,
-        document_number,
-        file_url,
-        verification_status,
-        doc_details,
-        verified_by,
-        verified_at,
-        created_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-      `,
-      [
-        categoryData.id,
-        country,
-        id,
-        "gst",
-        gstin,
-        "",
-        "approved",
-        JSON.stringify(gstData),
-        0,
-        null,
-      ],
+  private async getSurepassConfig(): Promise<any> {
+    const config = await this.integrationService.getIntegrationConfig(
+      'surepass',
     );
+
+    const configData =
+      typeof config === 'string'
+        ? JSON.parse(config)
+        : config;
+
+    if (!configData?.base_url) {
+      throw new Error('Surepass base_url missing');
+    }
+
+    if (!configData?.api_key) {
+      throw new Error('Surepass API key missing');
+    }
+
+    return configData;
   }
-}
 
-    // Fetch latest PAN
-    const [dbRow] = await this.dataSource.query(
-      `
-      SELECT *
-      FROM user_kyc_documents
-      WHERE user_id = ?
-        AND document_type = 'pan'
-      ORDER BY id DESC
-      LIMIT 1
-      `,
-      [id],
-    );
-
-    const details = JSON.parse(dbRow.doc_details || "{}");
-
-    // Fetch latest GST
-    const [gstRow] = await this.dataSource.query(
-      `
-      SELECT *
-      FROM user_kyc_documents
-      WHERE user_id = ?
-        AND document_type = 'gst'
-      ORDER BY id DESC
-      LIMIT 1
-      `,
-      [id],
-    );
-
-    const gstDetails = gstRow
-      ? JSON.parse(gstRow.doc_details || "{}")
-      : null;
-
+  private getSurepassHeaders(apiKey: string) {
     return {
-      company_name: details.full_name || "",
-      pan_number: dbRow.document_number || "",
-      business_category: details.category || "person",
-      gst_number: gstRow?.document_number || "",
-      gst_details: gstDetails,
-      registered_address:
-        details.address?.full ||
-        [
-          details.address?.city,
-          details.address?.state,
-          details.address?.zip,
-        ]
-          .filter(Boolean)
-          .join(", "),
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
     };
-  } catch (error: any) {
-    console.log("Status:", error?.response?.status);
-    console.log("Data:", error?.response?.data);
-
-    throw new BadRequestException(
-      error?.response?.data?.message || "PAN verification failed",
-    );
   }
-}
 
+  private safeJsonParse(value: any, fallback: any = {}) {
+    if (!value) {
+      return fallback;
+    }
 
-  async verifyBank(body: any, id: any, category: any, country: any) {
-  const singular = category.endsWith("s")
-    ? category.slice(0, -1)
-    : category;
+    if (typeof value === 'object') {
+      return value;
+    }
 
-  const [categoryData] = await this.dataSource.query(
-    `SELECT * FROM category WHERE name = ? LIMIT 1`,
-    [singular],
-  );
-
-  const config = await this.integrationService.getIntegrationConfig("surepass");
-  const configData =
-    typeof config === "string" ? JSON.parse(config) : config;
-
-  let bankData: any;
-
-  // Check if same account already exists for this user
-  const [existingBank] = await this.dataSource.query(
-    `
-    SELECT *
-    FROM user_kyc_bank_details
-    WHERE account_number = ?
-    ORDER BY id DESC
-    LIMIT 1
-    `,
-    [body.acct],
-  );
-
-  if (existingBank) {
-    // Use existing data
-    bankData = existingBank;
-  } else {
-    // Call Surepass API
     try {
-      const response = await this.http.axiosRef.post(
-        `${configData.base_url}/api/v1/bank-verification/pennyless`,
-        {
-          id_number: body.acct,
-          ifsc: body.cleanIFSC,
-          ifsc_details: true,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${configData.api_key}`,
+      return JSON.parse(value);
+    } catch {
+      return fallback;
+    }
+  }
+
+  // ============================================================
+  // PAN VERIFICATION
+  // ============================================================
+
+  async verifyPan(
+    body: any,
+    id: any,
+    category: any,
+    country: any,
+  ) {
+    try {
+      if (!body?.pan) {
+        throw new BadRequestException('PAN number is required');
+      }
+
+      const userId = Number(id);
+      const countryId = Number(country);
+
+      if (!userId) {
+        throw new BadRequestException('Invalid user id');
+      }
+
+      if (!countryId) {
+        throw new BadRequestException('Invalid country id');
+      }
+
+      const singular = this.getSingularCategory(category);
+
+      const [categoryData] = await this.dataSource.query(
+        `
+        SELECT *
+        FROM category
+        WHERE name = ?
+        LIMIT 1
+        `,
+        [singular],
+      );
+
+      if (!categoryData) {
+        throw new BadRequestException(
+          `Category not found: ${singular}`,
+        );
+      }
+
+      const configData = await this.getSurepassConfig();
+
+      // ----------------------------------------------------------
+      // Check PAN for CURRENT USER only
+      // ----------------------------------------------------------
+
+      const [existingPan] = await this.dataSource.query(
+        `
+        SELECT *
+        FROM user_kyc_documents
+        WHERE user_id = ?
+          AND document_type = 'pan'
+          AND document_number = ?
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [userId, body.pan],
+      );
+
+      let panData: any;
+
+      // ----------------------------------------------------------
+      // Existing PAN
+      // ----------------------------------------------------------
+
+      if (existingPan) {
+        panData = this.safeJsonParse(
+          existingPan.doc_details,
+          {},
+        );
+      }
+
+      // ----------------------------------------------------------
+      // New PAN -> Surepass
+      // ----------------------------------------------------------
+
+      else {
+        const panResponse = await this.http.axiosRef.post(
+          `${configData.base_url}/api/v1/pan/pan-comprehensive`,
+          {
+            id_number: body.pan,
+            get_address: true,
           },
-        },
+          {
+            headers: this.getSurepassHeaders(
+              configData.api_key,
+            ),
+          },
+        );
+
+        panData = panResponse?.data?.data;
+
+        if (!panData) {
+          throw new Error(
+            'Invalid response from Surepass PAN API',
+          );
+        }
+      }
+
+      // ----------------------------------------------------------
+      // ALWAYS INSERT NEW PAN RECORD
+      // ----------------------------------------------------------
+
+      await this.dataSource.query(
+        `
+        INSERT INTO user_kyc_documents
+        (
+          category_id,
+          country_id,
+          user_id,
+          document_type,
+          document_number,
+          file_url,
+          verification_status,
+          doc_details,
+          verified_by,
+          verified_at,
+          created_at,
+          updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        `,
+        [
+          categoryData.id,
+          countryId,
+          userId,
+          'pan',
+          body.pan,
+          '',
+          'pending',
+          JSON.stringify(panData || {}),
+          0,
+          null,
+        ],
       );
 
-      bankData = response.data?.data;
-    } catch (error) {
-      console.error("Bank Verification Error:");
+      // ==========================================================
+      // GST VERIFICATION FOR BUSINESS
+      // ==========================================================
 
-      throw new Error("Bank verification failed");
+      if (String(body.category || '').toLowerCase() === 'business') {
+        let gstData: any = null;
+        let gstin = '';
+
+        // --------------------------------------------------------
+        // Find GST for CURRENT USER
+        // --------------------------------------------------------
+
+        const [existingGST] = await this.dataSource.query(
+          `
+          SELECT *
+          FROM user_kyc_documents
+          WHERE user_id = ?
+            AND document_type = 'gst'
+          ORDER BY id DESC
+          LIMIT 1
+          `,
+          [userId],
+        );
+
+        if (existingGST) {
+          gstData = this.safeJsonParse(
+            existingGST.doc_details,
+            {},
+          );
+
+          gstin = existingGST.document_number || '';
+        }
+
+        // --------------------------------------------------------
+        // GST not found -> Surepass
+        // --------------------------------------------------------
+
+        else {
+          try {
+            const gstResponse =
+              await this.http.axiosRef.post(
+                `${configData.base_url}/api/v1/corporate/gstin-by-pan`,
+                {
+                  id_number: body.pan,
+                },
+                {
+                  headers:
+                    this.getSurepassHeaders(
+                      configData.api_key,
+                    ),
+                },
+              );
+
+            gstData = gstResponse?.data?.data;
+
+            gstin =
+              gstData?.gstin_list?.[0]?.gstin || '';
+          } catch (error: any) {
+            this.logger.error(
+              'GST Verification Error',
+            );
+
+            this.logger.error(
+              JSON.stringify(
+                error?.response?.data ||
+                  error?.message ||
+                  error,
+                null,
+                2,
+              ),
+            );
+
+            throw error;
+          }
+        }
+
+        // --------------------------------------------------------
+        // Save GST
+        // --------------------------------------------------------
+
+        if (gstData) {
+          await this.dataSource.query(
+            `
+            INSERT INTO user_kyc_documents
+            (
+              category_id,
+              country_id,
+              user_id,
+              document_type,
+              document_number,
+              file_url,
+              verification_status,
+              doc_details,
+              verified_by,
+              verified_at,
+              created_at,
+              updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+            `,
+            [
+              categoryData.id,
+              countryId,
+              userId,
+              'gst',
+              gstin,
+              '',
+              'approved',
+              JSON.stringify(gstData),
+              0,
+              null,
+            ],
+          );
+        }
+      }
+
+      // ==========================================================
+      // GET LATEST PAN
+      // ==========================================================
+
+      const [dbRow] = await this.dataSource.query(
+        `
+        SELECT *
+        FROM user_kyc_documents
+        WHERE user_id = ?
+          AND document_type = 'pan'
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [userId],
+      );
+
+      if (!dbRow) {
+        throw new Error(
+          'PAN record was not saved',
+        );
+      }
+
+      const details = this.safeJsonParse(
+        dbRow.doc_details,
+        {},
+      );
+
+      // ==========================================================
+      // GET LATEST GST
+      // ==========================================================
+
+      const [gstRow] = await this.dataSource.query(
+        `
+        SELECT *
+        FROM user_kyc_documents
+        WHERE user_id = ?
+          AND document_type = 'gst'
+        ORDER BY id DESC
+        LIMIT 1
+        `,
+        [userId],
+      );
+
+      const gstDetails = gstRow
+        ? this.safeJsonParse(
+            gstRow.doc_details,
+            null,
+          )
+        : null;
+
+      // ==========================================================
+      // RESPONSE
+      // ==========================================================
+
+      return {
+        success: true,
+
+        company_name:
+          details?.full_name || '',
+
+        pan_number:
+          dbRow?.document_number || '',
+
+        business_category:
+          details?.category || 'person',
+
+        gst_number:
+          gstRow?.document_number || '',
+
+        gst_details:
+          gstDetails,
+
+        registered_address:
+          details?.address?.full ||
+          [
+            details?.address?.city,
+            details?.address?.state,
+            details?.address?.zip,
+          ]
+            .filter(Boolean)
+            .join(', '),
+      };
+    } catch (error: any) {
+      this.logger.error(
+        '===== PAN Verification Error =====',
+      );
+
+      this.logger.error(
+        error?.stack ||
+          error?.message ||
+          String(error),
+      );
+
+      if (error?.response?.data) {
+        this.logger.error(
+          JSON.stringify(
+            error.response.data,
+            null,
+            2,
+          ),
+        );
+      }
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException(
+        error?.response?.data?.message ||
+          error?.message ||
+          'PAN verification failed',
+      );
     }
   }
 
-  // Always INSERT a new record
-  await this.dataSource.query(
-    `
-    INSERT INTO user_kyc_bank_details
-    (
-      category_id,
-      country_id,
-      user_id,
-      bank_name,
-      account_number,
-      ifsc,
-      account_type,
-      business_name,
-      branch_name,
-      business_type,
-      created_at,
-      updated_at
-    )
-    VALUES
-    (
-      ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
-    )
-    `,
-    [
-      categoryData.id,
-      country,
-      id,
-      existingBank
-        ? existingBank.bank_name
-        : bankData?.ifsc_details?.bank_name || null,
-      existingBank
-        ? existingBank.account_number
-        : bankData?.account_number || body.acct,
-      existingBank
-        ? existingBank.ifsc
-        : bankData?.ifsc_details?.ifsc || body.cleanIFSC,
-      body.accountType || existingBank?.account_type || "SAVINGS",
-      existingBank
-        ? existingBank.business_name
-        : bankData?.full_name || null,
-      existingBank
-        ? existingBank.branch_name
-        : bankData?.ifsc_details?.branch || null,
-      body.businessType || existingBank?.business_type || null,
-    ],
-  );
+  // ============================================================
+  // BANK VERIFICATION
+  // ============================================================
 
-  // Return latest inserted record
-  const [bank] = await this.dataSource.query(
-    `
-    SELECT *
-    FROM user_kyc_bank_details
-    WHERE user_id = ?
-      AND account_number = ?
-    ORDER BY id DESC
-    LIMIT 1
-    `,
-    [id, body.acct],
-  );
+  async verifyBank(
+    body: any,
+    id: any,
+    category: any,
+    country: any,
+  ) {
+    try {
+      if (!body?.acct) {
+        throw new BadRequestException(
+          'Account number is required',
+        );
+      }
 
-  return bank;
-}
+      if (!body?.cleanIFSC) {
+        throw new BadRequestException(
+          'IFSC is required',
+        );
+      }
 
- 
+      const userId = Number(id);
+      const countryId = Number(country);
+
+      if (!userId) {
+        throw new BadRequestException(
+          'Invalid user id',
+        );
+      }
+
+      if (!countryId) {
+        throw new BadRequestException(
+          'Invalid country id',
+        );
+      }
+
+      const singular =
+        this.getSingularCategory(category);
+
+      const [categoryData] =
+        await this.dataSource.query(
+          `
+          SELECT *
+          FROM category
+          WHERE name = ?
+          LIMIT 1
+          `,
+          [singular],
+        );
+
+      if (!categoryData) {
+        throw new BadRequestException(
+          `Category not found: ${singular}`,
+        );
+      }
+
+      const configData =
+        await this.getSurepassConfig();
+
+      let bankData: any = null;
+
+      // ----------------------------------------------------------
+      // Find existing account FOR CURRENT USER
+      // ----------------------------------------------------------
+
+      const [existingBank] =
+        await this.dataSource.query(
+          `
+          SELECT *
+          FROM user_kyc_bank_details
+          WHERE user_id = ?
+            AND account_number = ?
+          ORDER BY id DESC
+          LIMIT 1
+          `,
+          [userId, body.acct],
+        );
+
+      // ----------------------------------------------------------
+      // Existing bank
+      // ----------------------------------------------------------
+
+      if (existingBank) {
+        bankData = existingBank;
+      }
+
+      // ----------------------------------------------------------
+      // New bank -> Surepass
+      // ----------------------------------------------------------
+
+      else {
+        try {
+          const response =
+            await this.http.axiosRef.post(
+              `${configData.base_url}/api/v1/bank-verification/pennyless`,
+              {
+                id_number: body.acct,
+                ifsc: body.cleanIFSC,
+                ifsc_details: true,
+              },
+              {
+                headers:
+                  this.getSurepassHeaders(
+                    configData.api_key,
+                  ),
+              },
+            );
+
+          bankData =
+            response?.data?.data;
+
+          if (!bankData) {
+            throw new Error(
+              'Invalid bank verification response',
+            );
+          }
+        } catch (error: any) {
+          this.logger.error(
+            'Bank Verification Error',
+          );
+
+          this.logger.error(
+            JSON.stringify(
+              error?.response?.data ||
+                error?.message ||
+                error,
+              null,
+              2,
+            ),
+          );
+
+          throw new BadRequestException(
+            error?.response?.data?.message ||
+              'Bank verification failed',
+          );
+        }
+      }
+
+      // ----------------------------------------------------------
+      // ALWAYS INSERT NEW BANK RECORD
+      // ----------------------------------------------------------
+
+      await this.dataSource.query(
+        `
+        INSERT INTO user_kyc_bank_details
+        (
+          category_id,
+          country_id,
+          user_id,
+          bank_name,
+          account_number,
+          ifsc,
+          account_type,
+          business_name,
+          branch_name,
+          business_type,
+          created_at,
+          updated_at
+        )
+        VALUES
+        (
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW()
+        )
+        `,
+        [
+          categoryData.id,
+          countryId,
+          userId,
+
+          existingBank
+            ? existingBank.bank_name
+            : bankData?.ifsc_details
+                ?.bank_name || null,
+
+          existingBank
+            ? existingBank.account_number
+            : bankData?.account_number ||
+              body.acct,
+
+          existingBank
+            ? existingBank.ifsc
+            : bankData?.ifsc_details
+                ?.ifsc ||
+              body.cleanIFSC,
+
+          body.accountType ||
+            existingBank?.account_type ||
+            'SAVINGS',
+
+          existingBank
+            ? existingBank.business_name
+            : bankData?.full_name ||
+              null,
+
+          existingBank
+            ? existingBank.branch_name
+            : bankData?.ifsc_details
+                ?.branch || null,
+
+          body.businessType ||
+            existingBank?.business_type ||
+            null,
+        ],
+      );
+
+      // ----------------------------------------------------------
+      // Return latest record
+      // ----------------------------------------------------------
+
+      const [bank] =
+        await this.dataSource.query(
+          `
+          SELECT *
+          FROM user_kyc_bank_details
+          WHERE user_id = ?
+            AND account_number = ?
+          ORDER BY id DESC
+          LIMIT 1
+          `,
+          [userId, body.acct],
+        );
+
+      return {
+        success: true,
+        bank,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        '===== Bank Verification Error =====',
+      );
+
+      this.logger.error(
+        error?.stack ||
+          error?.message ||
+          String(error),
+      );
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException(
+        error?.response?.data?.message ||
+          error?.message ||
+          'Bank verification failed',
+      );
+    }
+  }
+
+  // ============================================================
+  // DIGILOCKER INITIALIZE
+  // ============================================================
+
   async verifyAdhar(
-  body: any,
-  userId: number,
-  countryId: number,
-  categoryId: number,
-) {
-  const config =
-    await this.integrationService.getIntegrationConfig('surepass');
+    body: any,
+    userId: number,
+    countryId: number,
+    categoryId: number,
+  ) {
+    try {
+      if (!Number(userId)) {
+        throw new BadRequestException(
+          'Invalid user id',
+        );
+      }
 
-  const configData =
-    typeof config === 'string' ? JSON.parse(config) : config;
+      if (!Number(countryId)) {
+        throw new BadRequestException(
+          'Invalid country id',
+        );
+      }
 
-  const state = JSON.stringify({
-    user_id: userId,
-    country_id: countryId,
-    category_id: categoryId,
-  });
+      if (!Number(categoryId)) {
+        throw new BadRequestException(
+          'Invalid category id',
+        );
+      }
 
-  try {
-    const { data } = await this.http.axiosRef.post(
-      `${configData.base_url}/api/v1/digilocker/initialize`,
-      {
-        data: {
-          signup_flow: true,
-          state, // <-- pass state here
-          logo_url:
-            'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
-          redirect_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
-         // webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
-          skip_main_screen: false,
-          aadhaar_xml: true,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${configData.api_key}`,
-          'Content-Type': 'application/json',
-        },
-      },
-    );
+      const configData =
+        await this.getSurepassConfig();
 
-    return data;
-  } catch (error) {
-    throw error;
-  }
-}
-//   async verifyAdhar(
-//   body: any,
-//   userId: number,
-//   countryId: number,
-//   categoryId: number,
-// ) {
-//   const config =
-//     await this.integrationService.getIntegrationConfig('surepass');
+      const appUrl =
+        String(
+          process.env.APP_URL || '',
+        ).replace(/\/$/, '');
 
-//   const configData =
-//     typeof config === 'string' ? JSON.parse(config) : config;
+      if (!appUrl) {
+        throw new Error(
+          'APP_URL is missing',
+        );
+      }
 
-//   const state = JSON.stringify({
-//     user_id: userId,
-//     country_id: countryId,
-//     category_id: categoryId,
-//   });
+      const redirectUrl =
+        `${appUrl}/thirdParty/digilocker/callback`;
 
-//   const appUrl = process.env.APP_URL?.replace(/\/$/, '');
+      const state = JSON.stringify({
+        user_id: Number(userId),
+        country_id: Number(countryId),
+        category_id: Number(categoryId),
+      });
 
-//   const redirectUrl =
-//     `${appUrl}/thirdParty/digilocker/callback`;
+      this.logger.log(
+        '===== DigiLocker Initialize =====',
+      );
 
-//   const webhookUrl =
-//     `${appUrl}/thirdParty/digilocker/webhook`;
+      this.logger.log(
+        JSON.stringify(
+          {
+            user_id: Number(userId),
+            country_id: Number(countryId),
+            category_id: Number(categoryId),
+            redirect_url: redirectUrl,
+          },
+          null,
+          2,
+        ),
+      );
 
-//   console.log('====================================');
-//   console.log('APP_URL:', process.env.APP_URL);
-//   console.log('Redirect URL:', redirectUrl);
-//   console.log('Webhook URL:', webhookUrl);
-//   console.log('====================================');
+      const { data } =
+        await this.http.axiosRef.post(
+          `${configData.base_url}/api/v1/digilocker/initialize`,
+          {
+            data: {
+              signup_flow: true,
 
-//   try {
-//     const { data } = await this.http.axiosRef.post(
-//       `${configData.base_url}/api/v1/digilocker/initialize`,
-//       {
-//         data: {
-//           signup_flow: true,
+              state,
 
-//           state,
+              logo_url:
+                'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
 
-//           logo_url:
-//             'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+              redirect_url:
+                redirectUrl,
 
-//           redirect_url: redirectUrl,
+              skip_main_screen: false,
 
-//           webhook_url: webhookUrl,
+              aadhaar_xml: true,
+            },
+          },
+          {
+            headers:
+              this.getSurepassHeaders(
+                configData.api_key,
+              ),
+          },
+        );
 
-//           skip_main_screen: false,
+      this.logger.log(
+        'DigiLocker initialized successfully',
+      );
 
-//           aadhaar_xml: true,
-//         },
-//       },
-//       {
-//         headers: {
-//           Authorization: `Bearer ${configData.api_key}`,
-//           'Content-Type': 'application/json',
-//         },
-//       },
-//     );
+      return data;
+    } catch (error: any) {
+      this.logger.error(
+        '===== DigiLocker Initialize Error =====',
+      );
 
-//     console.log('Surepass response:', data);
+      this.logger.error(
+        error?.stack ||
+          error?.message ||
+          String(error),
+      );
 
-//     return data;
-//   } catch (error) {
-//     console.error(
-//       'Surepass DigiLocker initialization failed:',
-//       error?.response?.data || error,
-    );
+      if (error?.response?.data) {
+        this.logger.error(
+          JSON.stringify(
+            error.response.data,
+            null,
+            2,
+          ),
+        );
+      }
 
-    throw error;
-  }
-}
-  async callback(body: any) {
-    console.log(body);
-  }
-
-  async UploadDocument(document: any, body: any, userId: number) {
-    let imagePath = '';
-
-    if (document) {
-      imagePath = await this.storageService.upload(
-        document,
-        'Documents/images',
+      throw new BadRequestException(
+        error?.response?.data?.message ||
+          error?.message ||
+          'DigiLocker initialization failed',
       );
     }
-
-    await this.dataSource.query(
-      `
-    UPDATE user_kyc_documents
-    SET
-      document_number = ?,
-      file_url = ?,
-      verification_status = 'pending'
-    WHERE user_id = ?
-      AND document_type = 'pan'
-    `,
-      [body.expected_pan, imagePath, userId],
-    );
-
-    return {
-      success: true,
-      expected_pan: body.expected_pan,
-      imagePath,
-    };
   }
 
-  async verifyGST(body: any, userId: number) {
-    return true;
-  }
+  // ============================================================
+  // DIGILOCKER CALLBACK
+  // ============================================================
 
-//   //Digilocker
-// async handleCallback(query: any) {
-//   try {
-//     this.logger.log('===== DigiLocker Callback =====');
-//     this.logger.log(JSON.stringify(query, null, 2));
-
-//     if (query.status !== 'success') {
-//       return {
-//         success: false,
-//         message: 'DigiLocker verification failed',
-//       };
-//     }
-
-//     if (!query.client_id) {
-//       throw new Error('client_id is missing');
-//     }
-
-//     // -----------------------------
-//     // Parse State
-//     // -----------------------------
-//     let state: any = {};
-
-//     if (query.state) {
-//       try {
-//         state =
-//           typeof query.state === 'string'
-//             ? JSON.parse(query.state)
-//             : query.state;
-//       } catch {
-//         throw new Error('Invalid state');
-//       }
-//     }
-
-//     this.logger.log('===== Parsed State =====');
-//     this.logger.log(JSON.stringify(state, null, 2));
-
-//     const userId = Number(state.user_id);
-
-//     if (!userId) {
-//       throw new Error('Invalid user_id');
-//     }
-
-//     // -----------------------------
-//     // Category
-//     // -----------------------------
-//     let categoryId: number;
-
-//     if (!isNaN(Number(state.country_id))) {
-//       categoryId = Number(state.country_id);
-//     } else {
-//       const categoryName = String(state.country_id);
-
-//       const singular = categoryName.endsWith('s')
-//         ? categoryName.slice(0, -1)
-//         : categoryName;
-
-//       const categories = await this.dataSource.query(
-//         `
-//         SELECT id
-//         FROM category
-//         WHERE LOWER(name)=LOWER(?)
-//         LIMIT 1
-//         `,
-//         [singular],
-//       );
-
-//       if (!categories.length) {
-//         throw new Error(`Category not found : ${singular}`);
-//       }
-
-//       categoryId = categories[0].id;
-//     }
-
-//     // -----------------------------
-//     // Country
-//     // -----------------------------
-//     const countryId = Number(state.category_id);
-
-//     if (!countryId) {
-//       throw new Error('Invalid country_id');
-//     }
-
-//     const config = await this.integrationService.getIntegrationConfig(
-//       'surepass',
-//     );
-
-//     const configData =
-//       typeof config === 'string' ? JSON.parse(config) : config;
-
-//     // -----------------------------
-//     // Existing Record
-//     // -----------------------------
-//     const existing = await this.dataSource.query(
-//       `
-//       SELECT *
-//       FROM user_kyc_documents
-//       WHERE user_id=?
-//       AND document_type='aadhaar'
-//       LIMIT 1
-//       `,
-//       [userId],
-//     );
-
-//     let aadhaar: any;
-
-//     // -----------------------------
-//     // Download Aadhaar
-//     // -----------------------------
-//     try {
-//       const response = await this.http.axiosRef.get(
-//         `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
-//         {
-//           headers: {
-//             Authorization: `Bearer ${configData.api_key}`,
-//           },
-//         },
-//       );
-
-//       aadhaar = response.data;
-//     } catch (error: any) {
-//       const err = error.response?.data;
-
-//       if (
-//         error.response?.status === 422 &&
-//         err?.message_code === 'already_downloaded'
-//       ) {
-//         this.logger.warn('Aadhaar already downloaded');
-
-//         if (!existing.length) {
-//           throw new Error(
-//             'Aadhaar already downloaded but not available in database.',
-//           );
-//         }
-
-//         aadhaar = JSON.parse(existing[0].doc_details);
-//       } else {
-//         throw error;
-//       }
-//     }
-
-//     this.logger.log(JSON.stringify(aadhaar, null, 2));
-
-//     const xml = aadhaar?.data?.aadhaar_xml_data ?? {};
-//     const metadata = aadhaar?.data?.digilocker_metadata ?? {};
-
-//     // -----------------------------
-//     // Save / Update
-//     // -----------------------------
-//     if (existing.length) {
-//       await this.dataSource.query(
-//         `
-//         UPDATE user_kyc_documents
-//         SET
-//           document_number=?,
-//           doc_details=?,
-//           verification_status='approved',
-//           updated_at=NOW()
-//         WHERE id=?
-//         `,
-//         [
-//           xml.masked_aadhaar,
-//           JSON.stringify(aadhaar),
-//           existing[0].id,
-//         ],
-//       );
-//     } else {
-//       try {
-//         await this.dataSource.query(
-//           `
-//           INSERT INTO user_kyc_documents
-//           (
-//             category_id,
-//             country_id,
-//             user_id,
-//             document_type,
-//             document_number,
-//             doc_details,
-//             verification_status
-//           )
-//           VALUES (?, ?, ?, ?, ?, ?, ?)
-//           `,
-//           [
-//             categoryId,
-//             countryId,
-//             userId,
-//             'aadhaar',
-//             xml.masked_aadhaar,
-//             JSON.stringify(aadhaar),
-//             'approved',
-//           ],
-//         );
-//       } catch (e) {
-//         this.logger.error('Insert Failed');
-//         this.logger.error(e);
-//         throw e;
-//       }
-//     }
-
-//     return {
-//       success: true,
-//       client_id: query.client_id,
-//       alreadyVerified: existing.length > 0,
-//       user_id: userId,
-//       country_id: countryId,
-//       category_id: categoryId,
-//       name: xml.full_name ?? metadata.name,
-//       masked_aadhaar: xml.masked_aadhaar,
-//       dob: xml.dob ?? metadata.dob,
-//       gender: xml.gender ?? metadata.gender,
-//       mobile: metadata.mobile_number,
-//       address: xml.full_address,
-//       xml_url: aadhaar?.data?.xml_url,
-//     };
-//   } catch (error: any) {
-//     this.logger.error('===== DigiLocker Error =====');
-
-//     if (error.response?.data) {
-//       this.logger.error(JSON.stringify(error.response.data, null, 2));
-//     } else {
-//       this.logger.error(error.stack || error.message);
-//     }
-
-//     return {
-//       success: false,
-//       message:
-//         error.response?.data?.message ||
-//         error.message ||
-//         'Something went wrong',
-//     };
-//   }
-// }
-async handleCallback(query: any) {
+  async handleCallback(query: any) {
     try {
       this.logger.log(
         '===== DigiLocker Callback =====',
       );
 
       this.logger.log(
-        JSON.stringify(query, null, 2),
+        JSON.stringify(
+          query,
+          null,
+          2,
+        ),
       );
 
-      // -----------------------------------------
-      // Check DigiLocker status
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // STATUS
+      // ----------------------------------------------------------
 
-      if (query.status !== 'success') {
+      if (
+        String(query?.status || '').toLowerCase() !==
+        'success'
+      ) {
         this.logger.warn(
-          `DigiLocker status: ${query.status}`,
+          `DigiLocker status: ${query?.status}`,
         );
 
         return {
@@ -781,29 +867,29 @@ async handleCallback(query: any) {
         };
       }
 
-      // -----------------------------------------
-      // Client ID
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // CLIENT ID
+      // ----------------------------------------------------------
 
-      if (!query.client_id) {
+      if (!query?.client_id) {
         throw new Error(
           'client_id is missing',
         );
       }
 
-      // -----------------------------------------
-      // Parse state
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // STATE
+      // ----------------------------------------------------------
 
       let state: any = {};
 
-      if (query.state) {
+      if (query?.state) {
         try {
           state =
             typeof query.state === 'string'
               ? JSON.parse(query.state)
               : query.state;
-        } catch (error) {
+        } catch {
           throw new Error(
             'Invalid state JSON',
           );
@@ -815,91 +901,77 @@ async handleCallback(query: any) {
       );
 
       this.logger.log(
-        JSON.stringify(state, null, 2),
+        JSON.stringify(
+          state,
+          null,
+          2,
+        ),
       );
 
-      // -----------------------------------------
-      // User
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // USER
+      // ----------------------------------------------------------
 
       const userId = Number(
-        state.user_id,
+        state?.user_id,
       );
 
       if (!userId) {
         throw new Error(
-          `Invalid user_id: ${state.user_id}`,
+          `Invalid user_id: ${state?.user_id}`,
         );
       }
 
-      // -----------------------------------------
-      // Country
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // COUNTRY
+      // ----------------------------------------------------------
 
       const countryId = Number(
-        state.country_id,
+        state?.country_id,
       );
 
       if (!countryId) {
         throw new Error(
-          `Invalid country_id: ${state.country_id}`,
+          `Invalid country_id: ${state?.country_id}`,
         );
       }
 
-      // -----------------------------------------
-      // Category
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // CATEGORY
+      // ----------------------------------------------------------
 
       const categoryId = Number(
-        state.category_id,
+        state?.category_id,
       );
 
       if (!categoryId) {
         throw new Error(
-          `Invalid category_id: ${state.category_id}`,
+          `Invalid category_id: ${state?.category_id}`,
         );
       }
 
       this.logger.log(
-        `userId      = ${userId}`,
+        `userId     = ${userId}`,
       );
 
       this.logger.log(
-        `countryId   = ${countryId}`,
+        `countryId  = ${countryId}`,
       );
 
       this.logger.log(
-        `categoryId  = ${categoryId}`,
+        `categoryId = ${categoryId}`,
       );
 
-      // -----------------------------------------
-      // Surepass configuration
-      // -----------------------------------------
-
-      const config =
-        await this.integrationService
-          .getIntegrationConfig('surepass');
+      // ----------------------------------------------------------
+      // SUREPASS CONFIG
+      // ----------------------------------------------------------
 
       const configData =
-        typeof config === 'string'
-          ? JSON.parse(config)
-          : config;
+        await this.getSurepassConfig();
 
-      if (!configData?.base_url) {
-        throw new Error(
-          'Surepass base_url missing',
-        );
-      }
-
-      if (!configData?.api_key) {
-        throw new Error(
-          'Surepass API key missing',
-        );
-      }
-
-      // -----------------------------------------
-      // Existing Aadhaar record
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // EXISTING AADHAAR
+      // ----------------------------------------------------------
 
       const existing =
         await this.dataSource.query(
@@ -907,7 +979,8 @@ async handleCallback(query: any) {
           SELECT *
           FROM user_kyc_documents
           WHERE user_id = ?
-          AND document_type = 'aadhaar'
+            AND document_type = 'aadhaar'
+          ORDER BY id DESC
           LIMIT 1
           `,
           [userId],
@@ -917,9 +990,9 @@ async handleCallback(query: any) {
         `Existing Aadhaar records: ${existing.length}`,
       );
 
-      // -----------------------------------------
-      // Download Aadhaar
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // DOWNLOAD AADHAAR
+      // ----------------------------------------------------------
 
       let aadhaar: any;
 
@@ -935,7 +1008,8 @@ async handleCallback(query: any) {
             },
           );
 
-        aadhaar = response.data;
+        aadhaar =
+          response?.data;
 
         this.logger.log(
           'Aadhaar downloaded successfully',
@@ -950,15 +1024,17 @@ async handleCallback(query: any) {
 
         this.logger.error(
           JSON.stringify(
-            err || error?.message,
+            err ||
+              error?.message ||
+              error,
             null,
             2,
           ),
         );
 
-        // ---------------------------------------
-        // Already downloaded
-        // ---------------------------------------
+        // --------------------------------------------------------
+        // ALREADY DOWNLOADED
+        // --------------------------------------------------------
 
         if (
           error?.response?.status === 422 &&
@@ -975,11 +1051,13 @@ async handleCallback(query: any) {
             );
           }
 
-          try {
-            aadhaar = JSON.parse(
+          aadhaar =
+            this.safeJsonParse(
               existing[0].doc_details,
+              null,
             );
-          } catch {
+
+          if (!aadhaar) {
             throw new Error(
               'Existing Aadhaar doc_details contains invalid JSON.',
             );
@@ -989,154 +1067,125 @@ async handleCallback(query: any) {
         }
       }
 
-      // -----------------------------------------
-      // Extract Aadhaar data
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // EXTRACT AADHAAR DATA
+      // ----------------------------------------------------------
 
       const xml =
-        aadhaar?.data?.aadhaar_xml_data ||
-        {};
+        aadhaar?.data
+          ?.aadhaar_xml_data || {};
 
       const metadata =
-        aadhaar?.data?.digilocker_metadata ||
-        {};
+        aadhaar?.data
+          ?.digilocker_metadata || {};
 
       this.logger.log(
         '===== Aadhaar XML =====',
       );
 
       this.logger.log(
-        JSON.stringify(xml, null, 2),
-      );
-
-      if (!xml.masked_aadhaar) {
-        throw new Error(
-          'masked_aadhaar missing from Surepass response',
-        );
-      }
-
-      // -----------------------------------------
-      // Save / Update
-      // -----------------------------------------
-
-      this.logger.log(
-        '===== KYC SAVE START =====',
-      );
-
-      this.logger.log(
         JSON.stringify(
-          {
-            userId,
-            countryId,
-            categoryId,
-            documentType: 'aadhaar',
-            documentNumber:
-              xml.masked_aadhaar,
-            existingRecords:
-              existing.length,
-          },
+          xml,
           null,
           2,
         ),
       );
 
-      // -----------------------------------------
-      // UPDATE
-      // -----------------------------------------
+      if (!xml?.masked_aadhaar) {
+        throw new Error(
+          'masked_aadhaar missing from Surepass response',
+        );
+      }
+
+      // ----------------------------------------------------------
+      // SAVE / UPDATE
+      // ----------------------------------------------------------
+
+      this.logger.log(
+        '===== KYC SAVE START =====',
+      );
+
+      // ----------------------------------------------------------
+      // UPDATE EXISTING
+      // ----------------------------------------------------------
 
       if (existing.length > 0) {
         this.logger.log(
           `Updating KYC ID: ${existing[0].id}`,
         );
 
-        const updateResult =
-          await this.dataSource.query(
-            `
-            UPDATE user_kyc_documents
-            SET
-              category_id = ?,
-              country_id = ?,
-              document_number = ?,
-              doc_details = ?,
-              verification_status = 'approved',
-              updated_at = NOW()
-            WHERE id = ?
-            `,
-            [
-              categoryId,
-              countryId,
-              xml.masked_aadhaar,
-              JSON.stringify(aadhaar),
-              existing[0].id,
-            ],
-          );
+        await this.dataSource.query(
+          `
+          UPDATE user_kyc_documents
+          SET
+            category_id = ?,
+            country_id = ?,
+            document_number = ?,
+            doc_details = ?,
+            verification_status = 'approved',
+            updated_at = NOW()
+          WHERE id = ?
+          `,
+          [
+            categoryId,
+            countryId,
+            xml.masked_aadhaar,
+            JSON.stringify(aadhaar),
+            existing[0].id,
+          ],
+        );
 
         this.logger.log(
           '===== KYC UPDATE SUCCESS =====',
         );
-
-        this.logger.log(
-          JSON.stringify(
-            updateResult,
-            null,
-            2,
-          ),
-        );
       }
 
-      // -----------------------------------------
-      // INSERT
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // INSERT NEW
+      // ----------------------------------------------------------
 
       else {
         this.logger.log(
           '===== INSERTING NEW KYC =====',
         );
 
-        const insertResult =
-          await this.dataSource.query(
-            `
-            INSERT INTO user_kyc_documents
-            (
-              category_id,
-              country_id,
-              user_id,
-              document_type,
-              document_number,
-              doc_details,
-              verification_status,
-              created_at,
-              updated_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
-            `,
-            [
-              categoryId,
-              countryId,
-              userId,
-              'aadhaar',
-              xml.masked_aadhaar,
-              JSON.stringify(aadhaar),
-              'approved',
-            ],
-          );
+        await this.dataSource.query(
+          `
+          INSERT INTO user_kyc_documents
+          (
+            category_id,
+            country_id,
+            user_id,
+            document_type,
+            document_number,
+            file_url,
+            verification_status,
+            doc_details,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          `,
+          [
+            categoryId,
+            countryId,
+            userId,
+            'aadhaar',
+            xml.masked_aadhaar,
+            '',
+            'approved',
+            JSON.stringify(aadhaar),
+          ],
+        );
 
         this.logger.log(
           '===== KYC INSERT SUCCESS =====',
         );
-
-        this.logger.log(
-          JSON.stringify(
-            insertResult,
-            null,
-            2,
-          ),
-        );
       }
 
-      // -----------------------------------------
-      // Final response
-      // -----------------------------------------
+      // ----------------------------------------------------------
+      // RESPONSE
+      // ----------------------------------------------------------
 
       return {
         success: true,
@@ -1157,29 +1206,29 @@ async handleCallback(query: any) {
           categoryId,
 
         name:
-          xml.full_name ??
-          metadata.name ??
+          xml?.full_name ??
+          metadata?.name ??
           null,
 
         masked_aadhaar:
-          xml.masked_aadhaar,
+          xml?.masked_aadhaar,
 
         dob:
-          xml.dob ??
-          metadata.dob ??
+          xml?.dob ??
+          metadata?.dob ??
           null,
 
         gender:
-          xml.gender ??
-          metadata.gender ??
+          xml?.gender ??
+          metadata?.gender ??
           null,
 
         mobile:
-          metadata.mobile_number ??
+          metadata?.mobile_number ??
           null,
 
         address:
-          xml.full_address ??
+          xml?.full_address ??
           null,
 
         xml_url:
@@ -1218,66 +1267,334 @@ async handleCallback(query: any) {
     }
   }
 
-  /**
-   * Handles Surepass webhook
-   */
-  async handleWebhook(body: any,category: any,country: any) {
+  // ============================================================
+  // UPLOAD PAN DOCUMENT
+  // ============================================================
+
+  async UploadDocument(
+    document: any,
+    body: any,
+    userId: number,
+  ) {
     try {
-      this.logger.log('===== DigiLocker Webhook =====');
-      this.logger.log(JSON.stringify(body, null, 2));
+      if (!Number(userId)) {
+        throw new BadRequestException(
+          'Invalid user id',
+        );
+      }
 
-  //       const singular = category.endsWith("s")
-  //   ? category.slice(0, -1)
-  //   : category;
+      if (!body?.expected_pan) {
+        throw new BadRequestException(
+          'Expected PAN is required',
+        );
+      }
 
-  // const [categoryData] = await this.dataSource.query(
-  //   `SELECT * FROM category WHERE name = ?`,
-  //   [singular],
-  // );
+      let imagePath = '';
 
-      /**
-       * Example payload:
-       * {
-       *   request_id: "...",
-       *   status: "success",
-       *   aadhaar_xml: "...",
-       *   data: {...} //category,country
-       * }
-       */
+      if (document) {
+        imagePath =
+          await this.storageService.upload(
+            document,
+            'Documents/images',
+          );
+      }
 
-      if (body.status === 'success') {
-       await this.dataSource.query(
-    `
-    INSERT INTO user_kyc_documents
-    (
-      category_id,
-      country_id,
-      user_id,
-      document_type,
-      document_number,
-      doc_details,
-      verification_status
-    )
-    VALUES (?,?,?, ?, ?, ?, ?)
-    `,
-    [
-      2,
-      2,
-      2,
-      'aadhaar',
-      body.aadhaar_number,
-      JSON.stringify(body),
-      'approved',
-    ],
-  );
+      // ----------------------------------------------------------
+      // Update ONLY latest PAN record
+      // ----------------------------------------------------------
+
+      const [panRecord] =
+        await this.dataSource.query(
+          `
+          SELECT id
+          FROM user_kyc_documents
+          WHERE user_id = ?
+            AND document_type = 'pan'
+          ORDER BY id DESC
+          LIMIT 1
+          `,
+          [userId],
+        );
+
+      if (!panRecord) {
+        throw new BadRequestException(
+          'PAN KYC record not found',
+        );
+      }
+
+      await this.dataSource.query(
+        `
+        UPDATE user_kyc_documents
+        SET
+          document_number = ?,
+          file_url = ?,
+          verification_status = 'pending',
+          updated_at = NOW()
+        WHERE id = ?
+        `,
+        [
+          body.expected_pan,
+          imagePath,
+          panRecord.id,
+        ],
+      );
+
+      return {
+        success: true,
+        expected_pan:
+          body.expected_pan,
+        imagePath,
+      };
+    } catch (error: any) {
+      this.logger.error(
+        '===== Upload PAN Error =====',
+      );
+
+      this.logger.error(
+        error?.stack ||
+          error?.message ||
+          String(error),
+      );
+
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+
+      throw new BadRequestException(
+        error?.message ||
+          'Document upload failed',
+      );
+    }
+  }
+
+  // ============================================================
+  // GST VERIFICATION
+  // ============================================================
+
+  async verifyGST(
+    body: any,
+    userId: number,
+  ) {
+    // Kept according to your existing implementation.
+    // Replace with actual GST logic if required.
+    return true;
+  }
+
+  // ============================================================
+  // DIGILOCKER WEBHOOK
+  // ============================================================
+
+  async handleWebhook(
+    body: any,
+    category?: any,
+    country?: any,
+  ) {
+    try {
+      this.logger.log(
+        '===== DigiLocker Webhook =====',
+      );
+
+      this.logger.log(
+        JSON.stringify(
+          body,
+          null,
+          2,
+        ),
+      );
+
+      // ----------------------------------------------------------
+      // STATUS
+      // ----------------------------------------------------------
+
+      if (
+        String(body?.status || '').toLowerCase() !==
+        'success'
+      ) {
+        return {
+          success: false,
+          message:
+            'DigiLocker webhook was not successful',
+        };
+      }
+
+      // ----------------------------------------------------------
+      // Try to get state
+      // ----------------------------------------------------------
+
+      let state: any = {};
+
+      const rawState =
+        body?.state ||
+        body?.data?.state ||
+        body?.metadata?.state;
+
+      if (rawState) {
+        state =
+          this.safeJsonParse(
+            rawState,
+            {},
+          );
+      }
+
+      // ----------------------------------------------------------
+      // Extract IDs
+      // ----------------------------------------------------------
+
+      const userId = Number(
+        body?.user_id ??
+          body?.data?.user_id ??
+          state?.user_id,
+      );
+
+      const countryId = Number(
+        body?.country_id ??
+          body?.data?.country_id ??
+          state?.country_id ??
+          country,
+      );
+
+      const categoryId = Number(
+        body?.category_id ??
+          body?.data?.category_id ??
+          state?.category_id ??
+          category,
+      );
+
+      // ----------------------------------------------------------
+      // IMPORTANT
+      // ----------------------------------------------------------
+
+      if (!userId) {
+        throw new Error(
+          'Webhook user_id is missing',
+        );
+      }
+
+      if (!countryId) {
+        throw new Error(
+          'Webhook country_id is missing',
+        );
+      }
+
+      if (!categoryId) {
+        throw new Error(
+          'Webhook category_id is missing',
+        );
+      }
+
+      // ----------------------------------------------------------
+      // Aadhaar number
+      // ----------------------------------------------------------
+
+      const aadhaarNumber =
+        body?.aadhaar_number ??
+        body?.data?.aadhaar_number ??
+        body?.data?.aadhaar_xml_data
+          ?.masked_aadhaar ??
+        null;
+
+      // ----------------------------------------------------------
+      // Check existing Aadhaar
+      // ----------------------------------------------------------
+
+      const [existing] =
+        await this.dataSource.query(
+          `
+          SELECT *
+          FROM user_kyc_documents
+          WHERE user_id = ?
+            AND document_type = 'aadhaar'
+          ORDER BY id DESC
+          LIMIT 1
+          `,
+          [userId],
+        );
+
+      // ----------------------------------------------------------
+      // UPDATE
+      // ----------------------------------------------------------
+
+      if (existing) {
+        await this.dataSource.query(
+          `
+          UPDATE user_kyc_documents
+          SET
+            category_id = ?,
+            country_id = ?,
+            document_number = ?,
+            doc_details = ?,
+            verification_status = 'approved',
+            updated_at = NOW()
+          WHERE id = ?
+          `,
+          [
+            categoryId,
+            countryId,
+            aadhaarNumber,
+            JSON.stringify(body),
+            existing.id,
+          ],
+        );
+      }
+
+      // ----------------------------------------------------------
+      // INSERT
+      // ----------------------------------------------------------
+
+      else {
+        await this.dataSource.query(
+          `
+          INSERT INTO user_kyc_documents
+          (
+            category_id,
+            country_id,
+            user_id,
+            document_type,
+            document_number,
+            file_url,
+            verification_status,
+            doc_details,
+            created_at,
+            updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+          `,
+          [
+            categoryId,
+            countryId,
+            userId,
+            'aadhaar',
+            aadhaarNumber,
+            '',
+            'approved',
+            JSON.stringify(body),
+          ],
+        );
       }
 
       return {
         success: true,
+        user_id: userId,
+        country_id: countryId,
+        category_id: categoryId,
       };
-    } catch (error) {
-      this.logger.error(error);
-      throw error;
+    } catch (error: any) {
+      this.logger.error(
+        '===== DigiLocker Webhook Error =====',
+      );
+
+      this.logger.error(
+        error?.stack ||
+          error?.message ||
+          String(error),
+      );
+
+      return {
+        success: false,
+        message:
+          error?.message ||
+          'DigiLocker webhook failed',
+      };
     }
   }
 }
