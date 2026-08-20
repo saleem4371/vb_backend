@@ -706,8 +706,9 @@ export class SurepassService {
   async verifyAdhar(
     body: any,
     userId: number,
-    countryId: number,
     categoryId: number,
+    countryId: number,
+    
   ) {
     try {
       if (!Number(userId)) {
