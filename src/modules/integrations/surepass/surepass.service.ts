@@ -723,11 +723,7 @@ export class SurepassService {
         );
       }
 
-      if (!Number(categoryId)) {
-        throw new BadRequestException(
-          'Invalid category id',
-        );
-      }
+     
 
       const configData =
         await this.getSurepassConfig();
@@ -749,7 +745,7 @@ export class SurepassService {
       const state = JSON.stringify({
         user_id: Number(userId),
         country_id: Number(countryId),
-        category_id: Number(categoryId),
+        category_id: 1,
       });
 
       this.logger.log(
@@ -761,7 +757,7 @@ export class SurepassService {
           {
             user_id: Number(userId),
             country_id: Number(countryId),
-            category_id: Number(categoryId),
+            category_id: 1,
             redirect_url: redirectUrl,
           },
           null,
