@@ -209,325 +209,369 @@ verifyAdhar(@Body() body: string,@CurrentUser() user: any,@Headers('x-category')
 //   }
 // }
 
-@Get('digilocker/callback')
-  async callback(
-    @Query() query: any,
-    @Res() reply: FastifyReply,
-  ) {
-    try {
-      console.log('===== DigiLocker Controller Callback =====');
-      console.log(JSON.stringify(query, null, 2));
+// @Get('digilocker/callback')
+//   async callback(
+//     @Query() query: any,
+//     @Res() reply: FastifyReply,
+//   ) {
+//     try {
+//       console.log('===== DigiLocker Controller Callback =====');
+//       console.log(JSON.stringify(query, null, 2));
 
-      const result =
-        await this.surepassService.handleCallback(query);
+//       const result =
+//         await this.surepassService.handleCallback(query);
 
-      console.log('===== DigiLocker Result =====');
-      console.log(JSON.stringify(result, null, 2));
+//       console.log('===== DigiLocker Result =====');
+//       console.log(JSON.stringify(result, null, 2));
 
-      // -----------------------------------------
-      // Verification failed
-      // -----------------------------------------
-      if (!result.success) {
-        return reply
-          .status(400)
-          .type('text/html')
-          .send(`
-            <!DOCTYPE html>
-            <html lang="en">
-            <head>
-              <meta charset="UTF-8">
-              <meta
-                name="viewport"
-                content="width=device-width, initial-scale=1.0"
-              >
-              <title>Verification Failed</title>
+//       // -----------------------------------------
+//       // Verification failed
+//       // -----------------------------------------
+//       if (!result.success) {
+//         return reply
+//           .status(400)
+//           .type('text/html')
+//           .send(`
+//             <!DOCTYPE html>
+//             <html lang="en">
+//             <head>
+//               <meta charset="UTF-8">
+//               <meta
+//                 name="viewport"
+//                 content="width=device-width, initial-scale=1.0"
+//               >
+//               <title>Verification Failed</title>
 
-              <style>
-                * {
-                  margin: 0;
-                  padding: 0;
-                  box-sizing: border-box;
-                  font-family: Arial, sans-serif;
-                }
+//               <style>
+//                 * {
+//                   margin: 0;
+//                   padding: 0;
+//                   box-sizing: border-box;
+//                   font-family: Arial, sans-serif;
+//                 }
 
-                body {
-                  height: 100vh;
-                  display: flex;
-                  justify-content: center;
-                  align-items: center;
-                  background: #0f172a;
-                  color: #fff;
-                }
+//                 body {
+//                   height: 100vh;
+//                   display: flex;
+//                   justify-content: center;
+//                   align-items: center;
+//                   background: #0f172a;
+//                   color: #fff;
+//                 }
 
-                .card {
-                  width: 420px;
-                  max-width: 90%;
-                  padding: 40px;
-                  text-align: center;
-                  border-radius: 20px;
-                  background: rgba(255,255,255,.08);
-                  box-shadow: 0 20px 50px rgba(0,0,0,.4);
-                }
+//                 .card {
+//                   width: 420px;
+//                   max-width: 90%;
+//                   padding: 40px;
+//                   text-align: center;
+//                   border-radius: 20px;
+//                   background: rgba(255,255,255,.08);
+//                   box-shadow: 0 20px 50px rgba(0,0,0,.4);
+//                 }
 
-                .error {
-                  width: 90px;
-                  height: 90px;
-                  margin: auto;
-                  border-radius: 50%;
-                  background: #ef4444;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  font-size: 40px;
-                }
+//                 .error {
+//                   width: 90px;
+//                   height: 90px;
+//                   margin: auto;
+//                   border-radius: 50%;
+//                   background: #ef4444;
+//                   display: flex;
+//                   align-items: center;
+//                   justify-content: center;
+//                   font-size: 40px;
+//                 }
 
-                h2 {
-                  margin-top: 20px;
-                }
+//                 h2 {
+//                   margin-top: 20px;
+//                 }
 
-                p {
-                  margin-top: 10px;
-                  color: #d1d5db;
-                  line-height: 1.6;
-                }
-              </style>
-            </head>
+//                 p {
+//                   margin-top: 10px;
+//                   color: #d1d5db;
+//                   line-height: 1.6;
+//                 }
+//               </style>
+//             </head>
 
-            <body>
-              <div class="card">
-                <div class="error">✕</div>
+//             <body>
+//               <div class="card">
+//                 <div class="error">✕</div>
 
-                <h2>Verification Failed</h2>
+//                 <h2>Verification Failed</h2>
 
-                <p>
-                  ${this.escapeHtml(
-                    result.message ||
-                      'DigiLocker verification failed',
-                  )}
-                </p>
-              </div>
+//                 <p>
+//                   ${this.escapeHtml(
+//                     result.message ||
+//                       'DigiLocker verification failed',
+//                   )}
+//                 </p>
+//               </div>
 
-              <script>
-                const payload = ${JSON.stringify(result)};
+//               <script>
+//                 const payload = ${JSON.stringify(result)};
 
-                if (window.opener) {
-                  window.opener.postMessage(
-                    {
-                      type: "DIGILOCKER_FAILED",
-                      data: payload
-                    },
-                    "*"
-                  );
-                }
-              </script>
-            </body>
-            </html>
-          `);
-      }
+//                 if (window.opener) {
+//                   window.opener.postMessage(
+//                     {
+//                       type: "DIGILOCKER_FAILED",
+//                       data: payload
+//                     },
+//                     "*"
+//                   );
+//                 }
+//               </script>
+//             </body>
+//             </html>
+//           `);
+//       }
 
-      // -----------------------------------------
-      // Verification successful
-      // -----------------------------------------
-      return reply
-        .status(200)
-        .type('text/html')
-        .send(`
-          <!DOCTYPE html>
-          <html lang="en">
+//       // -----------------------------------------
+//       // Verification successful
+//       // -----------------------------------------
+//       return reply
+//         .status(200)
+//         .type('text/html')
+//         .send(`
+//           <!DOCTYPE html>
+//           <html lang="en">
+//           <head>
+//             <meta charset="UTF-8">
+//             <meta
+//               name="viewport"
+//               content="width=device-width, initial-scale=1.0"
+//             >
+
+//             <title>Verification Complete</title>
+
+//             <style>
+//               * {
+//                 margin: 0;
+//                 padding: 0;
+//                 box-sizing: border-box;
+//                 font-family: Arial, sans-serif;
+//               }
+
+//               body {
+//                 height: 100vh;
+//                 display: flex;
+//                 justify-content: center;
+//                 align-items: center;
+//                 background:
+//                   linear-gradient(
+//                     135deg,
+//                     #0f172a,
+//                     #1e293b
+//                   );
+//                 color: #fff;
+//               }
+
+//               .card {
+//                 width: 420px;
+//                 max-width: 90%;
+//                 padding: 40px;
+//                 text-align: center;
+//                 border-radius: 20px;
+
+//                 background:
+//                   rgba(255,255,255,.08);
+
+//                 backdrop-filter: blur(20px);
+
+//                 box-shadow:
+//                   0 20px 50px rgba(0,0,0,.4);
+//               }
+
+//               .success {
+//                 width: 90px;
+//                 height: 90px;
+//                 margin: auto;
+//                 border-radius: 50%;
+//                 background: #22c55e;
+
+//                 display: flex;
+//                 align-items: center;
+//                 justify-content: center;
+
+//                 font-size: 40px;
+
+//                 animation: pop .6s ease;
+//               }
+
+//               h2 {
+//                 margin-top: 20px;
+//               }
+
+//               p {
+//                 margin-top: 10px;
+//                 color: #d1d5db;
+//                 line-height: 1.6;
+//               }
+
+//               .loader {
+//                 margin: 25px auto 0;
+//                 width: 40px;
+//                 height: 40px;
+
+//                 border: 4px solid
+//                   rgba(255,255,255,.2);
+
+//                 border-top: 4px solid #22c55e;
+
+//                 border-radius: 50%;
+
+//                 animation:
+//                   spin 1s linear infinite;
+//               }
+
+//               @keyframes spin {
+//                 100% {
+//                   transform: rotate(360deg);
+//                 }
+//               }
+
+//               @keyframes pop {
+//                 0% {
+//                   transform: scale(.2);
+//                   opacity: 0;
+//                 }
+
+//                 100% {
+//                   transform: scale(1);
+//                   opacity: 1;
+//                 }
+//               }
+//             </style>
+//           </head>
+
+//           <body>
+
+//             <div class="card">
+
+//               <div class="success">✓</div>
+
+//               <h2>
+//                 Verification Successful
+//               </h2>
+
+//               <p>
+//                 Your DigiLocker verification has been
+//                 completed successfully.
+//               </p>
+
+//               <p>
+//                 This window will close automatically.
+//               </p>
+
+//               <div class="loader"></div>
+
+//             </div>
+
+//             <script>
+
+//               const payload =
+//                 ${JSON.stringify(result)};
+
+//               if (window.opener) {
+
+//                 window.opener.postMessage(
+//                   {
+//                     type: "DIGILOCKER_SUCCESS",
+//                     data: payload
+//                   },
+//                   "*"
+//                 );
+
+//               }
+
+//               setTimeout(() => {
+
+//                 window.close();
+
+//               }, 20000500);
+
+//             </script>
+
+//           </body>
+//           </html>
+//         `);
+
+//     } catch (error: any) {
+//       console.error(
+//         '===== DigiLocker Controller Error =====',
+//       );
+
+//       console.error(error);
+
+//       return reply
+//         .status(500)
+//         .type('text/html')
+//         .send(`
+//           <!DOCTYPE html>
+//           <html>
+//           <head>
+//             <title>Verification Failed</title>
+//           </head>
+
+//           <body>
+//             <h2>DigiLocker Verification Failed</h2>
+
+//             <p>
+//               ${
+//                 this.escapeHtml(
+//                   error?.message ||
+//                     'Something went wrong',
+//                 )
+//               }
+//             </p>
+//           </body>
+//           </html>
+//         `);
+//     }
+//   }
+  @Get('digilocker/callback')
+async callback(
+  @Query() query: any,
+  @Res() reply: FastifyReply,
+) {
+  console.log('========== DIGILOCKER CALLBACK ==========');
+  console.log('Query:', query);
+
+  try {
+    const result =
+      await this.surepassService.handleCallback(query);
+
+    console.log('Callback result:', result);
+
+    return reply
+      .type('text/html')
+      .send(`
+        <!DOCTYPE html>
+        <html>
           <head>
             <meta charset="UTF-8">
-            <meta
-              name="viewport"
-              content="width=device-width, initial-scale=1.0"
-            >
-
             <title>Verification Complete</title>
-
-            <style>
-              * {
-                margin: 0;
-                padding: 0;
-                box-sizing: border-box;
-                font-family: Arial, sans-serif;
-              }
-
-              body {
-                height: 100vh;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                background:
-                  linear-gradient(
-                    135deg,
-                    #0f172a,
-                    #1e293b
-                  );
-                color: #fff;
-              }
-
-              .card {
-                width: 420px;
-                max-width: 90%;
-                padding: 40px;
-                text-align: center;
-                border-radius: 20px;
-
-                background:
-                  rgba(255,255,255,.08);
-
-                backdrop-filter: blur(20px);
-
-                box-shadow:
-                  0 20px 50px rgba(0,0,0,.4);
-              }
-
-              .success {
-                width: 90px;
-                height: 90px;
-                margin: auto;
-                border-radius: 50%;
-                background: #22c55e;
-
-                display: flex;
-                align-items: center;
-                justify-content: center;
-
-                font-size: 40px;
-
-                animation: pop .6s ease;
-              }
-
-              h2 {
-                margin-top: 20px;
-              }
-
-              p {
-                margin-top: 10px;
-                color: #d1d5db;
-                line-height: 1.6;
-              }
-
-              .loader {
-                margin: 25px auto 0;
-                width: 40px;
-                height: 40px;
-
-                border: 4px solid
-                  rgba(255,255,255,.2);
-
-                border-top: 4px solid #22c55e;
-
-                border-radius: 50%;
-
-                animation:
-                  spin 1s linear infinite;
-              }
-
-              @keyframes spin {
-                100% {
-                  transform: rotate(360deg);
-                }
-              }
-
-              @keyframes pop {
-                0% {
-                  transform: scale(.2);
-                  opacity: 0;
-                }
-
-                100% {
-                  transform: scale(1);
-                  opacity: 1;
-                }
-              }
-            </style>
           </head>
-
           <body>
-
-            <div class="card">
-
-              <div class="success">✓</div>
-
-              <h2>
-                Verification Successful
-              </h2>
-
-              <p>
-                Your DigiLocker verification has been
-                completed successfully.
-              </p>
-
-              <p>
-                This window will close automatically.
-              </p>
-
-              <div class="loader"></div>
-
-            </div>
-
-            <script>
-
-              const payload =
-                ${JSON.stringify(result)};
-
-              if (window.opener) {
-
-                window.opener.postMessage(
-                  {
-                    type: "DIGILOCKER_SUCCESS",
-                    data: payload
-                  },
-                  "*"
-                );
-
-              }
-
-              setTimeout(() => {
-
-                window.close();
-
-              }, 20000500);
-
-            </script>
-
+            <h2>Verification completed successfully.</h2>
+            <p>You can close this window.</p>
           </body>
-          </html>
-        `);
+        </html>
+      `);
+  } catch (error) {
+    console.error(
+      'DigiLocker callback error:',
+      error?.response?.data || error,
+    );
 
-    } catch (error: any) {
-      console.error(
-        '===== DigiLocker Controller Error =====',
-      );
-
-      console.error(error);
-
-      return reply
-        .status(500)
-        .type('text/html')
-        .send(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <title>Verification Failed</title>
-          </head>
-
-          <body>
-            <h2>DigiLocker Verification Failed</h2>
-
-            <p>
-              ${
-                this.escapeHtml(
-                  error?.message ||
-                    'Something went wrong',
-                )
-              }
-            </p>
-          </body>
-          </html>
-        `);
-    }
+    return reply
+      .status(500)
+      .type('text/html')
+      .send(`
+        <h2>Verification failed</h2>
+        <p>Please try again.</p>
+      `);
   }
+}
 
   private escapeHtml(value: string): string {
     return String(value)
