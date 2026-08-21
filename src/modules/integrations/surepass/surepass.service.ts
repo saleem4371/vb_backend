@@ -314,7 +314,7 @@ export class SurepassService {
     `${process.env.APP_URL}/thirdParty/digilocker/callback`;
 
   const webhookUrl =
-    `${process.env.APP_URL}/thirdParty/digilocker/webhook`;
+    `${process.env.APP_URL}/thirdParty/digilocker/webhook`; 
 
   console.log('====================================');
   console.log('DIGILOCKER CONFIG');
