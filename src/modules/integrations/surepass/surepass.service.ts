@@ -245,43 +245,127 @@ export class SurepassService {
      controller passed third landed in the wrong parameter every time.
      An object with named keys can't be silently transposed like that.
   ───────────────────────────────────────────────────────────────── */
-  async initializeDigilocker(body: any, ctx: AadhaarInitContext) {
-    const config = await this.integrationService.getIntegrationConfig('surepass');
-    const configData = typeof config === 'string' ? JSON.parse(config) : config;
+  // async initializeDigilocker(body: any, ctx: AadhaarInitContext) {
+  //   const config = await this.integrationService.getIntegrationConfig('surepass');
+  //   const configData = typeof config === 'string' ? JSON.parse(config) : config;
 
-    const state = JSON.stringify({
-      user_id: ctx.userId,
-      country_id: ctx.countryId,
-      category_id: ctx.categoryId,
-    });
+  //   const state = JSON.stringify({
+  //     user_id: ctx.userId,
+  //     country_id: ctx.countryId,
+  //     category_id: ctx.categoryId,
+  //   });
 
-    try {
-      const { data } = await this.http.axiosRef.post(
+  //   try {
+  //     const { data } = await this.http.axiosRef.post(
+  //       `${configData.base_url}/api/v1/digilocker/initialize`,
+  //       {
+  //         data: {
+  //           signup_flow: true,
+  //           state,
+  //           logo_url: 'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+  //           redirect_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
+  //           webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+  //           skip_main_screen: false,
+  //           aadhaar_xml: true,
+  //         },
+  //       },
+  //       {
+  //         headers: {
+  //           Authorization: `Bearer ${configData.api_key}`,
+  //           'Content-Type': 'application/json',
+  //         },
+  //       },
+  //     );
+
+  //     return data;
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
+
+  async initializeDigilocker(
+  body: any,
+  ctx: AadhaarInitContext,
+) {
+  const config =
+    await this.integrationService.getIntegrationConfig(
+      'surepass',
+    );
+
+  const configData =
+    typeof config === 'string'
+      ? JSON.parse(config)
+      : config;
+
+  const state = JSON.stringify({
+    user_id: ctx.userId,
+    country_id: ctx.countryId,
+    category_id: ctx.categoryId,
+  });
+
+  const redirectUrl =
+    `${process.env.APP_URL}/thirdParty/digilocker/callback`;
+
+  const webhookUrl =
+    `${process.env.APP_URL}/thirdParty/digilocker/webhook`;
+
+  console.log('====================================');
+  console.log('DIGILOCKER CONFIG');
+  console.log('APP_URL:', process.env.APP_URL);
+  console.log('REDIRECT URL:', redirectUrl);
+  console.log('WEBHOOK URL:', webhookUrl);
+  console.log('STATE:', state);
+  console.log('====================================');
+
+  try {
+    const { data } =
+      await this.http.axiosRef.post(
         `${configData.base_url}/api/v1/digilocker/initialize`,
         {
           data: {
             signup_flow: true,
             state,
-            logo_url: 'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
-            redirect_url: `${process.env.APP_URL}/thirdParty/digilocker/callback`,
-            webhook_url: `${process.env.APP_URL}/thirdParty/digilocker/webhook`,
+
+            logo_url:
+              'https://venuebook-psi.vercel.app/_next/static/media/logo.0e72csmjxihn9.svg',
+
+            redirect_url: redirectUrl,
+
+            webhook_url: webhookUrl,
+
             skip_main_screen: false,
+
             aadhaar_xml: true,
           },
         },
         {
           headers: {
-            Authorization: `Bearer ${configData.api_key}`,
-            'Content-Type': 'application/json',
+            Authorization:
+              `Bearer ${configData.api_key}`,
+
+            'Content-Type':
+              'application/json',
           },
         },
       );
 
-      return data;
-    } catch (error) {
-      throw error;
-    }
+    console.log(
+      'SUREPASS INITIALIZE RESPONSE:',
+      JSON.stringify(data, null, 2),
+    );
+
+    return data;
+  } catch (error) {
+    console.error(
+      'SUREPASS INITIALIZE ERROR:',
+      error?.response?.data ||
+        error?.message ||
+        error,
+    );
+
+    throw error;
   }
+}
 
   async UploadDocument(document: any, body: any, userId: number) {
     let imagePath = '';
