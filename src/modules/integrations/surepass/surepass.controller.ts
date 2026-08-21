@@ -76,7 +76,7 @@ export class SurepassController {
   ) {
     return this.surepassService.initializeDigilocker(body, {
       userId: user?.id,
-      categoryId: Number(categoryId),
+      categoryId: categoryId,
       countryId: Number(countryId),
     });
   }
