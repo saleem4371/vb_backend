@@ -103,6 +103,22 @@ export class SurepassController {
 
   @Get('digilocker/callback')
   async callback(@Query() query: any, @Res() reply: FastifyReply) {
+      console.log(
+      '======================================',
+    );
+
+    console.log(
+      'DIGILOCKER CALLBACK RECEIVED',
+    );
+
+    console.log(
+      'QUERY:',
+      JSON.stringify(query, null, 2),
+    );
+
+    console.log(
+      '======================================',
+    );
     try {
       console.log('===== DigiLocker Controller Callback =====');
       console.log(JSON.stringify(query, null, 2));
