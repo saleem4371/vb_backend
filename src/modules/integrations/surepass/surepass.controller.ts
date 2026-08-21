@@ -101,54 +101,198 @@ export class SurepassController {
     });
   }
 
+  // @Get('digilocker/callback')
+  // async callback(@Query() query: any, @Res() reply: FastifyReply) {
+  //     console.log(
+  //     '======================================',
+  //   );
+
+  //   console.log(
+  //     'DIGILOCKER CALLBACK RECEIVED',
+  //   );
+
+  //   console.log(
+  //     'QUERY:',
+  //     JSON.stringify(query, null, 2),
+  //   );
+
+  //   console.log(
+  //     '======================================',
+  //   );
+  //   try {
+  //     console.log('===== DigiLocker Controller Callback =====');
+  //     console.log(JSON.stringify(query, null, 2));
+
+  //     const result = await this.surepassService.handleCallback(query);
+
+  //     console.log('===== DigiLocker Result =====');
+  //     console.log(JSON.stringify(result, null, 2));
+
+  //     if (!result.success) {
+  //       return reply
+  //         .status(400)
+  //         .type('text/html')
+  //         .send(this.renderFailurePage(result.message));
+  //     }
+
+  //     return reply
+  //       .status(200)
+  //       .type('text/html')
+  //       .send(this.renderSuccessPage(result));
+  //   } catch (error: any) {
+  //     console.error('===== DigiLocker Controller Error =====');
+  //     console.error(error);
+
+  //     return reply
+  //       .status(500)
+  //       .type('text/html')
+  //       .send(this.renderFailurePage(error?.message || 'Something went wrong'));
+  //   }
+  // }
   @Get('digilocker/callback')
-  async callback(@Query() query: any, @Res() reply: FastifyReply) {
-      console.log(
-      '======================================',
-    );
+async callback(
+  @Query() query: any,
+  @Res() reply: FastifyReply,
+) {
+  try {
+    // Process DigiLocker callback
+    const result = await this.surepassService.handleCallback(query);
 
-    console.log(
-      'DIGILOCKER CALLBACK RECEIVED',
-    );
+    return reply.type('text/html').send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Verification Complete</title>
 
-    console.log(
-      'QUERY:',
-      JSON.stringify(query, null, 2),
-    );
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Inter,Arial,sans-serif;
+}
 
-    console.log(
-      '======================================',
-    );
-    try {
-      console.log('===== DigiLocker Controller Callback =====');
-      console.log(JSON.stringify(query, null, 2));
+body{
+height:100vh;
+display:flex;
+justify-content:center;
+align-items:center;
+background:linear-gradient(135deg,#0f172a,#1e293b);
+color:#fff;
+}
 
-      const result = await this.surepassService.handleCallback(query);
+.card{
+width:420px;
+max-width:90%;
+background:rgba(255,255,255,.08);
+backdrop-filter:blur(20px);
+padding:40px;
+border-radius:20px;
+text-align:center;
+box-shadow:0 20px 50px rgba(0,0,0,.4);
+}
 
-      console.log('===== DigiLocker Result =====');
-      console.log(JSON.stringify(result, null, 2));
+.success{
+width:90px;
+height:90px;
+margin:auto;
+border-radius:50%;
+background:#22c55e;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:40px;
+animation:pop .6s ease;
+}
 
-      if (!result.success) {
-        return reply
-          .status(400)
-          .type('text/html')
-          .send(this.renderFailurePage(result.message));
-      }
+h2{
+margin-top:20px;
+}
 
-      return reply
-        .status(200)
-        .type('text/html')
-        .send(this.renderSuccessPage(result));
-    } catch (error: any) {
-      console.error('===== DigiLocker Controller Error =====');
-      console.error(error);
+p{
+margin-top:10px;
+color:#d1d5db;
+line-height:1.6;
+}
 
-      return reply
-        .status(500)
-        .type('text/html')
-        .send(this.renderFailurePage(error?.message || 'Something went wrong'));
+.loader{
+margin:25px auto 0;
+width:40px;
+height:40px;
+border:4px solid rgba(255,255,255,.2);
+border-top:4px solid #22c55e;
+border-radius:50%;
+animation:spin 1s linear infinite;
+}
+
+@keyframes spin{
+100%{
+transform:rotate(360deg);
+}
+}
+
+@keyframes pop{
+0%{
+transform:scale(.2);
+opacity:0;
+}
+100%{
+transform:scale(1);
+opacity:1;
+}
+}
+</style>
+</head>
+
+<body>
+
+<div class="card">
+
+<div class="success">✓</div>
+
+<h2>Verification Successful</h2>
+
+<p>
+Your DigiLocker verification has been completed successfully.
+This window will close automatically.
+</p>
+
+<div class="loader"></div>
+
+</div>
+
+<script>
+
+const payload = ${JSON.stringify(result)};
+
+setTimeout(() => {
+
+    if (window.opener) {
+        window.opener.postMessage({
+            type: "DIGILOCKER_SUCCESS",
+            data: payload
+        }, "*");
     }
+
+    
+
+}, 2500);
+
+</script>
+
+</body>
+</html>
+`);
+
+  } catch (error) {
+    return reply.status(500).type('text/html').send(`
+      <h2>DigiLocker Verification Failed</h2>
+      <p>------------</p>
+    `);
   }
+}
 
   /* FIX: this route did not exist at all, even though
      initializeDigilocker() sends Surepass a webhook_url pointing here.
