@@ -297,10 +297,17 @@ export class SurepassService {
       ? JSON.parse(config)
       : config;
 
+     const singular = ctx.categoryId.endsWith('s') ? ctx.categoryId.slice(0, -1) : ctx.categoryId;
+
+    const [categoryData] = await this.dataSource.query(
+      `SELECT * FROM category WHERE name = ? LIMIT 1`,
+      [singular],
+    );
+
   const state = JSON.stringify({
     user_id: ctx.userId,
     country_id: ctx.countryId,
-    category_id: ctx.categoryId,
+    category_id: categoryData.id,
   });
 
   const redirectUrl =
