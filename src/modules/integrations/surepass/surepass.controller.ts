@@ -26,7 +26,7 @@ export class SurepassController {
   pan_verify(
     @Body() body: any,
     @CurrentUser() user: any,
-    @Headers('x-category') category: string,
+    @Headers('x-category') category: any,
     @Headers('x-country') country: string,
   ) {
     return this.surepassService.verifyPan(body, user?.id, category, country);
@@ -43,7 +43,7 @@ export class SurepassController {
   verifyBank(
     @Body() body: any,
     @CurrentUser() user: any,
-    @Headers('x-category') category: string,
+    @Headers('x-category') category: any,
     @Headers('x-country') country: string,
   ) {
     return this.surepassService.verifyBank(body, user?.id, category, country);
@@ -71,7 +71,7 @@ export class SurepassController {
   initAadhaarV1(
     @Body() body: any,
     @CurrentUser() user: any,
-    @Headers('x-category') categoryId: string,
+    @Headers('x-category') categoryId: any,
     @Headers('x-country') countryId: string,
   ) {
     return this.surepassService.initializeDigilocker(body, {
@@ -91,7 +91,7 @@ export class SurepassController {
   initializeDigilocker(
     @Body() body: any,
     @CurrentUser() user: any,
-    @Headers('x-category') categoryId: string,
+    @Headers('x-category') categoryId: any,
     @Headers('x-country') countryId: string,
   ) {
     return this.surepassService.initializeDigilocker(body, {
