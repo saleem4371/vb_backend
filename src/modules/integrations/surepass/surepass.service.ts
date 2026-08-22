@@ -402,7 +402,7 @@ export class SurepassService {
 async handleCallback(query: any) {
   try {
     this.logger.log('===== DigiLocker Callback =====');
- this.logger.log(query));
+ this.logger.log(query);
     
     this.logger.log(JSON.stringify(query, null, 2));
 
