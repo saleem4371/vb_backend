@@ -399,122 +399,6 @@ export class SurepassService {
     // standalone endpoint is currently unused by the KYC wizard.
     return true;
   }
-
-  /**
-   * DigiLocker redirect callback — hit by the browser tab when
-   * DigiLocker finishes, via GET /thirdParty/digilocker/callback.
-   */
-  async handleCallback(query: any) {
-    try {
-      this.logger.log('===== DigiLocker Callback =====');
-      this.logger.log(JSON.stringify(query, null, 2));
-
-      if (query.status !== 'success') {
-        this.logger.warn(`DigiLocker status: ${query.status}`);
-        return { success: false, message: 'DigiLocker verification failed' };
-      }
-
-      if (!query.client_id) {
-        throw new Error('client_id is missing');
-      }
-
-      let state: any = {};
-
-if (query.state) {
-  try {
-    if (typeof query.state === 'object') {
-      state = query.state;
-    } else if (typeof query.state === 'string') {
-      let stateValue = query.state;
-
-      // Try normal JSON first
-      try {
-        state = JSON.parse(stateValue);
-      } catch {
-        // If URL encoded, decode and parse
-        stateValue = decodeURIComponent(stateValue);
-        state = JSON.parse(stateValue);
-      }
-    }
-
-    this.logger.log('===== Parsed State =====');
-    this.logger.log(JSON.stringify(state, null, 2));
-
-  } catch (error) {
-    this.logger.error(`Invalid state: ${query.state}`);
-    throw new Error('Invalid state JSON');
-  }
-}
-
-      this.logger.log('===== Parsed State =====');
-      this.logger.log(JSON.stringify(state, null, 2));
-
-      const userId = Number(state.user_id);
-      if (!userId) throw new Error(`Invalid user_id: ${state.user_id}`);
-
-      const countryId = Number(state.country_id);
-      if (!countryId) throw new Error(`Invalid country_id: ${state.country_id}`);
-
-      const categoryId = Number(state.category_id);
-      if (!categoryId) throw new Error(`Invalid category_id: ${state.category_id}`);
-
-      const config = await this.integrationService.getIntegrationConfig('surepass');
-      const configData = typeof config === 'string' ? JSON.parse(config) : config;
-
-      if (!configData?.base_url) throw new Error('Surepass base_url missing');
-      if (!configData?.api_key) throw new Error('Surepass API key missing');
-
-      const existing = await this.dataSource.query(
-        `SELECT * FROM user_kyc_documents WHERE user_id = ? AND document_type = 'aadhaar' LIMIT 1`,
-        [userId],
-      );
-
-      let aadhaar: any;
-
-      try {
-        const response = await this.http.axiosRef.get(
-          `${configData.base_url}/api/v1/digilocker/download-aadhaar/${query.client_id}`,
-          { headers: { Authorization: `Bearer ${configData.api_key}` } },
-        );
-        aadhaar = response.data;
-        this.logger.log('Aadhaar downloaded successfully');
-      } catch (error: any) {
-        const err = error?.response?.data;
-        this.logger.error('Aadhaar download failed');
-        this.logger.error(JSON.stringify(err || error?.message, null, 2));
-
-        if (error?.response?.status === 422 && err?.message_code === 'already_downloaded') {
-          this.logger.warn('Aadhaar already downloaded');
-          if (!existing.length) {
-            throw new Error('Aadhaar already downloaded but no database record exists.');
-          }
-          try {
-            aadhaar = JSON.parse(existing[0].doc_details);
-          } catch {
-            throw new Error('Existing Aadhaar doc_details contains invalid JSON.');
-          }
-        } else {
-          throw error;
-        }
-      }
-
-      const xml = aadhaar?.data?.aadhaar_xml_data || {};
-      const metadata = aadhaar?.data?.digilocker_metadata || {};
-
-      if (!xml.masked_aadhaar) {
-        throw new Error('masked_aadhaar missing from Surepass response');
-      }
-
-      if (existing.length > 0) {
-        await this.dataSource.query(
-          `
-          UPDATE user_kyc_documents
-          SET category_id = ?, country_id = ?, document_number = ?, doc_details = ?,
-              verification_status = 'approved', updated_at = NOW()
-          WHERE id = ?
-          `,
-          [categoryId, countryId, xml.masked_aadhaar, JSON.stringify(aadhaar), existing[0].id],
-        );
 async handleCallback(query: any) {
   try {
     this.logger.log('===== DigiLocker Callback =====');
@@ -925,7 +809,15 @@ async handleCallback(query: any) {
         'Something went wrong',
     };
   }
-          }
+        }
+  /**
+   * DigiLocker redirect callback — hit by the browser tab when
+   * DigiLocker finishes, via GET /thirdParty/digilocker/callback.
+   */
+
+
+      
+
   /**
    * Surepass DigiLocker webhook — server-to-server, hit independently
    * of (and potentially before/after) the browser redirect callback.
