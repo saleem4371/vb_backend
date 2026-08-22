@@ -482,7 +482,7 @@ async handleCallback(query: any) {
     // --------------------------------------------------
     const userId = Number(state?.user_id);
     const countryId = Number(state?.country_id);
-    const categoryId = Number(state?.country_id);
+    const categoryId = 1;//Number(state?.country_id);
 
     this.logger.log(
       `Parsed IDs => user_id=${userId}, country_id=${countryId}, category_id=${categoryId}`,
