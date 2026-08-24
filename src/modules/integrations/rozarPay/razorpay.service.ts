@@ -2815,39 +2815,39 @@ async cancelBooking(body: any, id: number) {
     // ZOHO ACTIVATION
     // =====================================================
 
-    // try {
-    //   await this.createZohoTransaction({
-    //     customer: customerName,
-    //     email: customerEmail,
-    //     phone: customerPhone,
+    try {
+      await this.createZohoTransaction({
+        customer: customerName,
+        email: customerEmail,
+        phone: customerPhone,
 
-    //     // Use your subscription code if available.
-    //     // Otherwise use subscription ID.
-    //     bookingId: `SUB-${subscriptionId}`,
+        // Use your subscription code if available.
+        // Otherwise use subscription ID.
+        bookingId: `SUB-${subscriptionId}`,
 
-    //     // Razorpay amount is paise.
-    //     // Zoho gets normal currency amount.
-    //     total_amount: amount,
+        // Razorpay amount is paise.
+        // Zoho gets normal currency amount.
+        total_amount: amount,
 
-    //     category: 'subscription',
+        category: 'subscription',
 
-    //     convenienceFee: 0,
+        convenienceFee: 0,
 
-    //     charge_amount: 0,
-    //   });
+        charge_amount: 0,
+      });
 
-    //   this.logger.log(
-    //     `Zoho transaction created for payment: ${razorpayPaymentId}`,
-    //   );
+      this.logger.log(
+        `Zoho transaction created for payment: ${razorpayPaymentId}`,
+      );
 
-    // } catch (zohoError) {
+    } catch (zohoError) {
      
-    //   this.logger.error(
-    //     `Zoho transaction failed for payment ${razorpayPaymentId}`,
-    //      zohoError,
-    //   );
+      this.logger.error(
+        `Zoho transaction failed for payment ${razorpayPaymentId}`,
+         zohoError,
+      );
 
-    // }
+    }
 
     // =====================================================
     // END PAYMENT CAPTURED
