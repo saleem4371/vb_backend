@@ -3198,22 +3198,7 @@ function getDatesBetween(startDate: string, endDate: string) {
 
 function parseDate(dateStr: string): Date {
   if (!dateStr) throw new Error('Invalid date input');
- if (event === 'payment.captured') {
-        await this.handlePaymentCaptured(
-          req.body,
-        );
-      }
-
-      else if (event === 'subscription.authenticated') {
-        await this.handlePaymentCaptured(
-          req.body,
-        );
-      }
-      else if (event === 'subscription.activated') {
-        await this.handlePaymentCaptured(
-          req.body,
-        );
-      }
+ 
   const parts = dateStr.split('-');
 
   // if format is DD-MM-YYYY
