@@ -385,9 +385,14 @@ if(category=='farmstay')
     );
 }
 else{
-     rows = await this.dataSource.query(
-      `SELECT * FROM vendor_options vo  LEFT JOIN plans p ON p.id = vo.option_key WHERE vo.parent_id = ? `,
-      [parentId],
+    //  rows = await this.dataSource.query(
+    //   `SELECT * FROM vendor_options vo  LEFT JOIN plans p ON p.id = vo.option_key WHERE vo.parent_id = ? `,
+    //   [parentId],
+    // );
+
+    rows = await this.dataSource.query(
+      `SELECT * FROM plans WHERE  category_id = ?  AND status = 1 `,
+      [categorys.id],
     );
   }
     return rows;
