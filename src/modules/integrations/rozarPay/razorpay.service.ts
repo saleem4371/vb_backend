@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException , Logger,} from '@nestjs/common';
 
 import { HttpService } from '@nestjs/axios';
 import { firstValueFrom } from 'rxjs';
@@ -24,6 +24,9 @@ import { TwilioService } from '../../integrations/twilio/twilio.service';
 
 @Injectable()
 export class RazorpayService {
+  private readonly logger =
+    new Logger(RazorpayService.name);
+
   constructor(
      private readonly socketService: SocketService,
     private readonly integrationService: IntegrationService,
@@ -37,92 +40,642 @@ export class RazorpayService {
     private readonly notificationService: NotificationService,
   ) {}
 
-  async subscription(body: any, userId: number, countryId: number) {
-    try {
-      const [plan] = await this.dataSource.query(
-        `SELECT * FROM plans WHERE id=? LIMIT 1`,
-        [body.selectedPlan],
+  // async subscription(body: any, userId: number, countryId: number) {
+  //   try {
+  //     const [plan] = await this.dataSource.query(
+  //       `SELECT * FROM plans WHERE plan_id= ? LIMIT 1`,
+  //       [body.selectedPlan],
+  //     );
+
+  //     if (!plan) {
+  //       throw new BadRequestException('Plan not found');
+  //     }
+
+  //     const [user] = await this.dataSource.query(
+  //       `SELECT * FROM users WHERE id=? LIMIT 1`,
+  //       [userId],
+  //     );
+
+  //     if (!user) {
+  //       throw new BadRequestException('User not found');
+  //     }
+
+  //     const config =
+  //       await this.integrationService.getIntegrationConfig('razorpay');
+  //     const configData =
+  //       typeof config === 'string' ? JSON.parse(config) : config;
+  //     const razorpay = new Razorpay({
+  //       key_id: configData.key_id,
+  //       key_secret: configData.key_secret,
+  //     });
+
+     
+  //     const subscription = await razorpay.subscriptions.create({
+  //       plan_id:plan.plan_id,
+  //       total_count: 12,
+  //       quantity: body.quantity,
+  //       customer_notify: 1,
+  //     });
+
+  //     const subscriptionCode = `SUB_${Date.now()}`;
+
+  //     // await this.dataSource.query(
+  //     //   `
+  //     // INSERT INTO user_subscriptions
+  //     // (
+  //     //   user_id,
+  //     //   country_id,
+  //     //   plan_id,
+  //     //   subscription_code,
+  //     //   subscription_id,
+  //     //   status,
+  //     //   created_at,
+  //     //   updated_at
+  //     // )
+  //     // VALUES
+  //     // (?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+  //     // `,
+  //     //   [userId, countryId, plan.id, subscriptionCode, subscription.id],
+  //     // );
+  //      // =========================================================
+  //   // 10. Save subscription in VenueBook
+  //   // =========================================================
+  //   await this.dataSource.query(
+  //     `
+  //     INSERT INTO user_subscriptions
+  //     (
+  //       user_id,
+  //       country_id,
+  //       plan_id,
+  //       razorpay_plan_id,
+
+  //       subscription_code,
+  //       subscription_id,
+
+  //       quantity,
+  //       price_per_unit,
+  //       gst_rate,
+  //       gst_amount,
+  //       current_amount,
+  //       total_amount,
+
+  //       start_date,
+  //       next_billing_date,
+  //       end_date,
+
+  //       total_count,
+  //       paid_count,
+
+  //       auto_renew,
+  //       status,
+  //       razorpay_status,
+
+  //       payment_method,
+  //       webhook_status,
+
+  //       created_at,
+  //       updated_at
+  //     )
+  //     VALUES
+  //     (
+  //       ?, ?, ?, ?,
+  //       ?, ?,
+  //       ?, ?, ?, ?, ?, ?,
+  //       ?, ?, ?,
+  //       ?, ?,
+  //       1,
+  //       'pending',
+  //       ?,
+  //       NULL,
+  //       'pending',
+  //       NOW(),
+  //       NOW()
+  //     )
+  //     `,
+  //     [
+  //       userId,
+  //       countryId,
+  //       plan.id,
+  //       plan.plan_id,
+
+  //       subscriptionCode,
+  //       subscription.id,
+
+  //       body.quantity,
+  //       pricePerVenue,
+  //       gstRate,
+  //       gstAmount,
+  //       baseAmount,
+  //       totalAmount,
+
+  //       startDate,
+  //       nextBillingDate,
+  //       endDate,
+
+  //       subscription.total_count || 12,
+  //       subscription.paid_count || 0,
+
+  //       subscription.status || 'created',
+  //     ],
+  //   );
+
+  //     return {
+  //     success: true,
+  //     key_id: configData.key_id,
+  //     subscription_id: subscription.id,
+  //     url: subscription.short_url,
+  //   };
+  //   } catch (e) {
+  //     console.log(e);
+
+  //     throw new BadRequestException('Unable to create Razorpay subscription');
+  //   }
+  // }
+  async subscription(
+  body: any,
+  userId: number,
+  countryId: number,
+) {
+  try {
+    // =========================================================
+    // 1. Validate quantity
+    // =========================================================
+    const quantity = Number(body.quantity);
+
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      throw new BadRequestException(
+        'Quantity must be a valid number greater than 0',
+      );
+    }
+
+    // =========================================================
+    // 2. Get VenueBook plan
+    // =========================================================
+    const [plan] = await this.dataSource.query(
+      `
+      SELECT *
+      FROM plans
+      WHERE plan_id = ?
+      LIMIT 1
+      `,
+      [body.selectedPlan],
+    );
+
+    if (!plan) {
+      throw new BadRequestException('Plan not found');
+    }
+
+    // =========================================================
+    // 3. Get user
+    // =========================================================
+    const [user] = await this.dataSource.query(
+      `
+      SELECT *
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [userId],
+    );
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // =========================================================
+    // 4. Pricing
+    //
+    // ₹199 = base price per venue
+    // GST   = 18%
+    // Total = ₹234.82 per venue
+    // =========================================================
+
+    const pricePerVenue = plan.amounts;
+    const gstRate = 18.00;
+
+    const baseAmount = Number(
+      (pricePerVenue * quantity).toFixed(2),
+    );
+
+    const gstAmount = Number(
+      ((baseAmount * gstRate) / 100).toFixed(2),
+    );
+
+    const totalAmount = Number(
+      (baseAmount + gstAmount).toFixed(2),
+    );
+
+    // =========================================================
+    // 5. Get Razorpay configuration
+    // =========================================================
+    const config =
+      await this.integrationService.getIntegrationConfig(
+        'razorpay',
       );
 
-      if (!plan) {
-        throw new BadRequestException('Plan not found');
-      }
+    const configData =
+      typeof config === 'string'
+        ? JSON.parse(config)
+        : config;
 
-      const [user] = await this.dataSource.query(
-        `SELECT * FROM users WHERE id=? LIMIT 1`,
-        [userId],
+    if (
+      !configData?.key_id ||
+      !configData?.key_secret
+    ) {
+      throw new BadRequestException(
+        'Razorpay configuration is missing',
       );
+    }
 
-      if (!user) {
-        throw new BadRequestException('User not found');
-      }
+    // =========================================================
+    // 6. Initialize Razorpay
+    // =========================================================
+    const razorpay = new Razorpay({
+      key_id: configData.key_id,
+      key_secret: configData.key_secret,
+    });
 
-      const config =
-        await this.integrationService.getIntegrationConfig('razorpay');
-      const configData =
-        typeof config === 'string' ? JSON.parse(config) : config;
-      const razorpay = new Razorpay({
-        key_id: configData.key_id,
-        key_secret: configData.key_secret,
+    // =========================================================
+    // 7. Create Razorpay subscription
+    //
+    // IMPORTANT:
+    // Razorpay charges:
+    //
+    //     Plan Amount × Quantity
+    //
+    // Therefore the Razorpay Plan should be ₹234.82
+    // if you want ₹199 + 18% GST to be charged automatically.
+    // =========================================================
+    const subscription =
+      await razorpay.subscriptions.create({
+        plan_id: plan.plan_id,
+        total_count: 12,
+        quantity,
+        customer_notify: 1,
       });
 
-      /**
-       * plan.plan_id must contain Razorpay Plan Id
-       * Example:
-       * plan_PjN7fdxxxxxxxx
-       */
+    // =========================================================
+    // 8. Generate internal subscription code
+    // =========================================================
+    const subscriptionCode =
+      `SUB_${Date.now()}_${userId}`;
 
-      // const subscription = await razorpay.subscriptions.create({
-      //   plan_id: plan.plan_id,
-      //   total_count: 12,
-      //   quantity: 1,
-      //   customer_notify: 1,
-      //   notes: {
-      //     user_id: String(userId),
-      //     plan_id: String(plan.plan_id),
-      //   },
-      // });
+    // =========================================================
+    // 9. Convert Razorpay timestamps
+    // =========================================================
+    const startDate = subscription.start_at
+      ? new Date(subscription.start_at * 1000)
+      : null;
 
-      const subscription = await razorpay.subscriptions.create({
-  plan_id:plan.plan_id,
-  total_count: 12,
-  quantity: 1,
-  customer_notify: 1,
-});
+    const nextBillingDate = subscription.charge_at
+      ? new Date(subscription.charge_at * 1000)
+      : null;
 
-      const subscriptionCode = `SUB_${Date.now()}`;
+    const endDate = subscription.end_at
+      ? new Date(subscription.end_at * 1000)
+      : null;
 
-      await this.dataSource.query(
-        `
+    // =========================================================
+    // 10. Save subscription in VenueBook
+    // =========================================================
+    await this.dataSource.query(
+      `
       INSERT INTO user_subscriptions
       (
         user_id,
         country_id,
         plan_id,
+        razorpay_plan_id,
+
         subscription_code,
         subscription_id,
+
+        quantity,
+        price_per_unit,
+        gst_rate,
+        gst_amount,
+        current_amount,
+        total_amount,
+
+        start_date,
+        next_billing_date,
+        end_date,
+
+        total_count,
+        paid_count,
+
+        auto_renew,
         status,
+        razorpay_status,
+
+        payment_method,
+        webhook_status,
+
         created_at,
         updated_at
       )
       VALUES
-      (?, ?, ?, ?, ?, 'pending', NOW(), NOW())
+      (
+        ?, ?, ?, ?,
+        ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?,
+        ?, ?,
+        1,
+        'pending',
+        ?,
+        NULL,
+        'pending',
+        NOW(),
+        NOW()
+      )
       `,
-        [userId, countryId, plan.id, subscriptionCode, subscription.id],
+      [
+        userId,
+        countryId,
+        plan.id,
+        plan.plan_id,
+
+        subscriptionCode,
+        subscription.id,
+
+        quantity,
+        pricePerVenue,
+        gstRate,
+        gstAmount,
+        baseAmount,
+        totalAmount,
+
+        startDate,
+        nextBillingDate,
+        endDate,
+
+        subscription.total_count || 12,
+        subscription.paid_count || 0,
+
+        subscription.status || 'created',
+      ],
+    );
+
+    // =========================================================
+    // 11. Return response
+    // =========================================================
+    return {
+      success: true,
+
+      key_id: configData.key_id,
+
+      subscription_id: subscription.id,
+
+      subscription_code: subscriptionCode,
+
+      plan_id: plan.plan_id,
+
+      quantity,
+
+      pricing: {
+        price_per_venue: pricePerVenue,
+        base_amount: baseAmount,
+        gst_rate: gstRate,
+        gst_amount: gstAmount,
+        total_amount: totalAmount,
+        currency: 'INR',
+      },
+
+      status: subscription.status,
+
+      start_date: startDate,
+
+      next_billing_date: nextBillingDate,
+
+      end_date: endDate,
+
+      short_url: subscription.short_url,
+    };
+  } catch (error) {
+    // =========================================================
+    // Log actual Razorpay error
+    // =========================================================
+    console.error(
+      'Razorpay subscription creation failed:',
+      error,
+    );
+
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+
+    throw new BadRequestException(
+      error ||
+        'Unable to create Razorpay subscription',
+    );
+  }
+}
+
+async updateSubscriptionQuantity(
+  body: any,
+  userId: number,
+) {
+  try {
+    const newQuantity = Number(body.quantity);
+
+    if (!Number.isInteger(newQuantity) || newQuantity < 1) {
+      throw new BadRequestException(
+        'Quantity must be at least 1',
+      );
+    }
+
+    // =====================================================
+    // Get user's active subscription
+    // =====================================================
+    const [subscription] = await this.dataSource.query(
+      `
+      SELECT *
+      FROM user_subscriptions
+      WHERE user_id = ?
+        AND status = 'active'
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [userId],
+    );
+
+    if (!subscription) {
+      throw new BadRequestException(
+        'Active subscription not found',
+      );
+    }
+
+    if (!subscription.subscription_id) {
+      throw new BadRequestException(
+        'Razorpay subscription ID not found',
+      );
+    }
+
+    // =====================================================
+    // Get Razorpay configuration
+    // =====================================================
+    const config =
+      await this.integrationService.getIntegrationConfig(
+        'razorpay',
       );
 
-      return {
-      success: true,
-      key_id: configData.key_id,
-      subscription_id: subscription.id,
-      url: subscription.short_url,
-    };
-    } catch (e) {
-      console.log(e);
+    const configData =
+      typeof config === 'string'
+        ? JSON.parse(config)
+        : config;
 
-      throw new BadRequestException('Unable to create Razorpay subscription');
+    const razorpay = new Razorpay({
+      key_id: configData.key_id,
+      key_secret: configData.key_secret,
+    });
+
+    // =====================================================
+    // Current quantity
+    // =====================================================
+    const oldQuantity = Number(
+      subscription.quantity || 1,
+    );
+
+    // =====================================================
+    // Determine upgrade / downgrade
+    // =====================================================
+    let changeType = 'same';
+
+    if (newQuantity > oldQuantity) {
+      changeType = 'upgrade';
+    } else if (newQuantity < oldQuantity) {
+      changeType = 'downgrade';
     }
+
+    if (changeType === 'same') {
+      return {
+        success: true,
+        message: 'Quantity is already the same',
+        quantity: oldQuantity,
+      };
+    }
+
+    // =====================================================
+    // Calculate amounts
+    // =====================================================
+    const pricePerUnit = Number(
+      subscription.price_per_unit || 199,
+    );
+
+    const gstRate = Number(
+      subscription.gst_rate || 18,
+    );
+
+    const newBaseAmount = Number(
+      (pricePerUnit * newQuantity).toFixed(2),
+    );
+
+    const newGstAmount = Number(
+      ((newBaseAmount * gstRate) / 100).toFixed(2),
+    );
+
+    const newTotalAmount = Number(
+      (newBaseAmount + newGstAmount).toFixed(2),
+    );
+
+    // =====================================================
+    // Update Razorpay subscription
+    //
+    // cycle_end:
+    // New quantity starts from next billing cycle.
+    // =====================================================
+    const updatedSubscription =
+    await razorpay.subscriptions.update(
+      subscription.subscription_id,
+      {
+        quantity: newQuantity,
+        schedule_change_at: 'cycle_end',
+        customer_notify: true,
+      },
+    );
+
+    // =====================================================
+    // Update VenueBook database
+    // =====================================================
+    await this.dataSource.query(
+      `
+      UPDATE user_subscriptions
+      SET
+        quantity = ?,
+        current_amount = ?,
+        gst_amount = ?,
+        total_amount = ?,
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        newQuantity,
+        newBaseAmount,
+        newGstAmount,
+        newTotalAmount,
+        subscription.id,
+      ],
+    );
+
+    // =====================================================
+    // Return response
+    // =====================================================
+    return {
+      success: true,
+
+      change_type: changeType,
+
+      old_quantity: oldQuantity,
+      new_quantity: newQuantity,
+
+      pricing: {
+        price_per_unit: pricePerUnit,
+
+        base_amount: newBaseAmount,
+
+        gst_rate: gstRate,
+
+        gst_amount: newGstAmount,
+
+        total_amount: newTotalAmount,
+
+        currency: 'INR',
+      },
+
+      razorpay: {
+        subscription_id:
+          updatedSubscription.id,
+
+        status:
+          updatedSubscription.status,
+
+        quantity:
+          updatedSubscription.quantity,
+
+        schedule_change_at:
+          updatedSubscription.schedule_change_at,
+
+        has_scheduled_changes:
+          updatedSubscription.has_scheduled_changes,
+      },
+    };
+  } catch (error) {
+    console.error(
+      'Razorpay quantity update failed:',
+      error,
+    );
+
+    if (error instanceof BadRequestException) {
+      throw error;
+    }
+
+    throw new BadRequestException(
+      error ||
+        'Unable to update subscription quantity',
+    );
   }
+}
 
   async verifySubscription(body: any) {
      const config =
@@ -266,15 +819,7 @@ export class RazorpayService {
 
   async createOnlineBooking(dto: any, id: number, country: any) {
 
-    // ─────────────────────────────────────────────────────────────────────────
-    // 0. NORMALIZE INCOMING PAYLOAD
-    // ─────────────────────────────────────────────────────────────────────────
-    // The frontend now sends a nested shape:
-    //   { addons: [{add_on_id, qty, price, total}], booking: {...}, customer: {...}, pricing: {...} }
-    // instead of the older flat shape (dto.event, dto.venues[], dto.category, ...).
-    // We map everything into one consistent set of variables here so the rest of
-    // the function doesn't need to know which shape arrived. Old field names are
-    // kept as fallbacks so existing pax/farmstay bookings keep working unchanged.
+   
     const booking      = dto.booking || {};
     const rawPricing   = dto.pricing || {};
     const customer     = dto.customer || dto.customer_details || {};
@@ -342,6 +887,14 @@ export class RazorpayService {
       wallet_discount:      rawPricing.wallet_discount ?? 0,
       paid_amount:      rawPricing.payableNow ?? 0,
     };
+
+
+    //Find Which Vendor Under 
+     const [vendor_detial] = await this.dataSource.query(
+      `SELECT created_by FROM venue_child WHERE child_venue_id = ? LIMIT 1`,
+      [venueId],
+    );
+
 
     //Online payment 
     const payment = dto.payment || {};
@@ -440,7 +993,7 @@ export class RazorpayService {
 
         specialRequest,
 
-        id,
+        vendor_detial.created_by, // Venue create by vendor ID
         id,
         id,
         new Date(),
@@ -929,18 +1482,18 @@ const subtotalWithoutExcluded = chargeValues.reduce((total, charge) => {
     //  ZOHO ACTIVATION //
     //-------------------------------------------------------//
 
-    // await this.createZohoTransaction({
-    //   customer: customerName,
-    //   email: customerEmail,
-    //   phone: customerPhone,
-    //   bookingId: code,
+    await this.createZohoTransaction({
+      customer: customerName,
+      email: customerEmail,
+      phone: customerPhone,
+      bookingId: code,
      
-    //     total_amount: pricing.grandTotal,
-    //     category:singular,
-    //     convenienceFee:pricing.convenienceFee,
-    //     charge_amount:commison
+      total_amount: pricing.grandTotal,
+      category:singular,
+      convenienceFee:pricing.convenienceFee,
+      charge_amount:commison
 
-    // });
+    });
 
      //wallets
 
@@ -1034,139 +1587,139 @@ async createLog(
 }
   //
 
-  async webhook(req: any, res: any) {
-  try {
-    // Get Razorpay configuration
-    const config = await this.integrationService.getIntegrationConfig('razorpay');
+//   async webhook(req: any, res: any) {
+//   try {
+//     // Get Razorpay configuration
+//     const config = await this.integrationService.getIntegrationConfig('razorpay');
 
-    const configData =
-      typeof config === 'string' ? JSON.parse(config) : config;
+//     const configData =
+//       typeof config === 'string' ? JSON.parse(config) : config;
 
-    // Get Razorpay Signature
-    const signature = req.headers['x-razorpay-signature'];
+//     // Get Razorpay Signature
+//     const signature = req.headers['x-razorpay-signature'];
 
-    if (!signature) {
-      return res.status(400).send('Missing Signature');
-    }
+//     if (!signature) {
+//       return res.status(400).send('Missing Signature');
+//     }
 
-    // Verify Webhook Signature
-    const generatedSignature = crypto
-      .createHmac('sha256', configData.webhook_secret)
-      .update(req.rawBody)
-      .digest('hex');
+//     // Verify Webhook Signature
+//     const generatedSignature = crypto
+//       .createHmac('sha256', configData.webhook_secret)
+//       .update(req.rawBody)
+//       .digest('hex');
 
-    if (signature !== generatedSignature) {
-      return res.status(400).send('Invalid Signature');
-    }
+//     if (signature !== generatedSignature) {
+//       return res.status(400).send('Invalid Signature');
+//     }
 
-    const event = req.body.event;
+//     const event = req.body.event;
 
-    switch (event) {
-      case 'payment.captured': {
-        const payment = req.body.payload.payment.entity;
+//     switch (event) {
+//       case 'payment.captured': {
+//         const payment = req.body.payload.payment.entity;
 
-        await this.dataSource.query(
-          `
-          INSERT INTO user_subscription_payments (
-            subscription_id,
-            user_id,
-            order_id,
-            transaction_id,
-            payment_id,
-            amount,
-            tax_amount,
-            total_amount,
-            payment_method,
-            payment_status,
-            paid_at,
-            failure_reason,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
-          `,
-          [
-            null,                           // subscription_id
-            null,                           // user_id
-            payment.order_id,
-            payment.id,
-            payment.id,
-            payment.amount / 100,
-            0,
-            payment.amount / 100,
-            payment.method,
-            payment.status,
-            null,
-          ],
-        );
+//         await this.dataSource.query(
+//           `
+//           INSERT INTO user_subscription_payments (
+//             subscription_id,
+//             user_id,
+//             order_id,
+//             transaction_id,
+//             payment_id,
+//             amount,
+//             tax_amount,
+//             total_amount,
+//             payment_method,
+//             payment_status,
+//             paid_at,
+//             failure_reason,
+//             created_at
+//           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
+//           `,
+//           [
+//             null,                           // subscription_id
+//             null,                           // user_id
+//             payment.order_id,
+//             payment.id,
+//             payment.id,
+//             payment.amount / 100,
+//             0,
+//             payment.amount / 100,
+//             payment.method,
+//             payment.status,
+//             null,
+//           ],
+//         );
 
-        console.log('Payment Captured:', payment.id);
-        break;
-      }
+//         console.log('Payment Captured:', payment.id);
+//         break;
+//       }
 
-      case 'payment.failed': {
-        const payment = req.body.payload.payment.entity;
+//       case 'payment.failed': {
+//         const payment = req.body.payload.payment.entity;
 
-        await this.dataSource.query(
-          `
-          INSERT INTO user_subscription_payments (
-            subscription_id,
-            user_id,
-            order_id,
-            transaction_id,
-            payment_id,
-            amount,
-            tax_amount,
-            total_amount,
-            payment_method,
-            payment_status,
-            paid_at,
-            failure_reason,
-            created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NOW())
-          `,
-          [
-            null,
-            null,
-            payment.order_id,
-            payment.id,
-            payment.id,
-            payment.amount / 100,
-            0,
-            payment.amount / 100,
-            payment.method,
-            'failed',
-            payment.error_description || payment.error_reason || null,
-          ],
-        );
+//         await this.dataSource.query(
+//           `
+//           INSERT INTO user_subscription_payments (
+//             subscription_id,
+//             user_id,
+//             order_id,
+//             transaction_id,
+//             payment_id,
+//             amount,
+//             tax_amount,
+//             total_amount,
+//             payment_method,
+//             payment_status,
+//             paid_at,
+//             failure_reason,
+//             created_at
+//           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, NOW())
+//           `,
+//           [
+//             null,
+//             null,
+//             payment.order_id,
+//             payment.id,
+//             payment.id,
+//             payment.amount / 100,
+//             0,
+//             payment.amount / 100,
+//             payment.method,
+//             'failed',
+//             payment.error_description || payment.error_reason || null,
+//           ],
+//         );
 
-        console.log('Payment Failed:', payment.id);
-        break;
-      }
+//         console.log('Payment Failed:', payment.id);
+//         break;
+//       }
 
-      case 'order.paid': {
-        const order = req.body.payload.order.entity;
+//       case 'order.paid': {
+//         const order = req.body.payload.order.entity;
 
-        console.log('Order Paid:', order.id);
+//         console.log('Order Paid:', order.id);
 
-        break;
-      }
+//         break;
+//       }
 
-      default:
-        console.log('Unhandled Event:', event);
-    }
+//       default:
+//         console.log('Unhandled Event:', event);
+//     }
 
-    return res.status(200).send({
-      success: true,
-      message: 'Webhook Processed',
-    });
-  } catch (error) {
-    console.error('Webhook Error:', error);
+//     return res.status(200).send({
+//       success: true,
+//       message: 'Webhook Processed',
+//     });
+//   } catch (error) {
+//     console.error('Webhook Error:', error);
 
-    return res.status(500).send({
-      success: false,
-      message: 'Internal Server Error',
-    });
-  }
-}
+//     return res.status(500).send({
+//       success: false,
+//       message: 'Internal Server Error',
+//     });
+//   }
+// }
 
 //wallets
 async addRewardPoints(
@@ -1434,7 +1987,7 @@ await this.notificationService.createNotification({
 }
 
 async updateMemberTier(userId: number) {
-  // Get booking count
+  // Get booking count and amount
   const [booking] = await this.dataSource.query(
     `
     SELECT
@@ -1462,25 +2015,21 @@ async updateMemberTier(userId: number) {
 
   let currentTier: any = null;
 
+  // Find the correct tier
   for (const tier of tiers) {
-    if (tier.name === 'Diamond') {
-      if (
-        (bookingCount >= tier.min_booking &&
-          bookingAmount >= Number(tier.book_amount)) ||
-        bookingCount >= tier.max_booking
-      ) {
-        currentTier = tier;
-      }
-    } else {
-      if (
-        bookingCount >= tier.min_booking &&
-        bookingCount <= tier.max_booking
-      ) {
-        currentTier = tier;
-      }
+    const minBooking = Number(tier.min_booking);
+    const maxBooking = Number(tier.max_booking);
+
+    if (
+      bookingCount >= minBooking &&
+      bookingCount <= maxBooking
+    ) {
+      currentTier = tier;
+      break;
     }
   }
 
+  // No tier found
   if (!currentTier) {
     return {
       success: false,
@@ -1540,82 +2089,82 @@ async updateMemberTier(userId: number) {
 
 
 //ZOHO 
- async createZohoTransaction({
-  customer,
-  email,
-  phone,
-  bookingId,
-  total_amount,
-  category,
-  convenienceFee,
-  charge_amount,
-}: {
-  customer: string;
-  email: string;
-  phone: string;
-  bookingId: string;
-  total_amount: number;
-  category: string;
-  convenienceFee: any;
-  charge_amount: any;
-}) {
-  const items = [] as any[];
+//  async createZohoTransaction({
+//   customer,
+//   email,
+//   phone,
+//   bookingId,
+//   total_amount,
+//   category,
+//   convenienceFee,
+//   charge_amount,
+// }: {
+//   customer: string;
+//   email: string;
+//   phone: string;
+//   bookingId: string;
+//   total_amount: number;
+//   category: string;
+//   convenienceFee: any;
+//   charge_amount: any;
+// }) {
+//   const items = [] as any[];
 
-  // Convenience Fee (common for venue & farmstay)
-  if (category === 'venue' || category === 'farmstay') {
-    items.push({
-      itemId: '3975444000000033267', // Convenience Fee
-      quantity: 1,
-      rate: convenienceFee,
-    });
-  }
+//   // Convenience Fee (common for venue & farmstay)
+//   if (category === 'venue' || category === 'farmstay') {
+//     items.push({
+//       itemId: '3975444000000033267', // Convenience Fee
+//       quantity: 1,
+//       rate: convenienceFee,
+//     });
+//   }
 
-  // Venue Commission
-  if (category === 'venue') {
-    items.push({
-      itemId: '3975444000000033239', // Venue Commission
-      quantity: 1,
-      rate: charge_amount,
-    });
-  }
+//   // Venue Commission
+//   if (category === 'venue') {
+//     items.push({
+//       itemId: '3975444000000033239', // Venue Commission
+//       quantity: 1,
+//       rate: charge_amount,
+//     });
+//   }
 
-  // Farmstay Commission
-  if (category === 'farmstay') {
-    items.push({
-      itemId: '3975444000000033258', // Farmstay Commission
-      quantity: 1,
-      rate: charge_amount,
-    });
-  }
+//   // Farmstay Commission
+//   if (category === 'farmstay') {
+//     items.push({
+//       itemId: '3975444000000033258', // Farmstay Commission
+//       quantity: 1,
+//       rate: charge_amount,
+//     });
+//   }
 
-  // // Subscription
-  // if (category === 'subscription') {
-  //   items.push({
-  //     itemId: '3975444000000033229', // Subscription
-  //     quantity: 1,
-  //     rate: total_amount,
-  //   });
-  // }
+//   // // Subscription
+//   if (category === 'subscription') {
+//     items.push({
+//       itemId: '3975444000000033229', // Subscription
+//       quantity: 1,
+//       rate: total_amount,
+//     });
+//   }
 
-  return await this.zohoService.completeBookingZoho({
-    customer: {
-      name: customer,
-      email,
-      phone,
-    },
-    items,
-    booking: {
-      bookingNo: bookingId,
-      bookingDate: dayjs().format('YYYY-MM-DD'),
-      notes: `Customer ${category} booking`,
-    },
-    payment: {
-      amount: total_amount,
-      mode: 'Online',
-      date: dayjs().format('YYYY-MM-DD'),
-    },
-  });
-}
+//   return await this.zohoService.completeBookingZoho({
+//     customer: {
+//       name: customer,
+//       email,
+//       phone,
+//     },
+//     items,
+//     booking: {
+//       bookingNo: bookingId,
+//       bookingDate: dayjs().format('YYYY-MM-DD'),
+//       notes: `Customer ${category} booking`,
+//     },
+//     payment: {
+//       amount: total_amount,
+//       mode: 'Online',
+//       date: dayjs().format('YYYY-MM-DD'),
+//     },
+//   });
+// }
 
 async cancelBooking(body: any, id: number) {
   const refundAmount = Number(body.refund_amount || 0);
@@ -1698,6 +2247,920 @@ async cancelBooking(body: any, id: number) {
   };
 }
 
+
+ // =========================================================
+  // RAZORPAY WEBHOOK
+  // =========================================================
+
+  async webhook(req: any, res: any) {
+    console.log( 'Razorpay webhook Has been Created')
+    try {
+      // =====================================================
+      // 1. GET RAZORPAY CONFIG
+      // =====================================================
+
+      const config =
+        await this.integrationService.getIntegrationConfig(
+          'razorpay',
+        );
+
+      const configData =
+        typeof config === 'string'
+          ? JSON.parse(config)
+          : config;
+
+      const webhookSecret =
+        configData?.webhook_secret;
+
+      if (!webhookSecret) {
+        this.logger.error(
+          'Razorpay webhook secret not configured',
+        );
+
+        return res.status(500).send({
+          success: false,
+          message:
+            'Razorpay webhook secret not configured',
+        });
+      }
+
+      // =====================================================
+      // 2. GET HEADERS
+      // =====================================================
+
+      const signature =
+        req.headers['x-razorpay-signature'];
+
+      const eventId =
+        req.headers['x-razorpay-event-id'];
+
+      if (!signature) {
+        this.logger.error(
+          'Missing Razorpay signature',
+        );
+
+        return res.status(400).send({
+          success: false,
+          message: 'Missing Signature',
+        });
+      }
+
+      if (!eventId) {
+        this.logger.error(
+          'Missing Razorpay event ID',
+        );
+
+        return res.status(400).send({
+          success: false,
+          message: 'Missing Event ID',
+        });
+      }
+
+      // =====================================================
+      // 3. GET RAW BODY
+      // =====================================================
+
+      const rawBody =
+        req.rawBody ||
+        (Buffer.isBuffer(req.body)
+          ? req.body
+          : Buffer.from(
+              JSON.stringify(req.body),
+            ));
+
+      if (!rawBody) {
+        this.logger.error(
+          'Razorpay raw body is missing',
+        );
+
+        return res.status(400).send({
+          success: false,
+          message: 'Raw body unavailable',
+        });
+      }
+
+      // =====================================================
+      // 4. VERIFY RAZORPAY SIGNATURE
+      // =====================================================
+
+      const generatedSignature =
+        crypto
+          .createHmac(
+            'sha256',
+            webhookSecret,
+          )
+          .update(rawBody)
+          .digest('hex');
+
+      if (
+        signature.length !==
+        generatedSignature.length
+      ) {
+        this.logger.error(
+          'Invalid Razorpay signature length',
+        );
+
+        return res.status(400).send({
+          success: false,
+          message: 'Invalid Signature',
+        });
+      }
+
+      const isValid =
+        crypto.timingSafeEqual(
+          Buffer.from(signature),
+          Buffer.from(generatedSignature),
+        );
+
+      if (!isValid) {
+        this.logger.error(
+          'Invalid Razorpay webhook signature',
+        );
+
+        return res.status(400).send({
+          success: false,
+          message: 'Invalid Signature',
+        });
+      }
+
+      this.logger.log(
+        'Razorpay signature verified',
+      );
+
+      // =====================================================
+      // 5. GET EVENT
+      // =====================================================
+
+      const event =
+        req.body?.event;
+
+      if (!event) {
+        return res.status(400).send({
+          success: false,
+          message: 'Event missing',
+        });
+      }
+
+      this.logger.log(
+        `Razorpay Event: ${event}`,
+      );
+
+      this.logger.log(
+        `Razorpay Event ID: ${eventId}`,
+      );
+
+      // =====================================================
+      // 6. CHECK DUPLICATE WEBHOOK
+      // =====================================================
+
+      const [existingEvent] =
+        await this.dataSource.query(
+          `
+          SELECT id, status
+          FROM razorpay_webhook_events
+          WHERE event_id = ?
+          LIMIT 1
+          `,
+          [eventId],
+        );
+
+      if (existingEvent) {
+        this.logger.warn(
+          `Duplicate Razorpay webhook: ${eventId}`,
+        );
+
+        return res.status(200).send({
+          success: true,
+          message: 'Webhook already processed',
+        });
+      }
+
+      // =====================================================
+      // 7. SAVE WEBHOOK EVENT
+      // =====================================================
+
+      await this.dataSource.query(
+        `
+        INSERT INTO razorpay_webhook_events
+        (
+          event_id,
+          event_type,
+          payload,
+          status,
+          created_at
+        )
+        VALUES (?, ?, ?, 'received', NOW())
+        `,
+        [
+          eventId,
+          event,
+          JSON.stringify(req.body),
+        ],
+      );
+
+      // =====================================================
+      // 8. PAYMENT CAPTURED
+      // =====================================================
+
+      if (event === 'payment.captured') {
+        await this.handlePaymentCaptured(
+          req.body,
+        );
+      }
+
+      // =====================================================
+      // 9. PAYMENT FAILED
+      // =====================================================
+
+      else if (event === 'payment.failed') {
+        await this.handlePaymentFailed(
+          req.body,
+        );
+      }
+
+      // =====================================================
+      // 10. ORDER PAID
+      // =====================================================
+
+      else if (event === 'order.paid') {
+        await this.handleOrderPaid(
+          req.body,
+        );
+      }
+
+      // =====================================================
+      // 11. REFUND CREATED
+      // =====================================================
+
+      else if (event === 'refund.created') {
+        await this.handleRefundCreated(
+          req.body,
+        );
+      }
+
+      // =====================================================
+      // 12. REFUND PROCESSED
+      // =====================================================
+
+      else if (event === 'refund.processed') {
+        await this.handleRefundProcessed(
+          req.body,
+        );
+      }
+
+      // =====================================================
+      // 13. REFUND FAILED
+      // =====================================================
+
+      else if (event === 'refund.failed') {
+        await this.handleRefundFailed(
+          req.body,
+        );
+      }
+
+      // =====================================================
+      // 14. UNKNOWN EVENT
+      // =====================================================
+
+      else {
+        this.logger.warn(
+          `Unhandled Razorpay event: ${event}`,
+        );
+      }
+
+      // =====================================================
+      // 15. MARK WEBHOOK PROCESSED
+      // =====================================================
+
+      await this.dataSource.query(
+        `
+        UPDATE razorpay_webhook_events
+        SET
+          status = 'processed',
+          processed_at = NOW()
+        WHERE event_id = ?
+        `,
+        [eventId],
+      );
+
+      // =====================================================
+      // 16. RESPONSE
+      // =====================================================
+
+      return res.status(200).send({
+        success: true,
+        message: 'Webhook Processed',
+        event,
+        eventId,
+      });
+
+    } catch (error) {
+      this.logger.error(
+        'Razorpay Webhook Error',
+         error,
+      );
+
+      return res.status(500).send({
+        success: false,
+        message: 'Internal Server Error',
+      });
+    }
+  }
+
+  // =========================================================
+  // PAYMENT CAPTURED
+  // =========================================================
+
+  private async handlePaymentCaptured(
+    body: any,
+  ) {
+    const payment =
+      body?.payload?.payment?.entity;
+
+    if (!payment) {
+      throw new Error(
+        'Payment entity not found',
+      );
+    }
+
+    const razorpayOrderId =
+      payment.order_id;
+
+    const razorpayPaymentId =
+      payment.id;
+
+    const amount =
+      Number(payment.amount || 0) / 100;
+
+    this.logger.log(
+      `Payment Captured: ${razorpayPaymentId}`,
+    );
+
+    this.logger.log(
+      `Razorpay Order: ${razorpayOrderId}`,
+    );
+
+    // =====================================================
+    // FIND SUBSCRIPTION
+    // =====================================================
+
+    const [subscription] =
+      await this.dataSource.query(
+        `
+        SELECT
+          id,
+          user_id,
+          razorpay_order_id,
+          status
+        FROM user_subscriptions
+        WHERE razorpay_order_id = ?
+        LIMIT 1
+        `,
+        [razorpayOrderId],
+      );
+
+    if (!subscription) {
+      this.logger.error(
+        `Subscription not found for Razorpay order: ${razorpayOrderId}`,
+      );
+
+      throw new Error(
+        `Subscription not found: ${razorpayOrderId}`,
+      );
+    }
+
+    const subscriptionId =
+      subscription.id;
+
+    const userId =
+      subscription.user_id;
+
+    // =====================================================
+    // GET USER
+    // =====================================================
+
+    const [user] =
+      await this.dataSource.query(
+        `
+        SELECT
+          id,
+          name,
+          email,
+          phone
+        FROM users
+        WHERE id = ?
+        LIMIT 1
+        `,
+        [userId],
+      );
+
+    if (!user) {
+      throw new Error(
+        `User not found: ${userId}`,
+      );
+    }
+
+    const customerName =
+      user.name || '';
+
+    const customerEmail =
+      user.email || '';
+
+    const customerPhone =
+      user.phone || '';
+
+    // =====================================================
+    // CHECK EXISTING PAYMENT
+    // =====================================================
+
+    const [existingPayment] =
+      await this.dataSource.query(
+        `
+        SELECT
+          id,
+          payment_status
+        FROM user_subscription_payments
+        WHERE payment_id = ?
+        LIMIT 1
+        `,
+        [razorpayPaymentId],
+      );
+
+    // =====================================================
+    // INSERT PAYMENT
+    // =====================================================
+
+    if (!existingPayment) {
+      await this.dataSource.query(
+        `
+        INSERT INTO user_subscription_payments
+        (
+          subscription_id,
+          user_id,
+          order_id,
+          transaction_id,
+          payment_id,
+          amount,
+          tax_amount,
+          total_amount,
+          payment_method,
+          payment_status,
+          paid_at,
+          failure_reason,
+          created_at
+        )
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          'captured',
+          NOW(),
+          NULL,
+          NOW()
+        )
+        `,
+        [
+          subscriptionId,
+          userId,
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpayPaymentId,
+
+          amount,
+
+          0,
+
+          amount,
+
+          payment.method || null,
+        ],
+      );
+
+      this.logger.log(
+        `Payment inserted: ${razorpayPaymentId}`,
+      );
+    }
+
+    // =====================================================
+    // UPDATE EXISTING PAYMENT
+    // =====================================================
+
+    else {
+      await this.dataSource.query(
+        `
+        UPDATE user_subscription_payments
+        SET
+          subscription_id = ?,
+          user_id = ?,
+          order_id = ?,
+          amount = ?,
+          total_amount = ?,
+          payment_method = ?,
+          payment_status = 'captured',
+          paid_at = NOW(),
+          failure_reason = NULL
+        WHERE payment_id = ?
+        `,
+        [
+          subscriptionId,
+          userId,
+          razorpayOrderId,
+
+          amount,
+          amount,
+
+          payment.method || null,
+
+          razorpayPaymentId,
+        ],
+      );
+
+      this.logger.log(
+        `Payment updated: ${razorpayPaymentId}`,
+      );
+    }
+
+    // =====================================================
+    // UPDATE SUBSCRIPTION
+    // =====================================================
+
+    await this.dataSource.query(
+      `
+      UPDATE user_subscriptions
+      SET
+        status = 'active',
+        payment_status = 'paid',
+        razorpay_payment_id = ?,
+        paid_at = NOW(),
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        razorpayPaymentId,
+        subscriptionId,
+      ],
+    );
+
+    this.logger.log(
+      `Subscription activated: ${subscriptionId}`,
+    );
+
+    // =====================================================
+    // ZOHO ACTIVATION
+    // =====================================================
+
+    // try {
+    //   await this.createZohoTransaction({
+    //     customer: customerName,
+    //     email: customerEmail,
+    //     phone: customerPhone,
+
+    //     // Use your subscription code if available.
+    //     // Otherwise use subscription ID.
+    //     bookingId: `SUB-${subscriptionId}`,
+
+    //     // Razorpay amount is paise.
+    //     // Zoho gets normal currency amount.
+    //     total_amount: amount,
+
+    //     category: 'subscription',
+
+    //     convenienceFee: 0,
+
+    //     charge_amount: 0,
+    //   });
+
+    //   this.logger.log(
+    //     `Zoho transaction created for payment: ${razorpayPaymentId}`,
+    //   );
+
+    // } catch (zohoError) {
+     
+    //   this.logger.error(
+    //     `Zoho transaction failed for payment ${razorpayPaymentId}`,
+    //      zohoError,
+    //   );
+
+    // }
+
+    // =====================================================
+    // END PAYMENT CAPTURED
+    // =====================================================
+
+    return {
+      paymentId: razorpayPaymentId,
+      orderId: razorpayOrderId,
+      subscriptionId,
+      userId,
+      amount,
+    };
+  }
+
+  // =========================================================
+  // PAYMENT FAILED
+  // =========================================================
+
+  private async handlePaymentFailed(
+    body: any,
+  ) {
+    const payment =
+      body?.payload?.payment?.entity;
+
+    if (!payment) {
+      throw new Error(
+        'Payment entity not found',
+      );
+    }
+
+    const razorpayOrderId =
+      payment.order_id;
+
+    const razorpayPaymentId =
+      payment.id;
+
+    const amount =
+      Number(payment.amount || 0) / 100;
+
+    const failureReason =
+      payment.error_description ||
+      payment.error_reason ||
+      payment.error_code ||
+      'Payment failed';
+
+    this.logger.warn(
+      `Payment Failed: ${razorpayPaymentId}`,
+    );
+
+    // =====================================================
+    // FIND SUBSCRIPTION
+    // =====================================================
+
+    const [subscription] =
+      await this.dataSource.query(
+        `
+        SELECT
+          id,
+          user_id
+        FROM user_subscriptions
+        WHERE razorpay_order_id = ?
+        LIMIT 1
+        `,
+        [razorpayOrderId],
+      );
+
+    if (!subscription) {
+      this.logger.warn(
+        `Subscription not found: ${razorpayOrderId}`,
+      );
+
+      return;
+    }
+
+    // =====================================================
+    // CHECK PAYMENT
+    // =====================================================
+
+    const [existingPayment] =
+      await this.dataSource.query(
+        `
+        SELECT id
+        FROM user_subscription_payments
+        WHERE payment_id = ?
+        LIMIT 1
+        `,
+        [razorpayPaymentId],
+      );
+
+    // =====================================================
+    // INSERT
+    // =====================================================
+
+    if (!existingPayment) {
+      await this.dataSource.query(
+        `
+        INSERT INTO user_subscription_payments
+        (
+          subscription_id,
+          user_id,
+          order_id,
+          transaction_id,
+          payment_id,
+          amount,
+          tax_amount,
+          total_amount,
+          payment_method,
+          payment_status,
+          paid_at,
+          failure_reason,
+          created_at
+        )
+        VALUES (
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          ?,
+          0,
+          ?,
+          ?,
+          'failed',
+          NULL,
+          ?,
+          NOW()
+        )
+        `,
+        [
+          subscription.id,
+          subscription.user_id,
+
+          razorpayOrderId,
+          razorpayPaymentId,
+          razorpayPaymentId,
+
+          amount,
+          amount,
+
+          payment.method || null,
+
+          failureReason,
+        ],
+      );
+    }
+
+    // =====================================================
+    // UPDATE SUBSCRIPTION
+    // =====================================================
+
+    await this.dataSource.query(
+      `
+      UPDATE user_subscriptions
+      SET
+        payment_status = 'failed',
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [subscription.id],
+    );
+
+    this.logger.log(
+      `Subscription payment marked failed: ${subscription.id}`,
+    );
+  }
+
+  // =========================================================
+  // ORDER PAID
+  // =========================================================
+
+  private async handleOrderPaid(
+    body: any,
+  ) {
+    const order =
+      body?.payload?.order?.entity;
+
+    if (!order) {
+      throw new Error(
+        'Order entity not found',
+      );
+    }
+
+    this.logger.log(
+      `Order Paid: ${order.id}`,
+    );
+
+    const [subscription] =
+      await this.dataSource.query(
+        `
+        SELECT id
+        FROM user_subscriptions
+        WHERE razorpay_order_id = ?
+        LIMIT 1
+        `,
+        [order.id],
+      );
+
+    if (!subscription) {
+      this.logger.warn(
+        `Local subscription not found for order: ${order.id}`,
+      );
+
+      return;
+    }
+
+    await this.dataSource.query(
+      `
+      UPDATE user_subscriptions
+      SET
+        status = 'active',
+        payment_status = 'paid',
+        paid_at = COALESCE(paid_at, NOW()),
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [subscription.id],
+    );
+
+    this.logger.log(
+      `Order marked paid: ${order.id}`,
+    );
+  }
+
+  // =========================================================
+  // REFUND CREATED
+  // =========================================================
+
+  private async handleRefundCreated(
+    body: any,
+  ) {
+    const refund =
+      body?.payload?.refund?.entity;
+
+    if (!refund) {
+      return;
+    }
+
+    this.logger.log(
+      `Refund Created: ${refund.id}`,
+    );
+
+    // Add refund DB update here if required.
+  }
+
+  // =========================================================
+  // REFUND PROCESSED
+  // =========================================================
+
+  private async handleRefundProcessed(
+    body: any,
+  ) {
+    const refund =
+      body?.payload?.refund?.entity;
+
+    if (!refund) {
+      return;
+    }
+
+    this.logger.log(
+      `Refund Processed: ${refund.id}`,
+    );
+
+    // Add refund DB update here if required.
+  }
+
+  // =========================================================
+  // REFUND FAILED
+  // =========================================================
+
+  private async handleRefundFailed(
+    body: any,
+  ) {
+    const refund =
+      body?.payload?.refund?.entity;
+
+    if (!refund) {
+      return;
+    }
+
+    this.logger.warn(
+      `Refund Failed: ${refund.id}`,
+    );
+
+    // Add refund DB update here if required.
+  }
+
+  // =========================================================
+  // ZOHO TRANSACTION
+  // =========================================================
+
+  private async createZohoTransaction(
+    data: {
+      customer: string;
+      email: string;
+      phone: string;
+      bookingId: string;
+      total_amount: number;
+      category: string;
+      convenienceFee: number;
+      charge_amount: number;
+    },
+  ) {
+    // YOUR EXISTING ZOHO IMPLEMENTATION
+    //
+    // Example:
+    //
+    // return await this.zohoService.createTransaction(data);
+
+    console.log(
+      'Zoho Transaction:',
+      data,
+    );
+  }
 }
 
 
