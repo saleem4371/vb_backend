@@ -7,7 +7,8 @@ import {
   Post,
   Req,
   UseGuards,
-  Res
+  Res,
+  Patch
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../../modules/auth/strategies/jwt-auth.guard';
 import { CurrentUser } from '../../../common/decorators/user.decorator';
@@ -97,6 +98,18 @@ async verifys(@Param('id') id: any) {
 return this.razorpayService.verifys(
        id
     );
+}
+ @UseGuards(JwtAuthGuard)
+@Patch('subscription/quantity')
+async updateSubscriptionQuantity(
+  @Body() body: any,
+  @Req() req: any,
+   @CurrentUser() user: any,
+) {
+  return this.razorpayService.updateSubscriptionQuantity(
+    body,
+    user.id,
+  );
 }
 
   /**
