@@ -2269,7 +2269,7 @@ const today = dayjs().format('YYYY-MM-DD HH:mm:ss');;
 
 const startDate = today.toDate();
 
-const interval = Number(plan.interval) || 1;
+const interval =  1;
 const planTitle = Number(plan.plan_title);
 
 let nextBillingDate: Date;
