@@ -78,8 +78,12 @@ import { RewardModule } from './modules/rewards/rewards.module';
 import { TwilioModule } from './modules/integrations/twilio/twilio.module';
 import { AccountModule } from './modules/account/account.module';
 
+import { ScheduleModule } from '@nestjs/schedule';
+
 @Module({
   imports: [
+
+    ScheduleModule.forRoot(),
 
     /* CONFIG */
     ConfigModule.forRoot({
@@ -87,19 +91,19 @@ import { AccountModule } from './modules/account/account.module';
     }),
 
     /* DATABASE */
-TypeOrmModule.forRoot({
+    TypeOrmModule.forRoot({
       type: 'mysql',
-      host: process.env.DB_HOST,
-      port: Number(process.env.DB_PORT || 3306),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_DATABASE,
+      host: '13.50.209.14',
+      port: 3306,
+      username: 'vb_user',
+      password: 'Syfte_2020',
+      database: 'vb_platform',
       autoLoadEntities: true,
       synchronize: false,
       logging: true,
       connectTimeout: 10000,
-      timezone: process.env.DB_TIMEZONE || '+05:30',
     }),
+
     GatewaysModule,
     SocketModule,
 
@@ -176,6 +180,7 @@ TypeOrmModule.forRoot({
     
   ],
 
+  /* ✅ FIX IS HERE */
   providers: [
     {
       provide: APP_INTERCEPTOR,
