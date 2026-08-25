@@ -3620,9 +3620,9 @@ console.log({
 
         tokenId,
 
-        startDate,
+        startDateFormatted,
 
-        nextBillingDate,
+        nextBillingDateFormatted,
 
         subscriptionTableId,
       ],
