@@ -1,4 +1,4 @@
-import { Body, Controller, Post,Get } from '@nestjs/common';
+import { Body, Controller, Post,Get ,Query} from '@nestjs/common';
 import { TwilioService } from './twilio.service';
 
 @Controller('twilio')
@@ -11,16 +11,15 @@ export class TwilioController {
      // body.to,
      // body.message,
      "+917760384559",
-     "Welcome to venuebook.in."
+     "409173"
     );
   }
 
-@Get('whatsapp')
-async sendWhatsApp(@Body() body: any) {
-  return await this.twilioService.sendWhatsApp({
-    // to: body.to,
-    // body: body.message,
-    to:"+917760384559",
-     body: 'Thank you for your booking! Your abc booking has been received successfully'});
+@Get("whatsapp")
+async sendWhatsApp() {
+  return this.twilioService.sendWhatsApp(
+    "+918147484371",
+    "409173",
+  );
 }
 }
