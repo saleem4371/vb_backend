@@ -2269,39 +2269,39 @@ const interval = 1;
 
 const today = dayjs();
 
-const startDate = today.toDate();
-
-dayjs(startDate).add(interval, 'month');
+const startDate = today.format(
+  'YYYY-MM-DD HH:mm:ss',
+);
 
 const planTitle = Number(plan.plan_title);
 
-let nextBillingDate: Date;
-let endDate: Date;
+let nextBillingDate: string;
+let endDate: string;
 
 switch (planTitle) {
   case 1:
     nextBillingDate = today
       .add(interval, 'month')
-      .toDate();
+      .format('YYYY-MM-DD HH:mm:ss');
 
     endDate = today
       .add(interval, 'month')
-      .toDate();
+      .format('YYYY-MM-DD HH:mm:ss');
     break;
 
   case 2:
     nextBillingDate = today
       .add(interval, 'year')
-      .toDate();
+      .format('YYYY-MM-DD HH:mm:ss');
 
     endDate = today
       .add(interval, 'year')
-      .toDate();
+      .format('YYYY-MM-DD HH:mm:ss');
     break;
 
   default:
     throw new Error(
-      `Invalid plan_title: ${plan.plan_title}`
+      `Invalid plan_title: ${plan.plan_title}`,
     );
 }
 
