@@ -3536,16 +3536,25 @@ console.log(
 
   //const interval = Number(plan.interval || 1);
 
+const interval = 1;
+
 const startDate = dayjs();
 
-const nextBillingDate = startDate
-  .add(interval, 'month');
+const nextBillingDate = startDate.add(
+  interval,
+  'month',
+);
 
 const startDateFormatted =
   startDate.format('YYYY-MM-DD HH:mm:ss');
 
 const nextBillingDateFormatted =
   nextBillingDate.format('YYYY-MM-DD HH:mm:ss');
+
+console.log({
+  startDateFormatted,
+  nextBillingDateFormatted,
+});
 
   // =========================================================
   // 10. Start DB transaction
