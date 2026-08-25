@@ -191,7 +191,1937 @@ export class RazorpayService {
   //     throw new BadRequestException('Unable to create Razorpay subscription');
   //   }
   // }
-  async subscription(
+//   async subscription(
+//   body: any,
+//   userId: number,
+//   countryId: number,
+// ) {
+//   try {
+//     // =========================================================
+//     // 1. Validate quantity
+//     // =========================================================
+//     const quantity = Number(body.quantity);
+
+//     if (!Number.isInteger(quantity) || quantity < 1) {
+//       throw new BadRequestException(
+//         'Quantity must be a valid number greater than 0',
+//       );
+//     }
+
+//     // =========================================================
+//     // 2. Get VenueBook plan
+//     // =========================================================
+//     const [plan] = await this.dataSource.query(
+//       `
+//       SELECT *
+//       FROM plans
+//       WHERE plan_id = ?
+//       LIMIT 1
+//       `,
+//       [body.selectedPlan],
+//     );
+
+//     if (!plan) {
+//       throw new BadRequestException('Plan not found');
+//     }
+
+//     // =========================================================
+//     // 3. Get user
+//     // =========================================================
+//     const [user] = await this.dataSource.query(
+//       `
+//       SELECT *
+//       FROM users
+//       WHERE id = ?
+//       LIMIT 1
+//       `,
+//       [userId],
+//     );
+
+//     if (!user) {
+//       throw new BadRequestException('User not found');
+//     }
+
+//     // =========================================================
+//     // 4. Pricing
+//     //
+//     // ₹199 = base price per venue
+//     // GST   = 18%
+//     // Total = ₹234.82 per venue
+//     // =========================================================
+
+//     const pricePerVenue = plan.amounts;
+//     const gstRate = 18.00;
+
+//     const baseAmount = Number(
+//       (pricePerVenue * quantity).toFixed(2),
+//     );
+
+//     const gstAmount = Number(
+//       ((baseAmount * gstRate) / 100).toFixed(2),
+//     );
+
+//     const totalAmount = Number(
+//       (baseAmount + gstAmount).toFixed(2),
+//     );
+
+//     // =========================================================
+//     // 5. Get Razorpay configuration
+//     // =========================================================
+//     const config =
+//       await this.integrationService.getIntegrationConfig(
+//         'razorpay',
+//       );
+
+//     const configData =
+//       typeof config === 'string'
+//         ? JSON.parse(config)
+//         : config;
+
+//     if (
+//       !configData?.key_id ||
+//       !configData?.key_secret
+//     ) {
+//       throw new BadRequestException(
+//         'Razorpay configuration is missing',
+//       );
+//     }
+
+//     // =========================================================
+//     // 6. Initialize Razorpay
+//     // =========================================================
+//     const razorpay = new Razorpay({
+//       key_id: configData.key_id,
+//       key_secret: configData.key_secret,
+//     });
+
+//     // =========================================================
+//     // 7. Create Razorpay subscription
+//     //
+//     // IMPORTANT:
+//     // Razorpay charges:
+//     //
+//     //     Plan Amount × Quantity
+//     //
+//     // Therefore the Razorpay Plan should be ₹234.82
+//     // if you want ₹199 + 18% GST to be charged automatically.
+//     // =========================================================
+//     const subscription =
+//       await razorpay.subscriptions.create({
+//         plan_id: plan.plan_id,
+//         total_count: 12,
+//         quantity,
+//         customer_notify: 1,
+//       });
+
+//     // =========================================================
+//     // 8. Generate internal subscription code
+//     // =========================================================
+//     const subscriptionCode =
+//       `SUB_${Date.now()}_${userId}`;
+
+//     // =========================================================
+//     // 9. Convert Razorpay timestamps
+//     // =========================================================
+//     const startDate = subscription.start_at
+//       ? new Date(subscription.start_at * 1000)
+//       : null;
+
+//     const nextBillingDate = subscription.charge_at
+//       ? new Date(subscription.charge_at * 1000)
+//       : null;
+
+//     const endDate = subscription.end_at
+//       ? new Date(subscription.end_at * 1000)
+//       : null;
+
+//     // =========================================================
+//     // 10. Save subscription in VenueBook
+//     // =========================================================
+//     await this.dataSource.query(
+//       `
+//       INSERT INTO user_subscriptions
+//       (
+//         user_id,
+//         country_id,
+//         plan_id,
+//         razorpay_plan_id,
+
+//         subscription_code,
+//         subscription_id,
+
+//         quantity,
+//         price_per_unit,
+//         gst_rate,
+//         gst_amount,
+//         current_amount,
+//         total_amount,
+
+//         start_date,
+//         next_billing_date,
+//         end_date,
+
+//         total_count,
+//         paid_count,
+
+//         auto_renew,
+//         status,
+//         razorpay_status,
+
+//         payment_method,
+//         webhook_status,
+
+//         created_at,
+//         updated_at
+//       )
+//       VALUES
+//       (
+//         ?, ?, ?, ?,
+//         ?, ?,
+//         ?, ?, ?, ?, ?, ?,
+//         ?, ?, ?,
+//         ?, ?,
+//         1,
+//         'pending',
+//         ?,
+//         NULL,
+//         'pending',
+//         NOW(),
+//         NOW()
+//       )
+//       `,
+//       [
+//         userId,
+//         countryId,
+//         plan.id,
+//         plan.plan_id,
+
+//         subscriptionCode,
+//         subscription.id,
+
+//         quantity,
+//         pricePerVenue,
+//         gstRate,
+//         gstAmount,
+//         baseAmount,
+//         totalAmount,
+
+//         startDate,
+//         nextBillingDate,
+//         endDate,
+
+//         subscription.total_count || 12,
+//         subscription.paid_count || 0,
+
+//         subscription.status || 'created',
+//       ],
+//     );
+
+//     // =========================================================
+//     // 11. Return response
+//     // =========================================================
+//     return {
+//       success: true,
+
+//       key_id: configData.key_id,
+
+//       subscription_id: subscription.id,
+
+//       subscription_code: subscriptionCode,
+
+//       plan_id: plan.plan_id,
+
+//       quantity,
+
+//       pricing: {
+//         price_per_venue: pricePerVenue,
+//         base_amount: baseAmount,
+//         gst_rate: gstRate,
+//         gst_amount: gstAmount,
+//         total_amount: totalAmount,
+//         currency: 'INR',
+//       },
+
+//       status: subscription.status,
+
+//       start_date: startDate,
+
+//       next_billing_date: nextBillingDate,
+
+//       end_date: endDate,
+
+//       short_url: subscription.short_url,
+//     };
+//   } catch (error) {
+//     // =========================================================
+//     // Log actual Razorpay error
+//     // =========================================================
+//     console.error(
+//       'Razorpay subscription creation failed:',
+//       error,
+//     );
+
+//     if (error instanceof BadRequestException) {
+//       throw error;
+//     }
+
+//     throw new BadRequestException(
+//       error ||
+//         'Unable to create Razorpay subscription',
+//     );
+//   }
+// }
+
+//   async subscription(
+//   body: any,
+//   userId: number,
+//   countryId: number,
+// ) {
+//   try {
+//     // =========================================================
+//     // 1. Validate quantity
+//     // =========================================================
+
+//     const quantity = Number(body.quantity);
+
+//     if (!Number.isInteger(quantity) || quantity < 1) {
+//       throw new BadRequestException(
+//         'Quantity must be a valid number greater than 0',
+//       );
+//     }
+
+//     // =========================================================
+//     // 2. Get VenueBook plan
+//     // =========================================================
+
+//     const [plan] = await this.dataSource.query(
+//       `
+//       SELECT *
+//       FROM plans
+//       WHERE id = ?
+//       LIMIT 1
+//       `,
+//       [body.selectedPlan],
+//     );
+
+//     if (!plan) {
+//       throw new BadRequestException(
+//         'Plan not found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 3. Get user
+//     // =========================================================
+
+//     const [user] = await this.dataSource.query(
+//       `
+//       SELECT
+//         id,
+//         name,
+//         email,
+//         phone
+//       FROM users
+//       WHERE id = ?
+//       LIMIT 1
+//       `,
+//       [userId],
+//     );
+
+//     if (!user) {
+//       throw new BadRequestException(
+//         'User not found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 4. Calculate pricing
+//     // =========================================================
+
+//     const pricePerVenue = Number(plan.amount);
+
+//     if (
+//       !Number.isFinite(pricePerVenue) ||
+//       pricePerVenue <= 0
+//     ) {
+//       throw new BadRequestException(
+//         'Invalid plan amount',
+//       );
+//     }
+
+//     const gstRate = 18;
+
+//     const baseAmount = Number(
+//       (pricePerVenue * quantity).toFixed(2),
+//     );
+
+//     const gstAmount = Number(
+//       ((baseAmount * gstRate) / 100).toFixed(2),
+//     );
+
+//     const totalAmount = Number(
+//       (baseAmount + gstAmount).toFixed(2),
+//     );
+
+//     // =========================================================
+//     // 5. Razorpay configuration
+//     // =========================================================
+
+//     const config =
+//       await this.integrationService.getIntegrationConfig(
+//         'razorpay',
+//       );
+
+//     const configData =
+//       typeof config === 'string'
+//         ? JSON.parse(config)
+//         : config;
+
+//     const keyId =
+//       String(configData?.key_id || '').trim();
+
+//     const keySecret =
+//       String(configData?.key_secret || '').trim();
+
+//     if (!keyId || !keySecret) {
+//       throw new BadRequestException(
+//         'Razorpay configuration is missing',
+//       );
+//     }
+
+//     // =========================================================
+//     // 6. Initialize Razorpay
+//     // =========================================================
+
+//     const razorpay = new Razorpay({
+//       key_id: keyId,
+//       key_secret: keySecret,
+//     });
+
+//     // =========================================================
+//     // 7. Generate internal reference
+//     // =========================================================
+
+//     const subscriptionCode =
+//       `SUB_${Date.now()}_${userId}`;
+
+//     // =========================================================
+//     // 8. Create Payment Link
+//     // =========================================================
+
+//     const paymentLink =
+//       await razorpay.paymentLink.create({
+//         amount: Math.round(totalAmount * 100),
+
+//         currency: 'INR',
+
+//         accept_partial: false,
+
+//         description:
+//           `Venuebook ${plan.plan_name} Subscription`,
+
+//         reference_id: subscriptionCode,
+
+//         customer: {
+//           name: user.name,
+//           email: user.email,
+//           contact: user.phone,
+//         },
+
+//         expire_by:
+//           Math.floor(Date.now() / 1000) +
+//           24 * 60 * 60,
+
+//         notify: {
+//           sms: true,
+//           email: true,
+//         },
+
+//         reminder_enable: true,
+
+//         notes: {
+//           user_id: String(user.id),
+//           plan_id: String(plan.id),
+//           category_id: String(
+//             body.categoryId || 0,
+//           ),
+//           country_id: String(countryId),
+//           quantity: String(quantity),
+//           subscription_code: subscriptionCode,
+//           base_amount: String(baseAmount),
+//           gst_amount: String(gstAmount),
+//           total_amount: String(totalAmount),
+//         },
+
+//         callback_url:
+//           `${process.env.APP_URL}/payment/razorpay/callback`,
+
+//         callback_method: 'get',
+//       });
+
+//     // =========================================================
+//     // 9. Save local subscription/payment record
+//     // =========================================================
+
+//     const [insertResult] =
+//       await this.dataSource.query(
+//         `
+//         INSERT INTO user_subscriptions
+//         (
+//           user_id,
+//           country_id,
+//           category_id,
+//           plan_id,
+
+//           subscription_code,
+
+//           quantity,
+//           price_per_unit,
+
+//           gst_rate,
+//           gst_amount,
+
+//           current_amount,
+//           total_amount,
+
+//           start_date,
+//           next_billing_date,
+
+//           auto_renew,
+
+//           status,
+//           payment_status,
+
+//           payment_Razorpay Payment Link creation failed: TypeError: (intermediate value) is not iterable
+//     at RazorpayService.subscription (/home/syfte/Syfte/International/vb backend/src/modules/integrations/rozarPay/razorpay.service.ts:667:7)
+//     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+// [Nest] 44247  - 08/24/2026, 1:10:35 PM   ERROR [ExceptionsHandler] TypeError: (intermediate value) is not iterable
+//     at RazorpayService.subscription (/home/syfte/Syfte/International/vb backend/src/modules/integrations/rozarPay/razorpay.service.ts:667:7)
+//     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)link_id,
+//           payment_link_url,
+
+//           created_at,
+//           updated_at
+//         )
+//         VALUES
+//         (
+//           ?, ?, ?, ?,
+//           ?,
+//           ?, ?,
+//           ?, ?,
+//           ?, ?,
+//           NULL,
+//           NULL,
+//           0,
+//           'pending',
+//           'pending',
+//           ?,
+//           ?,
+//           NOW(),
+//           NOW()
+//         )
+//         `,
+//         [
+//           userId,
+//           countryId,
+//           body.categoryId || 1,
+//           plan.id,
+
+//           subscriptionCode,
+
+//           quantity,
+//           pricePerVenue,
+
+//           gstRate,
+//           gstAmount,
+
+//           baseAmount,
+//           totalAmount,
+
+//           paymentLink.id,
+//           paymentLink.short_url,
+//         ],
+//       );
+
+//     // =========================================================
+//     // 10. Update Payment Link notes with local ID
+//     // =========================================================
+
+//     // We don't need to update Razorpay here.
+//     // The local subscription ID can be obtained using
+//     // reference_id / payment_link_id in webhook.
+
+//     // =========================================================
+//     // 11. Return response
+//     // =========================================================
+
+//     return {
+//       success: true,
+
+//       message:
+//         'Razorpay Payment Link created successfully',
+
+//       key_id: keyId,
+
+//       subscription: {
+//         id: insertResult?.insertId || null,
+//         subscription_code: subscriptionCode,
+
+//         status: 'pending',
+
+//         payment_link_id:
+//           paymentLink.id,
+
+//         payment_link_url:
+//           paymentLink.short_url,
+//       },
+
+//       pricing: {
+//         price_per_venue: pricePerVenue,
+//         quantity,
+
+//         base_amount: baseAmount,
+
+//         gst_rate: gstRate,
+
+//         gst_amount: gstAmount,
+
+//         total_amount: totalAmount,
+
+//         currency: 'INR',
+//       },
+//     };
+//   } catch (error) {
+//     console.error(
+//       'Razorpay Payment Link creation failed:',
+//       error,
+//     );
+
+//     if (
+//       error instanceof BadRequestException
+//     ) {
+//       throw error;
+//     }
+
+//     throw new BadRequestException(
+//       error,
+//       'Unable to create Razorpay Payment Link',
+//     );
+//   }
+// }
+
+// async subscription(
+//   body: any,
+//   userId: number,
+//   countryId: number,
+// ) {
+//   try {
+//     // =========================================================
+//     // 1. Validate quantity
+//     // =========================================================
+
+//     const quantity = Number(body.quantity);
+
+//     if (!Number.isInteger(quantity) || quantity < 1) {
+//       throw new BadRequestException(
+//         'Quantity must be a valid number greater than 0',
+//       );
+//     }
+
+//     // =========================================================
+//     // 2. Get VenueBook plan
+//     // =========================================================
+
+//     const [plan] = await this.dataSource.query(
+//       `
+//       SELECT *
+//       FROM plans
+//       WHERE id = ?
+//       LIMIT 1
+//       `,
+//       [body.selectedPlan],
+//     );
+
+//     if (!plan) {
+//       throw new BadRequestException(
+//         'Plan not found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 3. Get user
+//     // =========================================================
+
+//     const [user] = await this.dataSource.query(
+//       `
+//       SELECT
+//         id,
+//         name,
+//         email,
+//         phone
+//       FROM users
+//       WHERE id = ?
+//       LIMIT 1
+//       `,
+//       [userId],
+//     );
+
+//     if (!user) {
+//       throw new BadRequestException(
+//         'User not found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 4. Calculate pricing
+//     // =========================================================
+
+//     // Your DB currently appears to use "amount"
+//     const pricePerVenue = Number(plan.amount);
+
+//     if (
+//       !Number.isFinite(pricePerVenue) ||
+//       pricePerVenue <= 0
+//     ) {
+//       throw new BadRequestException(
+//         'Invalid plan amount',
+//       );
+//     }
+
+//     const gstRate = 18;
+
+//     const baseAmount = Number(
+//       (pricePerVenue * quantity).toFixed(2),
+//     );
+
+//     const gstAmount = Number(
+//       ((baseAmount * gstRate) / 100).toFixed(2),
+//     );
+
+//     const totalAmount = Number(
+//       (baseAmount + gstAmount).toFixed(2),
+//     );
+
+//     // Razorpay amount is always paise
+//     const razorpayAmount = Math.round(
+//       totalAmount * 100,
+//     );
+
+//     // =========================================================
+//     // 5. Get category
+//     // =========================================================
+
+//     const categoryId = Number(
+//       body.categoryId || plan.category_id || 1,
+//     );
+
+//     // =========================================================
+//     // 6. Get Razorpay configuration
+//     // =========================================================
+
+//     const config =
+//       await this.integrationService.getIntegrationConfig(
+//         'razorpay',
+//       );
+
+//     const configData =
+//       typeof config === 'string'
+//         ? JSON.parse(config)
+//         : config;
+
+//     const keyId = String(
+//       configData?.key_id || '',
+//     ).trim();
+
+//     const keySecret = String(
+//       configData?.key_secret || '',
+//     ).trim();
+
+//     if (!keyId || !keySecret) {
+//       throw new BadRequestException(
+//         'Razorpay configuration is missing',
+//       );
+//     }
+
+//     // =========================================================
+//     // 7. Initialize Razorpay
+//     // =========================================================
+
+//     const razorpay = new Razorpay({
+//       key_id: keyId,
+//       key_secret: keySecret,
+//     });
+
+//     // =========================================================
+//     // 8. Generate internal subscription code
+//     // =========================================================
+
+//     const subscriptionCode =
+//       `SUB_${Date.now()}_${userId}`;
+
+//     // =========================================================
+//     // 9. Create Razorpay Payment Link
+//     // =========================================================
+
+//     const paymentLink =
+//       await razorpay.paymentLink.create({
+//         amount: razorpayAmount,
+
+//         currency: 'INR',
+
+//         accept_partial: false,
+
+//         description:
+//           `Venuebook ${plan.plan_name} Subscription`,
+
+//         reference_id:
+//           subscriptionCode,
+
+//         customer: {
+//           name: user.name,
+//           email: user.email,
+//           contact: user.phone,
+//         },
+
+//         expire_by:
+//           Math.floor(Date.now() / 1000) +
+//           24 * 60 * 60,
+
+//         notify: {
+//           sms: true,
+//           email: true,
+//         },
+
+//         reminder_enable: true,
+
+//         notes: {
+//           user_id: String(userId),
+
+//           plan_id: String(plan.id),
+
+//           category_id: String(categoryId),
+
+//           country_id: String(countryId),
+
+//           quantity: String(quantity),
+
+//           subscription_code:
+//             subscriptionCode,
+
+//           base_amount:
+//             String(baseAmount),
+
+//           gst_rate:
+//             String(gstRate),
+
+//           gst_amount:
+//             String(gstAmount),
+
+//           total_amount:
+//             String(totalAmount),
+//         },
+
+//         callback_url:
+//           `${process.env.APP_URL}/razorpay/callback`,
+
+//         callback_method: 'get',
+//       });
+
+//     // =========================================================
+//     // 10. Validate Payment Link
+//     // =========================================================
+
+//     if (!paymentLink?.id) {
+//       throw new BadRequestException(
+//         'Razorpay Payment Link ID missing',
+//       );
+//     }
+
+//     if (!paymentLink?.short_url) {
+//       throw new BadRequestException(
+//         'Razorpay Payment Link URL missing',
+//       );
+//     }
+
+//     // =========================================================
+//     // 11. Save subscription
+//     // =========================================================
+
+//     const insertResult =
+//       await this.dataSource.query(
+//         `
+//         INSERT INTO user_subscriptions
+//         (
+//           user_id,
+//           country_id,
+//           category_id,
+//           plan_id,
+
+//           subscription_code,
+
+//           quantity,
+//           price_per_unit,
+
+//           gst_rate,
+//           gst_amount,
+
+//           current_amount,
+//           total_amount,
+
+//           start_date,
+//           next_billing_date,
+
+//           auto_renew,
+
+//           status,
+//           payment_status,
+
+//           payment_link_id,
+//           payment_link_url,
+
+//           created_at,
+//           updated_at
+//         )
+//         VALUES
+//         (
+//           ?, ?, ?, ?,
+
+//           ?,
+
+//           ?, ?,
+
+//           ?, ?,
+
+//           ?, ?,
+
+//           NULL,
+//           NULL,
+
+//           0,
+
+//           'pending',
+//           'pending',
+
+//           ?,
+//           ?,
+
+//           NOW(),
+//           NOW()
+//         )
+//         `,
+//         [
+//           userId,
+//           countryId,
+//           categoryId,
+//           plan.id,
+
+//           subscriptionCode,
+
+//           quantity,
+//           pricePerVenue,
+
+//           gstRate,
+//           gstAmount,
+
+//           baseAmount,
+//           totalAmount,
+
+//           paymentLink.id,
+//           paymentLink.short_url,
+//         ],
+//       );
+
+//     const localSubscriptionId =
+//       insertResult?.insertId || null;
+
+//     // =========================================================
+//     // 12. Return response
+//     // =========================================================
+
+//     return {
+//       success: true,
+
+//       message:
+//         'Razorpay Payment Link created successfully',
+
+//       key_id: keyId,
+
+//       subscription: {
+//         id: localSubscriptionId,
+
+//         subscription_code:
+//           subscriptionCode,
+
+//         status: 'pending',
+
+//         payment_status: 'pending',
+
+//         auto_renew: false,
+
+//         payment_link_id:
+//           paymentLink.id,
+
+//         payment_link_url:
+//           paymentLink.short_url,
+
+//         reference_id:
+//           paymentLink.reference_id ||
+//           subscriptionCode,
+
+//         razorpay_status:
+//           paymentLink.status || 'created',
+
+//         expire_by:
+//           paymentLink.expire_by
+//             ? new Date(
+//                 paymentLink.expire_by * 1000,
+//               )
+//             : null,
+//       },
+
+//       pricing: {
+//         price_per_venue:
+//           pricePerVenue,
+
+//         quantity,
+
+//         base_amount:
+//           baseAmount,
+
+//         gst_rate:
+//           gstRate,
+
+//         gst_amount:
+//           gstAmount,
+
+//         total_amount:
+//           totalAmount,
+
+//         razorpay_amount:
+//           razorpayAmount,
+
+//         currency:
+//           'INR',
+//       },
+//     };
+//   } catch (error) {
+//     console.error(
+//       'Razorpay Payment Link creation failed:',
+//       error,
+//     );
+
+//     if (
+//       error instanceof BadRequestException
+//     ) {
+//       throw error;
+//     }
+
+//     const errorMessage =
+//       error
+//       'Unable to create Razorpay Payment Link';
+
+//     throw new BadRequestException(
+//       errorMessage,
+//     );
+//   }
+// }
+// async subscription(
+//   body: any,
+//   userId: number,
+//   countryId: number,
+// ) {
+//   try {
+//     // =========================================================
+//     // 1. Validate quantity
+//     // =========================================================
+
+//     const quantity = Number(body.quantity);
+
+//     if (
+//       !Number.isInteger(quantity) ||
+//       quantity < 1
+//     ) {
+//       throw new BadRequestException(
+//         'Quantity must be a valid number greater than 0',
+//       );
+//     }
+
+//     // =========================================================
+//     // 2. Get VenueBook plan
+//     // =========================================================
+
+//     const [plan] =
+//       await this.dataSource.query(
+//         `
+//         SELECT *
+//         FROM plans
+//         WHERE id = ?
+//         LIMIT 1
+//         `,
+//         [body.selectedPlan],
+//       );
+
+//     if (!plan) {
+//       throw new BadRequestException(
+//         'Plan not found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 3. Get user
+//     // =========================================================
+
+//     const [user] =
+//       await this.dataSource.query(
+//         `
+//         SELECT
+//           id,
+//           name,
+//           email,
+//           phone
+//         FROM users
+//         WHERE id = ?
+//         LIMIT 1
+//         `,
+//         [userId],
+//       );
+
+//     if (!user) {
+//       throw new BadRequestException(
+//         'User not found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 4. Validate user details
+//     // =========================================================
+
+//     const userName =
+//       String(
+//         user.name || 'VenueBook User',
+//       ).trim();
+
+//     const userEmail =
+//       String(
+//         user.email || '',
+//       ).trim();
+
+//     const userPhone =
+//       String(
+//         user.phone || '',
+//       ).trim();
+
+//     if (!userEmail) {
+//       throw new BadRequestException(
+//         'User email is required',
+//       );
+//     }
+
+//     if (!userPhone) {
+//       throw new BadRequestException(
+//         'User phone is required',
+//       );
+//     }
+
+//     // =========================================================
+//     // 5. Calculate pricing
+//     // =========================================================
+
+//     const pricePerVenue =
+//       Number(plan.amount);
+
+//     if (
+//       !Number.isFinite(
+//         pricePerVenue,
+//       ) ||
+//       pricePerVenue <= 0
+//     ) {
+//       throw new BadRequestException(
+//         'Invalid plan amount',
+//       );
+//     }
+
+//     const gstRate = 18;
+
+//     const baseAmount =
+//       Number(
+//         (
+//           pricePerVenue *
+//           quantity
+//         ).toFixed(2),
+//       );
+
+//     const gstAmount =
+//       Number(
+//         (
+//           (baseAmount *
+//             gstRate) /
+//           100
+//         ).toFixed(2),
+//       );
+
+//     const totalAmount =
+//       Number(
+//         (
+//           baseAmount +
+//           gstAmount
+//         ).toFixed(2),
+//       );
+
+//     // Razorpay amount = paise
+//     const razorpayAmount =
+//       Math.round(
+//         totalAmount * 100,
+//       );
+
+//     // =========================================================
+//     // 6. Category
+//     // =========================================================
+
+//     const categoryId =
+//       Number(
+//         body.categoryId ||
+//         body.category ||
+//         plan.category_id ||
+//         1,
+//       );
+
+//     if (
+//       !Number.isInteger(
+//         categoryId,
+//       ) ||
+//       categoryId < 1
+//     ) {
+//       throw new BadRequestException(
+//         'Invalid category',
+//       );
+//     }
+
+//     // =========================================================
+//     // 7. Razorpay configuration
+//     // =========================================================
+
+//     const config =
+//       await this.integrationService
+//         .getIntegrationConfig(
+//           'razorpay',
+//         );
+
+//     const configData =
+//       typeof config === 'string'
+//         ? JSON.parse(config)
+//         : config;
+
+//     const keyId =
+//       String(
+//         configData?.key_id || '',
+//       ).trim();
+
+//     const keySecret =
+//       String(
+//         configData?.key_secret ||
+//           '',
+//       ).trim();
+
+//     if (
+//       !keyId ||
+//       !keySecret
+//     ) {
+//       throw new BadRequestException(
+//         'Razorpay configuration is missing',
+//       );
+//     }
+
+//     // =========================================================
+//     // 8. Initialize Razorpay
+//     // =========================================================
+
+//     const razorpay =
+//       new Razorpay({
+//         key_id: keyId,
+//         key_secret: keySecret,
+//       });
+
+//     // =========================================================
+//     // 9. Generate internal subscription code
+//     // =========================================================
+
+//     const subscriptionCode =
+//       `SUB_${Date.now()}_${userId}`;
+
+//     // =========================================================
+//     // 10. Find existing Razorpay customer in DB
+//     // =========================================================
+
+//     let razorpayCustomerId:
+//       string | null = null;
+
+//     const [
+//       existingCustomer,
+//     ] =
+//       await this.dataSource.query(
+//         `
+//         SELECT
+//           razorpay_customer_id
+//         FROM user_subscriptions
+//         WHERE user_id = ?
+//           AND razorpay_customer_id IS NOT NULL
+//           AND razorpay_customer_id != ''
+//         ORDER BY id DESC
+//         LIMIT 1
+//         `,
+//         [userId],
+//       );
+
+//     if (
+//       existingCustomer
+//         ?.razorpay_customer_id
+//     ) {
+//       razorpayCustomerId =
+//         String(
+//           existingCustomer
+//             .razorpay_customer_id,
+//         );
+
+//       console.log(
+//         'Existing Razorpay customer from DB:',
+//         razorpayCustomerId,
+//       );
+//     }
+
+//     // =========================================================
+//     // 11. If DB doesn't have customer,
+//     //     search Razorpay by email
+//     // =========================================================
+
+//     // =========================================================
+// // 9. GET OR CREATE RAZORPAY CUSTOMER
+// // =========================================================
+
+// let customer: any = null;
+
+// // ---------------------------------------------------------
+// // 9.1 Check if this user already has a Razorpay customer
+// // ---------------------------------------------------------
+
+// const [existingCustomer] = await this.dataSource.query(
+//   `
+//   SELECT razorpay_customer_id
+//   FROM user_subscriptions
+//   WHERE user_id = ?
+//     AND razorpay_customer_id IS NOT NULL
+//     AND razorpay_customer_id != ''
+//   ORDER BY id DESC
+//   LIMIT 1
+//   `,
+//   [userId],
+// );
+
+// if (existingCustomer?.razorpay_customer_id) {
+//   // -------------------------------------------------------
+//   // Reuse existing Razorpay customer
+//   // -------------------------------------------------------
+
+//   try {
+//     customer = await razorpay.customers.fetch(
+//       existingCustomer.razorpay_customer_id,
+//     );
+
+//     console.log(
+//       'Existing Razorpay customer reused:',
+//       customer.id,
+//     );
+//   } catch (error) {
+//     console.warn(
+//       'Existing Razorpay customer could not be fetched:',
+//       error,
+//     );
+
+//     customer = null;
+//   }
+// }
+
+// // ---------------------------------------------------------
+// // 9.2 Create customer only when no existing customer exists
+// // ---------------------------------------------------------
+
+// if (!customer?.id) {
+//   try {
+//     customer = await razorpay.customers.create({
+//       name: user.name || undefined,
+//       email: user.email || undefined,
+//       contact: user.phone || undefined,
+
+//       notes: {
+//         user_id: String(userId),
+//       },
+//     });
+
+//     console.log(
+//       'New Razorpay customer created:',
+//       customer.id,
+//     );
+//   } catch (error: any) {
+//     console.error(
+//       'Razorpay customer creation failed:',
+//       error?.error || error,
+//     );
+
+//     throw new BadRequestException(
+//       error?.error?.description ||
+//         'Unable to create Razorpay customer',
+//     );
+//   }
+// }
+
+// if (!customer?.id) {
+//   throw new BadRequestException(
+//     'Razorpay customer ID missing',
+//   );
+// }
+
+//     // =========================================================
+//     // 12. Create customer if still not found
+//     // =========================================================
+
+//     if (
+//       !razorpayCustomerId
+//     ) {
+//       try {
+//         const customer =
+//           await razorpay.customers.create(
+//             {
+//               name: userName,
+
+//               email:
+//                 userEmail,
+
+//               contact:
+//                 userPhone,
+
+//               notes: {
+//                 user_id:
+//                   String(
+//                     userId,
+//                   ),
+//               },
+//             },
+//           );
+
+//         if (
+//           !customer?.id
+//         ) {
+//           throw new BadRequestException(
+//             'Razorpay customer ID missing',
+//           );
+//         }
+
+//         razorpayCustomerId =
+//           String(
+//             customer.id,
+//           );
+
+//         console.log(
+//           'New Razorpay customer created:',
+//           razorpayCustomerId,
+//         );
+//       } catch (
+//         customerError
+//       ) {
+//         console.error(
+//           'Razorpay customer creation failed:',
+//           customerError,
+//         );
+
+//         throw new BadRequestException(
+//           customerError
+//             ?.error
+//             ?.description ||
+//             customerError
+//               ?.response
+//               ?.error
+//               ?.description ||
+//             customerError?.message ||
+//             'Unable to create Razorpay customer',
+//         );
+//       }
+//     }
+
+//     // =========================================================
+//     // Safety check
+//     // =========================================================
+
+//     if (
+//       !razorpayCustomerId
+//     ) {
+//       throw new BadRequestException(
+//         'Razorpay customer could not be created or found',
+//       );
+//     }
+
+//     // =========================================================
+//     // 13. Find existing Razorpay Plan
+//     //
+//     // IMPORTANT:
+//     // A Razorpay Subscription requires a Razorpay Plan.
+//     //
+//     // We store the Razorpay plan ID in your `plans` table.
+//     // =========================================================
+
+//     let razorpayPlanId =
+//       plan.razorpay_plan_id ||
+//       null;
+
+//     // =========================================================
+//     // 14. Create Razorpay Plan if not available
+//     // =========================================================
+
+//     if (
+//       !razorpayPlanId
+//     ) {
+//       try {
+//         const razorpayPlan =
+//           await razorpay.plans.create(
+//             {
+//               period:
+//                 'monthly',
+
+//               interval: 1,
+
+//               item: {
+//                 name:
+//                   `${plan.plan_name} - ${quantity} Venue${
+//                     quantity > 1
+//                       ? 's'
+//                       : ''
+//                   }`,
+
+//                 amount:
+//                   razorpayAmount,
+
+//                 currency:
+//                   'INR',
+
+//                 description:
+//                   `VenueBook monthly subscription - ${quantity} venue${
+//                     quantity > 1
+//                       ? 's'
+//                       : ''
+//                   }`,
+//               },
+
+//               notes: {
+//                 venuebook_plan_id:
+//                   String(
+//                     plan.id,
+//                   ),
+
+//                 user_id:
+//                   String(
+//                     userId,
+//                   ),
+
+//                 quantity:
+//                   String(
+//                     quantity,
+//                   ),
+
+//                 category_id:
+//                   String(
+//                     categoryId,
+//                   ),
+
+//                 country_id:
+//                   String(
+//                     countryId,
+//                   ),
+//               },
+//             },
+//           );
+
+//         if (
+//           !razorpayPlan?.id
+//         ) {
+//           throw new BadRequestException(
+//             'Razorpay plan creation failed',
+//           );
+//         }
+
+//         razorpayPlanId =
+//           String(
+//             razorpayPlan.id,
+//           );
+
+//         // =====================================================
+//         // Save Razorpay plan ID
+//         // =====================================================
+
+//         await this.dataSource.query(
+//           `
+//           UPDATE plans
+//           SET
+//             razorpay_plan_id = ?,
+//             updated_at = NOW()
+//           WHERE id = ?
+//           `,
+//           [
+//             razorpayPlanId,
+//             plan.id,
+//           ],
+//         );
+
+//         console.log(
+//           'New Razorpay plan created:',
+//           razorpayPlanId,
+//         );
+//       } catch (
+//         planError
+//       ) {
+//         console.error(
+//           'Razorpay plan creation failed:',
+//           planError,
+//         );
+
+//         throw new BadRequestException(
+//           planError
+//             ?.error
+//             ?.description ||
+//             planError
+//               ?.response
+//               ?.error
+//               ?.description ||
+//             planError?.message ||
+//             'Unable to create Razorpay plan',
+//         );
+//       }
+//     }
+
+//     // =========================================================
+//     // 15. Create Razorpay Subscription
+//     // =========================================================
+
+//     let razorpaySubscription:
+//       any;
+
+//     try {
+//       razorpaySubscription =
+//         await razorpay.subscriptions.create(
+//           {
+//             plan_id:
+//               razorpayPlanId,
+
+//             // 12 monthly payments
+//             total_count: 12,
+
+//             // One subscription
+//             quantity: 1,
+
+//             customer_notify:
+//               true,
+
+//             notes: {
+//               user_id:
+//                 String(
+//                   userId,
+//                 ),
+
+//               venuebook_plan_id:
+//                 String(
+//                   plan.id,
+//                 ),
+
+//               category_id:
+//                 String(
+//                   categoryId,
+//                 ),
+
+//               country_id:
+//                 String(
+//                   countryId,
+//                 ),
+
+//               venue_quantity:
+//                 String(
+//                   quantity,
+//                 ),
+
+//               subscription_code:
+//                 subscriptionCode,
+
+//               base_amount:
+//                 String(
+//                   baseAmount,
+//                 ),
+
+//               gst_rate:
+//                 String(
+//                   gstRate,
+//                 ),
+
+//               gst_amount:
+//                 String(
+//                   gstAmount,
+//                 ),
+
+//               total_amount:
+//                 String(
+//                   totalAmount,
+//                 ),
+//             },
+//           },
+//         );
+
+//       console.log(
+//         'Razorpay subscription created:',
+//         razorpaySubscription,
+//       );
+//     } catch (
+//       subscriptionError
+//     ) {
+//       console.error(
+//         'Razorpay subscription creation failed:',
+//         subscriptionError,
+//       );
+
+//       throw new BadRequestException(
+//         subscriptionError
+//           ?.error
+//           ?.description ||
+//           subscriptionError
+//             ?.response
+//             ?.error
+//             ?.description ||
+//           subscriptionError?.message ||
+//           'Unable to create Razorpay subscription',
+//       );
+//     }
+
+//     // =========================================================
+//     // 16. Validate subscription
+//     // =========================================================
+
+//     if (
+//       !razorpaySubscription?.id
+//     ) {
+//       throw new BadRequestException(
+//         'Razorpay subscription ID missing',
+//       );
+//     }
+
+//     // =========================================================
+//     // 17. Save local subscription
+//     // =========================================================
+
+//     const insertResult =
+//       await this.dataSource.query(
+//         `
+//         INSERT INTO user_subscriptions
+//         (
+//           user_id,
+//           country_id,
+//           category_id,
+//           plan_id,
+
+//           subscription_code,
+
+//           quantity,
+//           price_per_unit,
+
+//           gst_rate,
+//           gst_amount,
+
+//           current_amount,
+//           total_amount,
+
+//           start_date,
+//           next_billing_date,
+
+//           auto_renew,
+
+//           status,
+//           payment_status,
+
+//           razorpay_customer_id,
+//           razorpay_subscription_id,
+
+//           created_at,
+//           updated_at
+//         )
+//         VALUES
+//         (
+//           ?, ?, ?, ?,
+
+//           ?,
+
+//           ?, ?,
+
+//           ?, ?,
+
+//           ?, ?,
+
+//           NULL,
+//           NULL,
+
+//           1,
+
+//           'pending',
+//           'pending',
+
+//           ?,
+//           ?,
+
+//           NOW(),
+//           NOW()
+//         )
+//         `,
+//         [
+//           userId,
+
+//           countryId,
+
+//           categoryId,
+
+//           plan.id,
+
+//           subscriptionCode,
+
+//           quantity,
+
+//           pricePerVenue,
+
+//           gstRate,
+
+//           gstAmount,
+
+//           baseAmount,
+
+//           totalAmount,
+
+//           razorpayCustomerId,
+
+//           razorpaySubscription.id,
+//         ],
+//       );
+
+//     const localSubscriptionId =
+//       insertResult?.insertId ||
+//       null;
+
+//     // =========================================================
+//     // 18. Return response
+//     // =========================================================
+
+//     return {
+//       success: true,
+
+//       message:
+//         'Razorpay recurring subscription created successfully',
+
+//       key_id:
+//         keyId,
+
+//       customer: {
+//         id:
+//           razorpayCustomerId,
+//       },
+
+//       plan: {
+//         id:
+//           razorpayPlanId,
+//       },
+
+//       subscription: {
+//         id:
+//           localSubscriptionId,
+
+//         subscription_code:
+//           subscriptionCode,
+
+//         razorpay_subscription_id:
+//           razorpaySubscription.id,
+
+//         razorpay_customer_id:
+//           razorpayCustomerId,
+
+//         razorpay_plan_id:
+//           razorpayPlanId,
+
+//         status:
+//           razorpaySubscription.status ||
+//           'created',
+
+//         payment_status:
+//           'pending',
+
+//         auto_renew:
+//           true,
+
+//         short_url:
+//           razorpaySubscription.short_url ||
+//           null,
+//       },
+
+//       pricing: {
+//         price_per_venue:
+//           pricePerVenue,
+
+//         quantity,
+
+//         base_amount:
+//           baseAmount,
+
+//         gst_rate:
+//           gstRate,
+
+//         gst_amount:
+//           gstAmount,
+
+//         total_amount:
+//           totalAmount,
+
+//         razorpay_amount:
+//           razorpayAmount,
+
+//         currency:
+//           'INR',
+
+//         billing:
+//           'monthly',
+//       },
+//     };
+//   } catch (error) {
+//     // =========================================================
+//     // GLOBAL ERROR HANDLING
+//     // =========================================================
+
+//     console.error(
+//       'Razorpay recurring subscription failed:',
+//       error,
+//     );
+
+//     console.error(
+//       'Razorpay error details:',
+//       error?.error ||
+//         error?.response ||
+//         error?.message ||
+//         error,
+//     );
+
+//     if (
+//       error instanceof
+//       BadRequestException
+//     ) {
+//       throw error;
+//     }
+
+//     throw new BadRequestException(
+//       error||
+//         'Unable to create Razorpay recurring subscription',
+//     );
+//   }
+// }
+
+async subscription(
   body: any,
   userId: number,
   countryId: number,
@@ -200,192 +2130,554 @@ export class RazorpayService {
     // =========================================================
     // 1. Validate quantity
     // =========================================================
+ 
     const quantity = Number(body.quantity);
-
+ 
     if (!Number.isInteger(quantity) || quantity < 1) {
       throw new BadRequestException(
         'Quantity must be a valid number greater than 0',
       );
     }
-
+ 
     // =========================================================
     // 2. Get VenueBook plan
     // =========================================================
+ 
     const [plan] = await this.dataSource.query(
       `
       SELECT *
       FROM plans
-      WHERE plan_id = ?
+      WHERE id = ?
       LIMIT 1
       `,
       [body.selectedPlan],
     );
-
+ 
     if (!plan) {
       throw new BadRequestException('Plan not found');
     }
-
+ 
     // =========================================================
     // 3. Get user
     // =========================================================
+ 
     const [user] = await this.dataSource.query(
       `
-      SELECT *
+      SELECT id, name, email, phone
       FROM users
       WHERE id = ?
       LIMIT 1
       `,
       [userId],
     );
-
+ 
     if (!user) {
       throw new BadRequestException('User not found');
     }
-
+ 
     // =========================================================
-    // 4. Pricing
-    //
-    // ₹199 = base price per venue
-    // GST   = 18%
-    // Total = ₹234.82 per venue
+    // 4. Validate user details
     // =========================================================
-
-    const pricePerVenue = plan.amounts;
-    const gstRate = 18.00;
-
-    const baseAmount = Number(
-      (pricePerVenue * quantity).toFixed(2),
-    );
-
+ 
+    const userName = String(user.name || 'VenueBook User').trim();
+    const userEmail = String(user.email || '').trim();
+    const userPhone = String(user.phone || '').trim();
+ 
+    if (!userEmail) {
+      throw new BadRequestException('User email is required');
+    }
+ 
+    if (!userPhone) {
+      throw new BadRequestException('User phone is required');
+    }
+ 
+    // =========================================================
+    // 5. Calculate pricing
+    // =========================================================
+ 
+    const pricePerVenue = Number(plan.amount);
+ 
+    if (!Number.isFinite(pricePerVenue) || pricePerVenue <= 0) {
+      throw new BadRequestException('Invalid plan amount');
+    }
+ 
+    const gstRate = 18;
+ 
+    const baseAmount = Number((pricePerVenue * quantity).toFixed(2));
+ 
     const gstAmount = Number(
       ((baseAmount * gstRate) / 100).toFixed(2),
     );
-
+ 
     const totalAmount = Number(
       (baseAmount + gstAmount).toFixed(2),
     );
-
+ 
+    // Razorpay amount = paise
+    const razorpayAmount = Math.round(totalAmount * 100);
+ 
     // =========================================================
-    // 5. Get Razorpay configuration
+    // 6. Category
     // =========================================================
-    const config =
-      await this.integrationService.getIntegrationConfig(
-        'razorpay',
-      );
-
+ 
+    const categoryId = Number(
+      body.categoryId || body.category || plan.category_id || 1,
+    );
+ 
+    // if (!Number.isInteger(categoryId) || categoryId < 1) {
+    //   throw new BadRequestException('Invalid category');
+    // }
+ 
+    // =========================================================
+    // 7. Razorpay configuration
+    // =========================================================
+ 
+    const config = await this.integrationService.getIntegrationConfig(
+      'razorpay',
+    );
+ 
     const configData =
-      typeof config === 'string'
-        ? JSON.parse(config)
-        : config;
-
-    if (
-      !configData?.key_id ||
-      !configData?.key_secret
-    ) {
+      typeof config === 'string' ? JSON.parse(config) : config;
+ 
+    const keyId = String(configData?.key_id || '').trim();
+    const keySecret = String(configData?.key_secret || '').trim();
+ 
+    if (!keyId || !keySecret) {
       throw new BadRequestException(
         'Razorpay configuration is missing',
       );
     }
-
+ 
     // =========================================================
-    // 6. Initialize Razorpay
+    // 8. Initialize Razorpay
     // =========================================================
+ 
     const razorpay = new Razorpay({
-      key_id: configData.key_id,
-      key_secret: configData.key_secret,
+      key_id: keyId,
+      key_secret: keySecret,
     });
+ 
+    // =========================================================
+    // 9. Generate internal subscription code
+    // =========================================================
+ 
+    const subscriptionCode = `SUB_${Date.now()}_${userId}`;
 
+ 
+
+const today = dayjs();
+
+const startDate = today.toDate();
+
+const interval = Number(plan.interval) || 1;
+const planTitle = Number(plan.plan_title);
+
+let nextBillingDate: Date;
+let endDate: Date;
+
+switch (planTitle) {
+  case 1:
+    // Month
+    nextBillingDate = today
+      .add(interval, 'month')
+      .toDate();
+
+    endDate = today
+      .add(interval, 'month')
+      .toDate();
+    break;
+
+  case 2:
+    // Year
+    nextBillingDate = today
+      .add(interval, 'year')
+      .toDate();
+
+    endDate = today
+      .add(interval, 'year')
+      .toDate();
+    break;
+
+  default:
+    throw new Error(
+      `Invalid plan_title: ${plan.plan_title}`
+    );
+}
+
+console.log({
+  startDate,
+  nextBillingDate,
+  endDate,
+});
+
+ 
     // =========================================================
-    // 7. Create Razorpay subscription
-    //
-    // IMPORTANT:
-    // Razorpay charges:
-    //
-    //     Plan Amount × Quantity
-    //
-    // Therefore the Razorpay Plan should be ₹234.82
-    // if you want ₹199 + 18% GST to be charged automatically.
+    // 10. GET OR CREATE RAZORPAY CUSTOMER
     // =========================================================
-    const subscription =
-      await razorpay.subscriptions.create({
-        plan_id: plan.plan_id,
-        total_count: 12,
-        quantity,
-        customer_notify: 1,
+
+
+let razorpayCustomerId: string | null = null;
+
+// ---------------------------------------------------------
+// 10.1 First check our database
+// ---------------------------------------------------------
+
+const [existingCustomer] =
+  await this.dataSource.query(
+    `
+    SELECT razorpay_customer_id
+    FROM user_subscriptions
+    WHERE user_id = ?
+      AND razorpay_customer_id IS NOT NULL
+      AND razorpay_customer_id != ''
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    [userId],
+  );
+
+if (existingCustomer?.razorpay_customer_id) {
+  try {
+    const existingRazorpayCustomer =
+      await razorpay.customers.fetch(
+        existingCustomer.razorpay_customer_id,
+      );
+
+    if (existingRazorpayCustomer?.id) {
+      razorpayCustomerId =
+        String(existingRazorpayCustomer.id);
+
+      console.log(
+        'Existing Razorpay customer reused:',
+        razorpayCustomerId,
+      );
+    }
+  } catch (error) {
+    console.warn(
+      'Stored Razorpay customer ID is invalid:',
+      existingCustomer.razorpay_customer_id,
+    );
+
+    razorpayCustomerId = null;
+  }
+}
+
+// ---------------------------------------------------------
+// 10.2 If not found locally, create/retrieve using
+//      Razorpay fail_existing = "0"
+// ---------------------------------------------------------
+
+if (!razorpayCustomerId) {
+  try {
+    /**
+     * IMPORTANT:
+     *
+     * Razorpay API expects:
+     *
+     * fail_existing: "0"
+     *
+     * not:
+     *
+     * fail_existing: 0
+     *
+     * Razorpay documentation confirms that "0" returns
+     * the existing customer when the same customer exists.
+     */
+
+    const customer =
+      await (razorpay.customers.create as any)({
+        name: userName,
+        email: userEmail,
+        contact: userPhone,
+
+        fail_existing: '0',
+
+        notes: {
+          user_id: String(userId),
+        },
       });
 
-    // =========================================================
-    // 8. Generate internal subscription code
-    // =========================================================
-    const subscriptionCode =
-      `SUB_${Date.now()}_${userId}`;
+    console.log(
+      'Razorpay customer response:',
+      JSON.stringify(customer, null, 2),
+    );
 
-    // =========================================================
-    // 9. Convert Razorpay timestamps
-    // =========================================================
-    const startDate = subscription.start_at
-      ? new Date(subscription.start_at * 1000)
-      : null;
+    if (customer?.id) {
+      razorpayCustomerId =
+        String(customer.id);
 
-    const nextBillingDate = subscription.charge_at
-      ? new Date(subscription.charge_at * 1000)
-      : null;
+      console.log(
+        'Razorpay customer created/reused:',
+        razorpayCustomerId,
+      );
+    }
+  } catch (customerError: any) {
+    console.error(
+      'Razorpay customer creation failed:',
+      JSON.stringify(
+        customerError,
+        null,
+        2,
+      ),
+    );
 
-    const endDate = subscription.end_at
-      ? new Date(subscription.end_at * 1000)
-      : null;
+    const description =
+      String(
+        customerError?.error?.description ||
+        customerError?.response?.error?.description ||
+        customerError?.message ||
+        '',
+      ).toLowerCase();
 
+    // -------------------------------------------------------
+    // 10.3 If Razorpay says customer already exists,
+    //      fetch all customers and find matching email/contact
+    // -------------------------------------------------------
+
+    if (
+      description.includes(
+        'customer already exists',
+      ) ||
+      description.includes(
+        'already exists',
+      )
+    ) {
+      try {
+        console.log(
+          'Searching Razorpay customers for existing customer...',
+        );
+
+        let skip = 0;
+
+        const count = 100;
+
+        let foundCustomer: any = null;
+
+        /**
+         * Razorpay Fetch All Customers API supports
+         * count and skip pagination.
+         */
+        while (!foundCustomer) {
+          const customers =
+            await razorpay.customers.all({
+              count,
+              skip,
+            });
+
+          const customerList =
+            customers?.items || [];
+
+          if (!customerList.length) {
+            break;
+          }
+
+          foundCustomer =
+            customerList.find(
+              (customer: any) => {
+                const razorpayEmail =
+                  String(
+                    customer?.email || '',
+                  )
+                    .trim()
+                    .toLowerCase();
+
+                const razorpayContact =
+                  String(
+                    customer?.contact || '',
+                  )
+                    .replace(/\D/g, '');
+
+                const localEmail =
+                  userEmail
+                    .trim()
+                    .toLowerCase();
+
+                const localContact =
+                  userPhone.replace(
+                    /\D/g,
+                    '',
+                  );
+
+                return (
+                  razorpayEmail ===
+                    localEmail ||
+                  razorpayContact ===
+                    localContact
+                );
+              },
+            );
+
+          if (
+            customerList.length < count
+          ) {
+            break;
+          }
+
+          skip += count;
+        }
+
+        if (foundCustomer?.id) {
+          razorpayCustomerId =
+            String(foundCustomer.id);
+
+          console.log(
+            'Existing Razorpay customer found:',
+            razorpayCustomerId,
+          );
+        }
+      } catch (searchError) {
+        console.error(
+          'Failed to search Razorpay customers:',
+          JSON.stringify(
+            searchError,
+            null,
+            2,
+          ),
+        );
+      }
+    }
+
+    // -------------------------------------------------------
+    // 10.4 Still not found
+    // -------------------------------------------------------
+
+    if (!razorpayCustomerId) {
+      throw new BadRequestException(
+        description ||
+          'Razorpay customer could not be created or found',
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------
+// 10.5 Final validation
+// ---------------------------------------------------------
+
+if (!razorpayCustomerId) {
+  throw new BadRequestException(
+    'Razorpay customer could not be created or found',
+  );
+}
+
+console.log(
+  'Final Razorpay Customer ID:',
+  razorpayCustomerId,
+);
+ 
     // =========================================================
-    // 10. Save subscription in VenueBook
+    // 11. Create an Order for THIS charge
     // =========================================================
-    await this.dataSource.query(
+ 
+    let razorpayOrder: any;
+ 
+    try {
+      razorpayOrder = await razorpay.orders.create({
+        amount: razorpayAmount,
+        currency: 'INR',
+        receipt: subscriptionCode,
+        payment_capture: true,
+        notes: {
+          user_id: String(userId),
+          venuebook_plan_id: String(plan.id),
+          category_id: String(1),
+          country_id: String(countryId),
+          venue_quantity: String(quantity),
+          subscription_code: subscriptionCode,
+          base_amount: String(baseAmount),
+          gst_rate: String(gstRate),
+          gst_amount: String(gstAmount),
+          total_amount: String(totalAmount),
+          recurring_setup: 'true',
+        },
+      });
+ 
+      console.log('Razorpay order created:', razorpayOrder);
+    } catch (orderError) {
+      console.error(
+        'Razorpay order creation failed:',
+        JSON.stringify(
+            orderError,
+          null,
+          2,
+        ),
+      );
+
+      throw new BadRequestException(
+        orderError ||
+          'Unable to create Razorpay order',
+      );
+    }
+ 
+    if (!razorpayOrder?.id) {
+      throw new BadRequestException('Razorpay order ID missing');
+    }
+ 
+    // =========================================================
+    // 12. Save local subscription record.
+    // =========================================================
+
+
+ 
+    const insertResult = await this.dataSource.query(
       `
       INSERT INTO user_subscriptions
       (
         user_id,
         country_id,
+        category_id,
         plan_id,
-        razorpay_plan_id,
-
+ 
         subscription_code,
-        subscription_id,
-
+ 
         quantity,
         price_per_unit,
+ 
         gst_rate,
         gst_amount,
+ 
         current_amount,
         total_amount,
-
+ 
         start_date,
         next_billing_date,
-        end_date,
-
-        total_count,
-        paid_count,
-
+ 
         auto_renew,
+ 
         status,
-        razorpay_status,
-
-        payment_method,
-        webhook_status,
-
+        payment_status,
+ 
+        razorpay_customer_id,
+        razorpay_order_id,
+        razorpay_token_id,
+ 
         created_at,
         updated_at
       )
       VALUES
       (
         ?, ?, ?, ?,
+ 
+        ?,
+ 
         ?, ?,
-        ?, ?, ?, ?, ?, ?,
-        ?, ?, ?,
+ 
         ?, ?,
+ 
+        ?, ?,
+ 
+        ?,
+        ?,
+ 
         1,
+ 
         'pending',
+        'pending',
+ 
+        ?,
         ?,
         NULL,
-        'pending',
+ 
         NOW(),
         NOW()
       )
@@ -393,81 +2685,93 @@ export class RazorpayService {
       [
         userId,
         countryId,
+        1,
         plan.id,
-        plan.plan_id,
-
+ 
         subscriptionCode,
-        subscription.id,
-
+ 
         quantity,
         pricePerVenue,
+ 
         gstRate,
         gstAmount,
+ 
         baseAmount,
         totalAmount,
 
         startDate,
         nextBillingDate,
-        endDate,
-
-        subscription.total_count || 12,
-        subscription.paid_count || 0,
-
-        subscription.status || 'created',
+ 
+        razorpayCustomerId,
+        razorpayOrder.id,
       ],
     );
-
+ 
+    const localSubscriptionId = insertResult?.insertId || null;
+ 
     // =========================================================
-    // 11. Return response
+    // 13. Return response.
     // =========================================================
+ 
     return {
       success: true,
-
-      key_id: configData.key_id,
-
-      subscription_id: subscription.id,
-
-      subscription_code: subscriptionCode,
-
-      plan_id: plan.plan_id,
-
-      quantity,
-
+ 
+      message:
+        'Razorpay order created for recurring (token-based) setup',
+ 
+      key_id: keyId,
+ 
+      customer: {
+        id: razorpayCustomerId,
+      },
+ 
+      order: {
+        id: razorpayOrder.id,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+      },
+ 
+      subscription: {
+        id: localSubscriptionId,
+        subscription_code: subscriptionCode,
+        razorpay_customer_id: razorpayCustomerId,
+        razorpay_order_id: razorpayOrder.id,
+        status: 'created',
+        payment_status: 'pending',
+        auto_renew: true,
+      },
+ 
       pricing: {
         price_per_venue: pricePerVenue,
+        quantity,
         base_amount: baseAmount,
         gst_rate: gstRate,
         gst_amount: gstAmount,
         total_amount: totalAmount,
+        razorpay_amount: razorpayAmount,
         currency: 'INR',
+        billing: 'monthly',
       },
-
-      status: subscription.status,
-
-      start_date: startDate,
-
-      next_billing_date: nextBillingDate,
-
-      end_date: endDate,
-
-      short_url: subscription.short_url,
     };
   } catch (error) {
     // =========================================================
-    // Log actual Razorpay error
+    // GLOBAL ERROR HANDLING
     // =========================================================
+ 
+    console.error('Razorpay token-based recurring setup failed:', error);
+ 
     console.error(
-      'Razorpay subscription creation failed:',
+      'Razorpay error details:',
       error,
     );
-
+ 
     if (error instanceof BadRequestException) {
       throw error;
     }
-
+ 
     throw new BadRequestException(
       error ||
-        'Unable to create Razorpay subscription',
+        'Unable to create Razorpay recurring (token-based) setup',
     );
   }
 }
@@ -677,58 +2981,867 @@ async updateSubscriptionQuantity(
   }
 }
 
-  async verifySubscription(body: any) {
-     const config =
-    await this.integrationService.getIntegrationConfig('razorpay');
+  // async verifySubscription(body: any) {
 
-  const configData =
-    typeof config === 'string' ? JSON.parse(config) : config;
+  //   console.log(body)
+  //    const config =
+  //   await this.integrationService.getIntegrationConfig('razorpay');
 
-  const expectedSignature = crypto
-    .createHmac('sha256', configData.key_secret)
-    .update(
-      body.payment_id + '|' + body.subscription_id,
-    )
-    .digest('hex');
+  // const configData =
+  //   typeof config === 'string' ? JSON.parse(config) : config;
 
-  if (expectedSignature !== body.signature) {
-    throw new BadRequestException('Invalid signature');
+  // const expectedSignature = crypto
+  //   .createHmac('sha256', configData.key_secret)
+  //   .update(
+  //     body.payment_id + '|' + body.subscription_id,
+  //   )
+  //   .digest('hex');
+
+  // if (expectedSignature !== body.signature) {
+  //   throw new BadRequestException('Invalid signature');
+  // }
+
+  // await this.dataSource.query(
+  //   `
+  //     UPDATE user_subscriptions
+  //     SET
+  //       status='active',
+  //       subscription_code=?,
+  //       updated_at=NOW()
+  //     WHERE subscription_id=?
+  //   `,
+  //   [
+  //     body.payment_id,
+  //     body.subscription_id,
+  //   ],
+  // );
+
+  // return {
+  //   success: true,
+  //   subscription_id:body.subscription_id
+    
+  // };
+  // }
+
+  // async verifys(id: any) 
+  // {
+  //    const result  = await this.dataSource.query(
+  //   `
+  //     SELECT * FROM  user_subscriptions WHERE id = ? 
+  //   `,
+  //   [
+  //     id,
+  //   ],
+  // );
+  // return result[0];
+  // }
+//   async verifySubscription(body: any) {
+//   console.log(
+//     '========== VERIFY RAZORPAY PAYMENT =========='
+//   );
+
+//   console.log('Verify body:', body);
+
+//   // =========================================================
+//   // 1. Validate required fields
+//   // =========================================================
+
+//   if (!body?.payment_id) {
+//     throw new BadRequestException(
+//       'Payment ID is required',
+//     );
+//   }
+
+//   if (!body?.order_id) {
+//     throw new BadRequestException(
+//       'Order ID is required',
+//     );
+//   }
+
+//   if (!body?.signature) {
+//     throw new BadRequestException(
+//       'Razorpay signature is required',
+//     );
+//   }
+
+//   if (!body?.subscription_table_id) {
+//     throw new BadRequestException(
+//       'Subscription table ID is required',
+//     );
+//   }
+
+//   // =========================================================
+//   // 2. Get Razorpay configuration
+//   // =========================================================
+
+//   const config =
+//     await this.integrationService.getIntegrationConfig(
+//       'razorpay',
+//     );
+
+//   const configData =
+//     typeof config === 'string'
+//       ? JSON.parse(config)
+//       : config;
+
+//   const keySecret =
+//     String(
+//       configData?.key_secret || '',
+//     ).trim();
+
+//   if (!keySecret) {
+//     throw new BadRequestException(
+//       'Razorpay key secret is missing',
+//     );
+//   }
+
+//   // =========================================================
+//   // 3. Generate Razorpay signature
+//   //
+//   // IMPORTANT:
+//   //
+//   // Razorpay Checkout signature:
+//   //
+//   // order_id|payment_id
+//   //
+//   // NOT:
+//   //
+//   // payment_id|subscription_id
+//   // =========================================================
+
+//   const signaturePayload =
+//     `${body.order_id}|${body.payment_id}`;
+
+//   console.log(
+//     'Signature payload:',
+//     signaturePayload,
+//   );
+
+//   const expectedSignature =
+//     crypto
+//       .createHmac(
+//         'sha256',
+//         keySecret,
+//       )
+//       .update(signaturePayload)
+//       .digest('hex');
+
+//   console.log(
+//     'Expected signature:',
+//     expectedSignature,
+//   );
+
+//   console.log(
+//     'Received signature:',
+//     body.signature,
+//   );
+
+//   // =========================================================
+//   // 4. Compare signatures
+//   // =========================================================
+
+//   if (
+//     expectedSignature !==
+//     String(body.signature).trim()
+//   ) {
+//     console.error(
+//       'Razorpay signature mismatch',
+//     );
+
+//     throw new BadRequestException(
+//       'Invalid signature',
+//     );
+//   }
+
+//   console.log(
+//     'Razorpay signature verified successfully',
+//   );
+
+//   // =========================================================
+//   // 5. Find local subscription
+//   // =========================================================
+
+//   const [subscription] =
+//     await this.dataSource.query(
+//       `
+//       SELECT *
+//       FROM user_subscriptions
+//       WHERE id = ?
+//       LIMIT 1
+//       `,
+//       [
+//         Number(
+//           body.subscription_table_id,
+//         ),
+//       ],
+//     );
+
+//   if (!subscription) {
+//     throw new BadRequestException(
+//       'Subscription record not found',
+//     );
+//   }
+
+//   // =========================================================
+//   // 6. Verify order belongs to this subscription
+//   // =========================================================
+
+//   if (
+//     subscription.razorpay_order_id &&
+//     subscription.razorpay_order_id !==
+//       body.order_id
+//   ) {
+//     throw new BadRequestException(
+//       'Order does not belong to this subscription',
+//     );
+//   }
+
+//   // =========================================================
+//   // 7. Update subscription
+//   // =========================================================
+
+//   await this.dataSource.query(
+//     `
+//     UPDATE user_subscriptions
+//     SET
+//       status = 'active',
+//       payment_status = 'paid',
+//       razorpay_payment_id = ?,
+//       razorpay_order_id = ?,
+//       updated_at = NOW()
+//     WHERE id = ?
+//     `,
+//     [
+//       body.payment_id,
+//       body.order_id,
+//       Number(
+//         body.subscription_table_id,
+//       ),
+//     ],
+//   );
+
+//   // =========================================================
+//   // 8. Return result
+//   // =========================================================
+
+//   return {
+//     success: true,
+
+//     message:
+//       'Razorpay payment verified successfully',
+
+//     subscription_id:
+//       subscription.id,
+
+//     subscription_code:
+//       subscription.subscription_code,
+
+//     payment_id:
+//       body.payment_id,
+
+//     order_id:
+//       body.order_id,
+
+//     status:
+//       'active',
+
+//     payment_status:
+//       'paid',
+//   };
+// }
+
+
+async verifySubscription(body: any) {
+  console.log(
+    '========== VERIFY RAZORPAY PAYMENT =========='
+  );
+
+  console.log('Verify body:', body);
+
+  // =========================================================
+  // 1. Validate required fields
+  // =========================================================
+
+  if (!body?.payment_id) {
+    throw new BadRequestException(
+      'Payment ID is required',
+    );
   }
 
-  await this.dataSource.query(
+  if (!body?.order_id) {
+    throw new BadRequestException(
+      'Order ID is required',
+    );
+  }
+
+  if (!body?.signature) {
+    throw new BadRequestException(
+      'Razorpay signature is required',
+    );
+  }
+
+  const subscriptionTableId = Number(
+    body?.subscription_table_id,
+  );
+
+  if (
+    !Number.isInteger(subscriptionTableId) ||
+    subscriptionTableId <= 0
+  ) {
+    throw new BadRequestException(
+      'Valid subscription table ID is required',
+    );
+  }
+
+  // =========================================================
+  // 2. Get Razorpay configuration
+  // =========================================================
+
+  const config =
+    await this.integrationService.getIntegrationConfig(
+      'razorpay',
+    );
+
+
+
+  const configData =
+    typeof config === 'string'
+      ? JSON.parse(config)
+      : config;
+
+  const keySecret = String(
+    configData?.key_secret || '',
+  ).trim();
+
+  if (!keySecret) {
+    throw new BadRequestException(
+      'Razorpay key secret is missing',
+    );
+  }
+
+   const razorpay = new Razorpay({
+      key_id: configData.key_id,
+      key_secret: configData.key_secret,
+    });
+
+  // =========================================================
+  // 3. Verify Razorpay Checkout signature
+  //
+  // Checkout signature:
+  //
+  // order_id|payment_id
+  // =========================================================
+
+  const signaturePayload =
+    `${body.order_id}|${body.payment_id}`;
+
+  const expectedSignature =
+    crypto
+      .createHmac(
+        'sha256',
+        keySecret,
+      )
+      .update(signaturePayload)
+      .digest('hex');
+
+  console.log(
+    'Signature payload:',
+    signaturePayload,
+  );
+
+  console.log(
+    'Expected signature:',
+    expectedSignature,
+  );
+
+  console.log(
+    'Received signature:',
+    body.signature,
+  );
+
+  if (
+    expectedSignature !==
+    String(body.signature).trim()
+  ) {
+    console.error(
+      'Razorpay signature mismatch',
+    );
+
+    throw new BadRequestException(
+      'Invalid signature',
+    );
+  }
+
+  console.log(
+    'Razorpay signature verified successfully',
+  );
+
+  // =========================================================
+  // 4. Find subscription
+  // =========================================================
+
+  const [subscription] =
+    await this.dataSource.query(
+      `
+      SELECT
+        *
+      FROM user_subscriptions
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [subscriptionTableId],
+    );
+
+  if (!subscription) {
+    throw new BadRequestException(
+      'Subscription record not found',
+    );
+  }
+
+  // =========================================================
+  // 5. Verify order belongs to subscription
+  // =========================================================
+
+  if (
+    subscription.razorpay_order_id &&
+    subscription.razorpay_order_id !==
+      body.order_id
+  ) {
+    throw new BadRequestException(
+      'Order does not belong to this subscription',
+    );
+  }
+
+  // =========================================================
+  // 6. Prevent duplicate payment
+  // =========================================================
+
+  const [existingPayment] =
+    await this.dataSource.query(
+      `
+      SELECT
+        id
+      FROM user_subscription_payments
+      WHERE payment_id = ?
+      LIMIT 1
+      `,
+      [body.payment_id],
+    );
+
+  if (existingPayment) {
+    console.log(
+      'Payment already exists:',
+      existingPayment.id,
+    );
+
+    return {
+      success: true,
+
+      message:
+        'Payment already verified',
+
+      subscription_id:
+        subscription.id,
+
+      subscription_code:
+        subscription.subscription_code,
+
+      payment_id:
+        body.payment_id,
+
+      order_id:
+        body.order_id,
+
+      status:
+        'active',
+
+      payment_status:
+        'paid',
+    };
+  }
+
+  // =========================================================
+  // 7. Token / authorization reference
+  //
+  // IMPORTANT:
+  //
+  // Your current Checkout response does NOT contain
+  // razorpay_token_id.
+  //
+  // Therefore this will normally be NULL unless your
+  // frontend/webhook/backend sends it.
+  // =========================================================
+
+  // const tokenId =
+  //   body?.token_id ||
+  //   body?.razorpay_token_id ||
+  //   null;
+
+  // console.log(
+  //   'Razorpay token ID:',
+  //   tokenId,
+  // );
+
+  const payment = await razorpay.payments.fetch(
+  body.payment_id,
+);
+
+const tokenId =
+  payment?.token_id || null;
+
+console.log(
+  'Razorpay token:',
+  tokenId,
+);
+  // =========================================================
+  // 8. Calculate payment values
+  // =========================================================
+
+  const amount = Number(
+    subscription.current_amount ??
+      subscription.total_amount ??
+      0,
+  );
+
+  const totalAmount = Number(
+    subscription.total_amount ??
+      amount,
+  );
+
+  const gstAmount = Number(
+    subscription.gst_amount ?? 0,
+  );
+
+  if (
+    !Number.isFinite(totalAmount) ||
+    totalAmount <= 0
+  ) {
+    throw new BadRequestException(
+      'Invalid subscription amount',
+    );
+  }
+
+  // Database amount is normally INR.
+  // user_subscription_payments.amount should match
+  // your existing table convention.
+  const paymentAmount = totalAmount;
+
+  // =========================================================
+  // 9. Calculate billing dates
+  // =========================================================
+
+const startDate = dayjs();
+
+const nextBillingDate = startDate.add(1, 'month');
+
+  // =========================================================
+  // 10. Start DB transaction
+  // =========================================================
+
+  const queryRunner =
+    this.dataSource.createQueryRunner();
+
+  await queryRunner.connect();
+
+  await queryRunner.startTransaction();
+
+  try {
+    // =======================================================
+    // 11. Update subscription
+    // =======================================================
+
+    await queryRunner.query(
+      `
+      UPDATE user_subscriptions
+      SET
+        status = 'active',
+
+        payment_status = 'paid',
+
+        razorpay_payment_id = ?,
+
+        razorpay_order_id = ?,
+
+        
+
+        razorpay_token_id = COALESCE(?, razorpay_token_id),
+
+        token_status =
+          CASE
+            WHEN ? IS NOT NULL
+            THEN 'active'
+            ELSE token_status
+          END,
+
+        
+
+        start_date = ?,
+
+        next_billing_date = ?,
+
+        auto_renew = 1,
+
+        updated_at = NOW()
+
+      WHERE id = ?
+      `,
+      [
+        body.payment_id,
+
+        body.order_id,
+
+        // body.signature,
+
+        //tokenId,
+
+        tokenId,
+
+        tokenId,
+
+        startDate,
+
+        nextBillingDate,
+
+        subscriptionTableId,
+      ],
+    );
+
+    // =======================================================
+    // 12. Insert payment transaction
+    // =======================================================
+
+    await queryRunner.query(
+      `
+      INSERT INTO user_subscription_payments
+      (
+        subscription_id,
+
+        user_id,
+
+        order_id,
+
+        transaction_id,
+
+        payment_id,
+
+        amount,
+
+        tax_amount,
+
+        total_amount,
+
+        payment_method,
+
+        payment_status,
+
+        paid_at,
+
+        created_at
+      )
+      VALUES
+      (
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        ?,
+        NOW(),
+        NOW()
+      )
+      `,
+      [
+        subscriptionTableId,
+
+        subscription.user_id,
+
+        body.order_id,
+
+        body.payment_id,
+
+        body.payment_id,
+
+        paymentAmount - gstAmount,
+
+        gstAmount,
+
+        totalAmount,
+
+        'razorpay',
+
+        'paid',
+      ],
+    );
+
+    // =======================================================
+    // 13. Commit transaction
+    // =======================================================
+
+    await queryRunner.commitTransaction();
+
+    console.log(
+      'Subscription activated successfully',
+    );
+
+    console.log(
+      'Payment transaction inserted successfully',
+    );
+
+    // =======================================================
+    // 14. Return
+    // =======================================================
+
+    return {
+      success: true,
+
+      message:
+        'Razorpay payment verified successfully',
+
+      subscription_id:
+        subscription.id,
+
+      subscription_code:
+        subscription.subscription_code,
+
+      payment_id:
+        body.payment_id,
+
+      order_id:
+        body.order_id,
+
+      token_id:
+        tokenId,
+
+      status:
+        'active',
+
+      payment_status:
+        'paid',
+
+      auto_renew:
+        true,
+
+      start_date:
+        startDate,
+
+      next_billing_date:
+        nextBillingDate,
+
+      payment: {
+        amount:
+          paymentAmount - gstAmount,
+
+        tax_amount:
+          gstAmount,
+
+        total_amount:
+          totalAmount,
+
+        currency:
+          'INR',
+
+        payment_method:
+          'razorpay',
+
+        payment_status:
+          'paid',
+      },
+    };
+
+  } catch (error) {
+
+    // =======================================================
+    // Rollback if anything fails
+    // =======================================================
+
+    await queryRunner.rollbackTransaction();
+
+    console.error(
+      'Subscription verification DB transaction failed:',
+      error,
+    );
+
+    throw error;
+
+  } finally {
+
+    // =======================================================
+    // Release connection
+    // =======================================================
+
+    await queryRunner.release();
+  }
+}
+
+  async verifys(id: any ,param:any,payment_id:any) {
+    console.log(payment_id)
+  const result = await this.dataSource.query(
+    `
+      SELECT *
+      FROM user_subscriptions
+      WHERE id = ?
+      LIMIT 1
+    `,
+    [id],
+  );
+
+  const subscription = result[0];
+
+  if (!subscription) {
+    console.log(
+      'Subscription not found',
+    );
+  }
+
+  // Already active
+  if (subscription.status === 'active') {
+    return {
+      success: true,
+      subscription_id: subscription.id,
+      status: 'active',
+      already_verified: true,
+    };
+  }
+
+  // You need these values to call verifySubscription()
+  if (
+    !subscription.subscription_code 
+  ) {
+    return {
+      success: false,
+      subscription_id: subscription.id,
+      status: subscription.status,
+      message:
+        'Payment verification information is missing',
+    };
+  }
+
+  // Automatically verify
+  // return await this.verifySubscription({
+  //   subscription_id:
+  //     subscription.subscription_code,
+  //     signature:param,
+  //     payment_id:payment_id,
+
+  // });
+
+   await this.dataSource.query(
     `
       UPDATE user_subscriptions
       SET
-        status='active',
-        subscription_code=?,
+        status='active' ,
         updated_at=NOW()
-      WHERE subscription_id=?
+      WHERE subscription_code=?
     `,
     [
-      body.payment_id,
-      body.subscription_id,
+      subscription.subscription_code
     ],
   );
-
-  return {
-    success: true,
-    subscription_id:body.subscription_id
-    
-  };
-  }
-
-  async verifys(id: any) 
-  {
-     const result  = await this.dataSource.query(
-    `
-      SELECT * FROM  user_subscriptions WHERE subscription_id = ? 
-    `,
-    [
-      id,
-    ],
-  );
-  return result[0];
-  }
+}
     async verifyPayment(body: any, id: any) {
     const config =
       await this.integrationService.getIntegrationConfig('razorpay');
@@ -2452,7 +5565,7 @@ async cancelBooking(body: any, id: number) {
         VALUES (?, ?, ?, 'received', NOW())
         `,
         [
-          eventId,
+          eventId, 
           event,
           JSON.stringify(req.body),
         ],
@@ -2478,6 +5591,8 @@ async cancelBooking(body: any, id: number) {
           req.body,
         );
       }
+
+      
 
       // =====================================================
       // 9. PAYMENT FAILED
@@ -3172,6 +6287,267 @@ async cancelBooking(body: any, id: number) {
       data,
     );
   }
+
+ async handleCallback(data: any) {
+  console.log(
+    'Razorpay callback service:',
+    data,
+  );
+
+  const {
+    razorpay_payment_id,
+    razorpay_payment_link_id,
+    razorpay_payment_link_reference_id,
+    razorpay_payment_link_status,
+    razorpay_signature,
+  } = data;
+
+  let subscriptionId = null;
+
+  /*
+   * Example:
+   *
+   * razorpay_payment_link_reference_id
+   * =
+   * SUB_1787557520892_60
+   */
+
+  if (razorpay_payment_link_reference_id) {
+
+    const [subscription] =
+      await this.dataSource.query(
+        `
+        SELECT
+          id,
+          subscription_code,
+          status
+        FROM user_subscriptions
+        WHERE subscription_code = ?
+        LIMIT 1
+        `,
+        [
+          razorpay_payment_link_reference_id,
+        ],
+      );
+
+    if (subscription) {
+
+      subscriptionId =
+        subscription.id;
+
+      console.log(
+        'Subscription found:',
+        subscription,
+      );
+    }
+  }
+
+  return {
+    subscription_id:
+      subscriptionId,
+
+    payment_id:
+      razorpay_payment_id,
+
+    payment_link_id:
+      razorpay_payment_link_id,
+
+    status:
+      razorpay_payment_link_status ||
+      'pending',
+  };
+}
+
+async processRecurringPayments() {
+  const subscriptions =
+    await this.dataSource.query(`
+      SELECT *
+      FROM user_subscriptions
+      WHERE status = 'active'
+        AND auto_renew = 1
+        AND next_billing_date IS NOT NULL
+        AND next_billing_date <= NOW()
+      ORDER BY id ASC
+    `);
+
+  let success = 0;
+  let failed = 0;
+
+  for (const subscription of subscriptions) {
+    try {
+      console.log(
+        `Processing recurring subscription: ${subscription.id}`
+      );
+
+      await this.processSingleRecurringPayment(
+        subscription,
+      );
+
+      success++;
+    } catch (error) {
+      failed++;
+
+      console.error(
+        `Recurring payment failed: ${subscription.id}`,
+        error,
+      );
+    }
+  }
+
+  return {
+    total: subscriptions.length,
+    success,
+    failed,
+  };
+}
+
+async processSingleRecurringPayment(
+  subscription: any,
+) {
+
+  const subscriptionId =
+    Number(subscription.id);
+
+  if (
+    !Number.isInteger(
+      subscriptionId,
+    )
+  ) {
+    throw new BadRequestException(
+      'Invalid subscription ID',
+    );
+  }
+
+  const customerId =
+    String(
+      subscription.razorpay_customer_id ||
+        '',
+    ).trim();
+
+  const tokenId =
+    String(
+      subscription.razorpay_token_id ||
+        '',
+    ).trim();
+
+  if (!customerId) {
+    throw new BadRequestException(
+      'Razorpay customer ID missing',
+    );
+  }
+
+  if (!tokenId) {
+    throw new BadRequestException(
+      'Razorpay token ID missing',
+    );
+  }
+
+  const amount =
+    Number(
+      subscription.total_amount,
+    );
+
+  if (
+    !Number.isFinite(amount) ||
+    amount <= 0
+  ) {
+    throw new BadRequestException(
+      'Invalid recurring amount',
+    );
+  }
+
+  const amountInPaise =
+    Math.round(
+      amount * 100,
+    );
+
+  const receipt =
+    `REC_${subscriptionId}_${Date.now()}`;
+
+  // ============================================================
+  // CREATE PAYMENT ATTEMPT
+  // ============================================================
+
+  const paymentInsert =
+    await this.dataSource.query(
+      `
+      INSERT INTO user_subscription_payments
+      (
+        subscription_id,
+        user_id,
+
+        amount,
+        total_amount,
+
+        payment_status,
+        payment_method,
+
+        created_at
+      )
+      VALUES
+      (
+        ?,
+        ?,
+
+        ?,
+        ?,
+
+        'processing',
+        'razorpay_token',
+
+        NOW()
+      )
+      `,
+      [
+        subscriptionId,
+        subscription.user_id,
+
+        amount,
+        amount,
+      ],
+    );
+
+  const paymentAttemptId =
+    Number(
+      paymentInsert?.insertId,
+    );
+
+  /*
+   * IMPORTANT:
+   *
+   * This is where you call the Razorpay
+   * token-based recurring debit API enabled
+   * for your Razorpay account.
+   *
+   * Do NOT use:
+   *
+   * razorpay.orders.create()
+   *
+   * here as a substitute for the recurring
+   * debit.
+   */
+
+  console.log(
+    'Recurring payment should be initiated:',
+    {
+      subscriptionId,
+      customerId,
+      tokenId,
+      amountInPaise,
+      currency: 'INR',
+      receipt,
+      paymentAttemptId,
+    },
+  );
+
+  /*
+   * After Razorpay accepts the recurring
+   * payment request, save its payment/order
+   * reference in user_subscription_payments.
+   */
+}
+
+  
 }
 
 
@@ -3198,7 +6574,7 @@ function getDatesBetween(startDate: string, endDate: string) {
 
 function parseDate(dateStr: string): Date {
   if (!dateStr) throw new Error('Invalid date input');
- 
+
   const parts = dateStr.split('-');
 
   // if format is DD-MM-YYYY

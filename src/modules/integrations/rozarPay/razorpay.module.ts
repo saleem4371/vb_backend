@@ -9,6 +9,7 @@ import { InvoiceModule } from '../../invoice/invoice.module'
 import { NotificationModule } from '../../../notifications/notification.module'
 import { ZohoModule } from '../../integrations/zoho/zoho.module';
 import { TwilioModule } from '../../integrations/twilio/twilio.module';
+import { RazorpayCronService } from './razorpay-cron.service';
 
 @Module({
    imports: [
@@ -21,7 +22,11 @@ import { TwilioModule } from '../../integrations/twilio/twilio.module';
     NotificationModule
   ],
   controllers: [RazorpayController], // <-- ADD THIS
-  providers: [RazorpayService],
+  // providers: [RazorpayService],
+  providers: [
+    RazorpayService,
+    RazorpayCronService,
+  ],
   exports: [RazorpayService],
 })
 export class RazorpayModule {}
