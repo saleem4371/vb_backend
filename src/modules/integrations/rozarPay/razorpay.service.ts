@@ -2265,7 +2265,7 @@ async subscription(
 
  
 
-const today = dayjs();
+const today = dayjs().format('YYYY-MM-DD HH:mm:ss');;
 
 const startDate = today.toDate();
 
@@ -3530,9 +3530,9 @@ console.log(
   // 9. Calculate billing dates
   // =========================================================
 
-const startDate = dayjs();
+const startDate = dayjs().format('YYYY-MM-DD HH:mm:ss');;
 
-const nextBillingDate = startDate.add(1, 'month');
+const nextBillingDate = startDate.add(1, 'month').format('YYYY-MM-DD HH:mm:ss');;
 
   // =========================================================
   // 10. Start DB transaction
