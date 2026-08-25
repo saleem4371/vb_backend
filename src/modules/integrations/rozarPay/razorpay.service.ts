@@ -2265,11 +2265,14 @@ async subscription(
 
  
 
-const today = dayjs().format('YYYY-MM-DD HH:mm:ss');;
+const interval = 1;
+
+const today = dayjs();
 
 const startDate = today.toDate();
 
-const interval =  1;
+dayjs(startDate).add(interval, 'month');
+
 const planTitle = Number(plan.plan_title);
 
 let nextBillingDate: Date;
@@ -2277,7 +2280,6 @@ let endDate: Date;
 
 switch (planTitle) {
   case 1:
-    // Month
     nextBillingDate = today
       .add(interval, 'month')
       .toDate();
@@ -2288,7 +2290,6 @@ switch (planTitle) {
     break;
 
   case 2:
-    // Year
     nextBillingDate = today
       .add(interval, 'year')
       .toDate();
@@ -2309,7 +2310,6 @@ console.log({
   nextBillingDate,
   endDate,
 });
-
  
     // =========================================================
     // 10. GET OR CREATE RAZORPAY CUSTOMER
