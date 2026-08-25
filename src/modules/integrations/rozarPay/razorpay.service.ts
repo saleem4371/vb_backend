@@ -3530,9 +3530,22 @@ console.log(
   // 9. Calculate billing dates
   // =========================================================
 
-const startDate = dayjs().format('YYYY-MM-DD HH:mm:ss');;
+//const startDate = dayjs().format('YYYY-MM-DD HH:mm:ss');;
 
-const nextBillingDate = startDate.add(1, 'month').format('YYYY-MM-DD HH:mm:ss');;
+//const nextBillingDate = startDate.add(1, 'month').format('YYYY-MM-DD HH:mm:ss');
+
+  //const interval = Number(plan.interval || 1);
+
+const startDate = dayjs();
+
+const nextBillingDate = startDate
+  .add(interval, 'month');
+
+const startDateFormatted =
+  startDate.format('YYYY-MM-DD HH:mm:ss');
+
+const nextBillingDateFormatted =
+  nextBillingDate.format('YYYY-MM-DD HH:mm:ss');
 
   // =========================================================
   // 10. Start DB transaction
