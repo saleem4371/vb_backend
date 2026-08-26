@@ -6481,25 +6481,18 @@ async processSingleRecurringPayment(
 
   const interval = 1;
 
-const today = dayjs();
+const currentBillingDate = dayjs(
+  subscription.next_billing_date,
+);
 
-let nextBillingDate: string;
-
-if (Number(subscription.plan_title) === 1) {
-  nextBillingDate = today
-    .add(interval, 'month')
-    .format('YYYY-MM-DD HH:mm:ss');
-} else if (
+const nextBillingDate =
   Number(subscription.plan_title) === 2
-) {
-  nextBillingDate = today
-    .add(interval, 'year')
-    .format('YYYY-MM-DD HH:mm:ss');
-} else {
-  throw new BadRequestException(
-    'Invalid subscription plan',
-  );
-}
+    ? currentBillingDate
+        .add(interval, 'year')
+        .format('YYYY-MM-DD HH:mm:ss')
+    : currentBillingDate
+        .add(interval, 'month')
+        .format('YYYY-MM-DD HH:mm:ss');
 
 await this.dataSource.query(
   `
