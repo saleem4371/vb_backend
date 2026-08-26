@@ -6971,53 +6971,6 @@ await this.dataSource.query(
   const receipt =
     `RECP_${subscriptionId}_${Date.now()}`;
 
-  // ============================================================
-  // CREATE PAYMENT ATTEMPT
-  // ============================================================
-
-  const paymentInsert =
-    await this.dataSource.query(
-      `
-      INSERT INTO user_subscription_payments
-      (
-        subscription_id,
-        user_id,
-
-        amount,
-        total_amount,
-
-        payment_status,
-        payment_method,
-
-        created_at
-      )
-      VALUES
-      (
-        ?,
-        ?,
-
-        ?,
-        ?,
-
-        'processing',
-        'razorpay_token',
-
-        NOW()
-      )
-      `,
-      [
-        subscriptionId,
-        subscription.user_id,
-
-        amount,
-        amount,
-      ],
-    );
-
-  const paymentAttemptId =
-    Number(
-      paymentInsert?.insertId,
-    );
 
   /*
    * IMPORTANT:
@@ -7108,6 +7061,59 @@ try {
     'Recurring payment response:',
     payment,
   );
+
+    // ============================================================
+  // CREATE PAYMENT ATTEMPT
+  // ============================================================
+
+  const paymentInsert =
+    await this.dataSource.query(
+      `
+      INSERT INTO user_subscription_payments
+      (
+        subscription_id,
+        user_id,
+
+        amount,
+        total_amount,
+
+        payment_status,
+        payment_method,
+
+        razorpay_order_id,
+
+        created_at
+      )
+      VALUES
+      (
+        ?,
+        ?,
+
+        ?,
+        ?,
+
+        'processing',
+        'razorpay_token',
+        ?,
+
+        NOW()
+      )
+      `,
+      [
+        subscriptionId,
+        subscription.user_id,
+
+        amount,
+        amount,
+        order.id
+      ],
+    );
+
+  const paymentAttemptId =
+    Number(
+      paymentInsert?.insertId,
+    );
+
 } catch (error) {
   console.error(
     'Recurring payment failed:',
