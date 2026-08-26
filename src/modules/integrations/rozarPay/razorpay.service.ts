@@ -6383,8 +6383,9 @@ async cancelBooking(body: any, id: number) {
 async processRecurringPayments() {
   const subscriptions =
     await this.dataSource.query(`
-      SELECT *
+      SELECT user_subscriptions.*,p.plan_title 
       FROM user_subscriptions
+      LEFT JOIN plans p ON p.id = user_subscriptions.plan_id
       WHERE status = 'active'
         AND auto_renew = 1
         AND next_billing_date IS NOT NULL
@@ -6477,6 +6478,42 @@ async processSingleRecurringPayment(
       'Invalid recurring amount',
     );
   }
+
+  const interval = 1;
+
+const today = dayjs();
+
+let nextBillingDate: string;
+
+if (Number(subscription.plan_title) === 1) {
+  nextBillingDate = today
+    .add(interval, 'month')
+    .format('YYYY-MM-DD HH:mm:ss');
+} else if (
+  Number(subscription.plan_title) === 2
+) {
+  nextBillingDate = today
+    .add(interval, 'year')
+    .format('YYYY-MM-DD HH:mm:ss');
+} else {
+  throw new BadRequestException(
+    'Invalid subscription plan',
+  );
+}
+
+await this.dataSource.query(
+  `
+  UPDATE user_subscriptions
+  SET
+    next_billing_date = ?,
+    updated_at = NOW()
+  WHERE id = ?
+  `,
+  [
+    nextBillingDate,
+    subscriptionId,
+  ],
+);
 
   const amountInPaise =
     Math.round(
