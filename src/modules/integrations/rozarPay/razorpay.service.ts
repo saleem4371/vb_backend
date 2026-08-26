@@ -6386,7 +6386,7 @@ async processRecurringPayments() {
       SELECT user_subscriptions.*,p.plan_title 
       FROM user_subscriptions
       LEFT JOIN plans p ON p.id = user_subscriptions.plan_id
-      WHERE status = 'active'
+      WHERE user_subscriptions.status = 'active'
         AND auto_renew = 1
         AND next_billing_date IS NOT NULL
         AND next_billing_date <= NOW()
@@ -6498,7 +6498,7 @@ await this.dataSource.query(
   `
   UPDATE user_subscriptions
   SET
-    next_billing_date = NOW(),
+    next_billing_date = ?,
     updated_at = NOW()
   WHERE id = ?
   `,
@@ -6592,11 +6592,61 @@ await this.dataSource.query(
     },
   );
 
-  /*
-   * After Razorpay accepts the recurring
-   * payment request, save its payment/order
-   * reference in user_subscription_payments.
-   */
+  // =========================================================
+  // 2. Get Razorpay configuration
+  // =========================================================
+
+  const config =
+    await this.integrationService.getIntegrationConfig(
+      'razorpay',
+    );
+
+
+
+  const configData =
+    typeof config === 'string'
+      ? JSON.parse(config)
+      : config;
+
+  const keySecret = String(
+    configData?.key_secret || '',
+  ).trim();
+
+  if (!keySecret) {
+    throw new BadRequestException(
+      'Razorpay key secret is missing',
+    );
+  }
+
+   const razorpay = new Razorpay({
+      key_id: configData.key_id,
+      key_secret: configData.key_secret,
+    });
+
+const order = await razorpay.orders.create({
+  amount: amountInPaise,
+  currency: 'INR',
+  receipt: `REC_${subscriptionId}_${Date.now()}`,
+});
+
+const payment =
+  await razorpay.payments.createRecurringPayment({
+    order_id: order.id,
+    email: 'vb.develop1@gmail.com',
+    contact: '8147484371',
+
+    customer_id: customerId,
+    token: tokenId,
+
+    amount: amountInPaise,
+    currency: 'INR',
+
+    recurring: true,
+
+    notes: {
+      subscription_id: String(subscriptionId),
+    },
+  });
 }
 
   
