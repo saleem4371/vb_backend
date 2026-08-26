@@ -5597,7 +5597,7 @@ async cancelBooking(body: any, id: number) {
       // 8. PAYMENT CAPTURED
       // =====================================================
 
-      if (event === 'payment.captured') {
+      if (event === 'payment.captured') { 
         await this.handlePaymentCaptured(
           req.body,
         );
@@ -5718,297 +5718,307 @@ async cancelBooking(body: any, id: number) {
   // =========================================================
   // PAYMENT CAPTURED
   // =========================================================
+private async handlePaymentCaptured(
+  body: any,
+) {
+  const payment =
+    body?.payload?.payment?.entity;
 
-  private async handlePaymentCaptured(
-    body: any,
-  ) {
-    const payment =
-      body?.payload?.payment?.entity;
+  if (!payment) {
+    throw new Error(
+      'Payment entity not found',
+    );
+  }
 
-    if (!payment) {
-      throw new Error(
-        'Payment entity not found',
-      );
-    }
+  const razorpayOrderId =
+    payment.order_id;
 
-    const razorpayOrderId =
-      payment.order_id;
+  const razorpayPaymentId =
+    payment.id;
 
-    const razorpayPaymentId =
-      payment.id;
+  const amount =
+    Number(payment.amount || 0) / 100;
 
-    const amount =
-      Number(payment.amount || 0) / 100;
+  this.logger.log(
+    `Payment Captured: ${razorpayPaymentId}`,
+  );
 
-    this.logger.log(
-      `Payment Captured: ${razorpayPaymentId}`,
+  this.logger.log(
+    `Razorpay Order: ${razorpayOrderId}`,
+  );
+
+  this.logger.log(
+    `Payment Amount: ${amount}`,
+  );
+
+  // =====================================================
+  // FIND SUBSCRIPTION
+  // =====================================================
+
+  const [subscription] =
+    await this.dataSource.query(
+      `
+      SELECT
+        id,
+        user_id,
+        razorpay_order_id,
+        status
+      FROM user_subscriptions
+      WHERE razorpay_order_id = ?
+      LIMIT 1
+      `,
+      [razorpayOrderId],
     );
 
-    this.logger.log(
-      `Razorpay Order: ${razorpayOrderId}`,
+  if (!subscription) {
+    this.logger.error(
+      `Subscription not found for Razorpay order: ${razorpayOrderId}`,
     );
 
-    // =====================================================
-    // FIND SUBSCRIPTION
-    // =====================================================
+    throw new Error(
+      `Subscription not found: ${razorpayOrderId}`,
+    );
+  }
 
-    const [subscription] =
-      await this.dataSource.query(
-        `
-        SELECT
-          id,
-          user_id,
-          razorpay_order_id,
-          status
-        FROM user_subscriptions
-        WHERE razorpay_order_id = ?
-        LIMIT 1
-        `,
-        [razorpayOrderId],
-      );
+  const subscriptionId =
+    subscription.id;
 
-    if (!subscription) {
-      this.logger.error(
-        `Subscription not found for Razorpay order: ${razorpayOrderId}`,
-      );
+  const userId =
+    subscription.user_id;
 
-      throw new Error(
-        `Subscription not found: ${razorpayOrderId}`,
-      );
-    }
+  // =====================================================
+  // GET USER
+  // =====================================================
 
-    const subscriptionId =
-      subscription.id;
+  const [user] =
+    await this.dataSource.query(
+      `
+      SELECT
+        id,
+        name,
+        email,
+        phone
+      FROM users
+      WHERE id = ?
+      LIMIT 1
+      `,
+      [userId],
+    );
 
-    const userId =
-      subscription.user_id;
+  if (!user) {
+    this.logger.error(
+      `User not found: ${userId}`,
+    );
 
-    // =====================================================
-    // GET USER
-    // =====================================================
+    throw new Error(
+      `User not found: ${userId}`,
+    );
+  }
 
-    const [user] =
-      await this.dataSource.query(
-        `
-        SELECT
-          id,
-          name,
-          email,
-          phone
-        FROM users
-        WHERE id = ?
-        LIMIT 1
-        `,
-        [userId],
-      );
+  const customerName =
+    user.name || '';
 
-    if (!user) {
-      throw new Error(
-        `User not found: ${userId}`,
-      );
-    }
+  const customerEmail =
+    user.email || '';
 
-    const customerName =
-      user.name || '';
+  const customerPhone =
+    user.phone || '';
 
-    const customerEmail =
-      user.email || '';
+  // =====================================================
+  // FIND EXISTING PAYMENT
+  // =====================================================
 
-    const customerPhone =
-      user.phone || '';
+  const [existingPayment] =
+    await this.dataSource.query(
+      `
+      SELECT
+        id,
+        payment_status
+      FROM user_subscription_payments
+      WHERE subscription_id = ?
+      ORDER BY id DESC
+      LIMIT 1
+      `,
+      [subscriptionId],
+    );
 
-    // =====================================================
-    // CHECK EXISTING PAYMENT
-    // =====================================================
+  // =====================================================
+  // UPDATE PAYMENT
+  // =====================================================
 
-    const [existingPayment] =
-      await this.dataSource.query(
-        `
-        SELECT
-          id,
-          payment_status
-        FROM user_subscription_payments
-        WHERE payment_id = ?
-        LIMIT 1
-        `,
-        [razorpayPaymentId],
-      );
+  if (existingPayment) {
+    // ---------------------------------------------------
+    // Already captured
+    // ---------------------------------------------------
 
-    // =====================================================
-    // INSERT PAYMENT
-    // =====================================================
-
-    if (!existingPayment) {
-      await this.dataSource.query(
-        `
-        INSERT INTO user_subscription_payments
-        (
-          subscription_id,
-          user_id,
-          order_id,
-          transaction_id,
-          payment_id,
-          amount,
-          tax_amount,
-          total_amount,
-          payment_method,
-          payment_status,
-          paid_at,
-          failure_reason,
-          created_at
-        )
-        VALUES (
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          ?,
-          'captured',
-          NOW(),
-          NULL,
-          NOW()
-        )
-        `,
-        [
-          subscriptionId,
-          userId,
-          razorpayOrderId,
-          razorpayPaymentId,
-          razorpayPaymentId,
-
-          amount,
-
-          0,
-
-          amount,
-
-          payment.method || null,
-        ],
-      );
-
+    if (
+      existingPayment.payment_status ===
+      'captured'
+    ) {
       this.logger.log(
-        `Payment inserted: ${razorpayPaymentId}`,
+        `Payment already captured. Payment record: ${existingPayment.id}`,
       );
-    }
 
-    // =====================================================
-    // UPDATE EXISTING PAYMENT
-    // =====================================================
-
-    else {
-      await this.dataSource.query(
-        `
-        UPDATE user_subscription_payments
-        SET
-          subscription_id = ?,
-          user_id = ?,
-          order_id = ?,
-          amount = ?,
-          total_amount = ?,
-          payment_method = ?,
-          payment_status = 'captured',
-          paid_at = NOW(),
-          failure_reason = NULL
-        WHERE payment_id = ?
-        `,
-        [
-          subscriptionId,
-          userId,
-          razorpayOrderId,
-
-          amount,
-          amount,
-
-          payment.method || null,
-
+      return {
+        paymentId:
           razorpayPaymentId,
-        ],
-      );
-
-      this.logger.log(
-        `Payment updated: ${razorpayPaymentId}`,
-      );
+        orderId:
+          razorpayOrderId,
+        subscriptionId,
+        userId,
+        amount,
+        alreadyProcessed: true,
+      };
     }
 
-    // =====================================================
-    // UPDATE SUBSCRIPTION
-    // =====================================================
+    // ---------------------------------------------------
+    // Update processing payment → captured
+    // ---------------------------------------------------
 
     await this.dataSource.query(
       `
-      UPDATE user_subscriptions
+      UPDATE user_subscription_payments
       SET
-        status = 'active',
-        payment_status = 'paid',
-        razorpay_payment_id = ?,
-        paid_at = NOW(),
-        updated_at = NOW()
+        amount = ?,
+        total_amount = ?,
+        payment_status = 'captured',
+        payment_method = 'razorpay',
+        paid_at = NOW()
       WHERE id = ?
       `,
       [
-        razorpayPaymentId,
-        subscriptionId,
+        amount,
+        amount,
+        existingPayment.id,
       ],
     );
 
     this.logger.log(
-      `Subscription activated: ${subscriptionId}`,
+      `Payment updated to captured: ${existingPayment.id}`,
+    );
+  }
+
+  // =====================================================
+  // CREATE PAYMENT IF NOT FOUND
+  // =====================================================
+
+  else {
+    await this.dataSource.query(
+      `
+      INSERT INTO user_subscription_payments
+      (
+        subscription_id,
+        user_id,
+        amount,
+        total_amount,
+        payment_status,
+        payment_method,
+        paid_at,
+        created_at
+      )
+      VALUES
+      (
+        ?,
+        ?,
+        ?,
+        ?,
+        'captured',
+        'razorpay',
+        NOW(),
+        NOW()
+      )
+      `,
+      [
+        subscriptionId,
+        userId,
+        amount,
+        amount,
+      ],
     );
 
-    // =====================================================
-    // ZOHO ACTIVATION
-    // =====================================================
-
-    try {
-      await this.createZohoTransaction({
-        customer: customerName,
-        email: customerEmail,
-        phone: customerPhone,
-
-        // Use your subscription code if available.
-        // Otherwise use subscription ID.
-        bookingId: `SUB-${subscriptionId}`,
-
-        // Razorpay amount is paise.
-        // Zoho gets normal currency amount.
-        total_amount: amount,
-
-        category: 'subscription',
-
-        convenienceFee: 0,
-
-        charge_amount: 0,
-      });
-
-      this.logger.log(
-        `Zoho transaction created for payment: ${razorpayPaymentId}`,
-      );
-
-    } catch (zohoError) {
-     
-      this.logger.error(
-        `Zoho transaction failed for payment ${razorpayPaymentId}`,
-         zohoError,
-      );
-
-    }
-
-    // =====================================================
-    // END PAYMENT CAPTURED
-    // =====================================================
-
-    return {
-      paymentId: razorpayPaymentId,
-      orderId: razorpayOrderId,
-      subscriptionId,
-      userId,
-      amount,
-    };
+    this.logger.log(
+      `Payment record created as captured for subscription: ${subscriptionId}`,
+    );
   }
+
+  // =====================================================
+  // UPDATE SUBSCRIPTION
+  // =====================================================
+
+  await this.dataSource.query(
+    `
+    UPDATE user_subscriptions
+    SET
+      status = 'active',
+      payment_status = 'paid',
+      razorpay_payment_id = ?,
+      paid_at = NOW(),
+      updated_at = NOW()
+    WHERE id = ?
+    `,
+    [
+      razorpayPaymentId,
+      subscriptionId,
+    ],
+  );
+
+  this.logger.log(
+    `Subscription activated: ${subscriptionId}`,
+  );
+
+  // =====================================================
+  // ZOHO ACTIVATION
+  // =====================================================
+
+  try {
+    await this.createZohoTransaction({
+      customer: customerName,
+      email: customerEmail,
+      phone: customerPhone,
+
+      bookingId:
+        `SUB-${subscriptionId}`,
+
+      total_amount: amount,
+
+      category:
+        'subscription',
+
+      convenienceFee: 0,
+
+      charge_amount: 0,
+    });
+
+    this.logger.log(
+      `Zoho transaction created for payment: ${razorpayPaymentId}`,
+    );
+  } catch (zohoError) {
+    this.logger.error(
+      `Zoho transaction failed for payment ${razorpayPaymentId}`,
+      zohoError,
+    );
+  }
+
+  // =====================================================
+  // RETURN
+  // =====================================================
+
+  return {
+    paymentId:
+      razorpayPaymentId,
+
+    orderId:
+      razorpayOrderId,
+
+    subscriptionId,
+
+    userId,
+
+    amount,
+
+    alreadyProcessed: false,
+  };
+}
 
   // =========================================================
   // PAYMENT FAILED
