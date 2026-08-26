@@ -6629,24 +6629,36 @@ const order = await razorpay.orders.create({
   receipt: `REC_${subscriptionId}_${Date.now()}`,
 });
 
-const payment =
-  await razorpay.payments.createRecurringPayment({
-    order_id: order.id,
-    email: 'vb.develop1@gmail.com',
-    contact: '8147484371',
+try {
+  const payment =
+    await razorpay.payments.createRecurringPayment({
+      order_id: order.id,
+      email: subscription.email,
+      contact: subscription.mobile,
 
-    customer_id: customerId,
-    token: tokenId,
+      customer_id: customerId,
+      token: tokenId,
 
-    amount: amountInPaise,
-    currency: 'INR',
+      amount: amountInPaise,
+      currency: 'INR',
 
-    recurring: true,
+      recurring: true,
 
-    notes: {
-      subscription_id: String(subscriptionId),
-    },
-  });
+      notes: {
+        subscription_id: String(subscriptionId),
+      },
+    });
+
+  console.log(
+    'Recurring payment response:',
+    payment,
+  );
+} catch (error) {
+  console.error(
+    'Recurring payment failed:',
+    error?.response?.data || error,
+  );
+}
 }
 
   
