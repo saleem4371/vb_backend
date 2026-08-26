@@ -6987,18 +6987,7 @@ await this.dataSource.query(
    * debit.
    */
 
-  console.log(
-    'Recurring payment should be initiated:',
-    {
-      subscriptionId,
-      customerId,
-      tokenId,
-      amountInPaise,
-      currency: 'INR',
-      receipt,
-      paymentAttemptId,
-    },
-  );
+  
 
   // =========================================================
   // 2. Get Razorpay configuration
@@ -7113,6 +7102,19 @@ try {
     Number(
       paymentInsert?.insertId,
     );
+
+  console.log(
+    'Recurring payment should be initiated:',
+    {
+      subscriptionId,
+      customerId,
+      tokenId,
+      amountInPaise,
+      currency: 'INR',
+      receipt,
+      paymentAttemptId,
+    },
+  );
 
 } catch (error) {
   console.error(
