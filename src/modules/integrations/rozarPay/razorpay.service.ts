@@ -5387,193 +5387,542 @@ async cancelBooking(body: any, id: number) {
   // RAZORPAY WEBHOOK
   // =========================================================
 
+  // async webhook(req: any, res: any) {
+  //   console.log( 'Razorpay webhook Has been Created')
+  //   try {
+  //     // =====================================================
+  //     // 1. GET RAZORPAY CONFIG
+  //     // =====================================================
+
+  //     const config =
+  //       await this.integrationService.getIntegrationConfig(
+  //         'razorpay',
+  //       );
+
+  //     const configData =
+  //       typeof config === 'string'
+  //         ? JSON.parse(config)
+  //         : config;
+
+  //     const webhookSecret =
+  //       configData?.webhook_secret;
+
+  //     if (!webhookSecret) {
+  //       this.logger.error(
+  //         'Razorpay webhook secret not configured',
+  //       );
+
+  //       return res.status(500).send({
+  //         success: false,
+  //         message:
+  //           'Razorpay webhook secret not configured',
+  //       });
+  //     }
+
+  //     // =====================================================
+  //     // 2. GET HEADERS
+  //     // =====================================================
+
+  //     const signature =
+  //       req.headers['x-razorpay-signature'];
+
+  //     const eventId =
+  //       req.headers['x-razorpay-event-id'];
+
+  //     if (!signature) {
+  //       this.logger.error(
+  //         'Missing Razorpay signature',
+  //       );
+
+  //       return res.status(400).send({
+  //         success: false,
+  //         message: 'Missing Signature',
+  //       });
+  //     }
+
+  //     if (!eventId) {
+  //       this.logger.error(
+  //         'Missing Razorpay event ID',
+  //       );
+
+  //       return res.status(400).send({
+  //         success: false,
+  //         message: 'Missing Event ID',
+  //       });
+  //     }
+
+  //     // =====================================================
+  //     // 3. GET RAW BODY
+  //     // =====================================================
+
+  //     const rawBody =
+  //       req.rawBody ||
+  //       (Buffer.isBuffer(req.body)
+  //         ? req.body
+  //         : Buffer.from(
+  //             JSON.stringify(req.body),
+  //           ));
+
+  //     if (!rawBody) {
+  //       this.logger.error(
+  //         'Razorpay raw body is missing',
+  //       );
+
+  //       return res.status(400).send({
+  //         success: false,
+  //         message: 'Raw body unavailable',
+  //       });
+  //     }
+
+  //     // =====================================================
+  //     // 4. VERIFY RAZORPAY SIGNATURE
+  //     // =====================================================
+
+  //     const generatedSignature =
+  //       crypto
+  //         .createHmac(
+  //           'sha256',
+  //           webhookSecret,
+  //         )
+  //         .update(rawBody)
+  //         .digest('hex');
+
+  //     if (
+  //       signature.length !==
+  //       generatedSignature.length
+  //     ) {
+  //       this.logger.error(
+  //         'Invalid Razorpay signature length',
+  //       );
+
+  //       return res.status(400).send({
+  //         success: false,
+  //         message: 'Invalid Signature',
+  //       });
+  //     }
+
+  //     const isValid =
+  //       crypto.timingSafeEqual(
+  //         Buffer.from(signature),
+  //         Buffer.from(generatedSignature),
+  //       );
+
+  //     if (!isValid) {
+  //       this.logger.error(
+  //         'Invalid Razorpay webhook signature',
+  //       );
+
+  //       return res.status(400).send({
+  //         success: false,
+  //         message: 'Invalid Signature',
+  //       });
+  //     }
+
+  //     this.logger.log(
+  //       'Razorpay signature verified',
+  //     );
+
+  //     // =====================================================
+  //     // 5. GET EVENT
+  //     // =====================================================
+
+  //     const event =
+  //       req.body?.event;
+
+  //     if (!event) {
+  //       return res.status(400).send({
+  //         success: false,
+  //         message: 'Event missing',
+  //       });
+  //     }
+
+  //     this.logger.log(
+  //       `Razorpay Event: ${event}`,
+  //     );
+
+  //     this.logger.log(
+  //       `Razorpay Event ID: ${eventId}`,
+  //     );
+
+  //     // =====================================================
+  //     // 6. CHECK DUPLICATE WEBHOOK
+  //     // =====================================================
+
+  //     const [existingEvent] =
+  //       await this.dataSource.query(
+  //         `
+  //         SELECT id, status
+  //         FROM razorpay_webhook_events
+  //         WHERE event_id = ?
+  //         LIMIT 1
+  //         `,
+  //         [eventId],
+  //       );
+
+  //     if (existingEvent) {
+  //       this.logger.warn(
+  //         `Duplicate Razorpay webhook: ${eventId}`,
+  //       );
+
+  //       return res.status(200).send({
+  //         success: true,
+  //         message: 'Webhook already processed',
+  //       });
+  //     }
+
+  //     // =====================================================
+  //     // 7. SAVE WEBHOOK EVENT
+  //     // =====================================================
+
+  //     await this.dataSource.query(
+  //       `
+  //       INSERT INTO razorpay_webhook_events
+  //       (
+  //         event_id,
+  //         event_type,
+  //         payload,
+  //         status,
+  //         created_at
+  //       )
+  //       VALUES (?, ?, ?, 'received', NOW())
+  //       `,
+  //       [
+  //         eventId, 
+  //         event,
+  //         JSON.stringify(req.body),
+  //       ],
+  //     );
+
+  //     // =====================================================
+  //     // 8. PAYMENT CAPTURED
+  //     // =====================================================
+
+  //     if (event === 'payment.captured') { 
+  //       await this.handlePaymentCaptured(
+  //         req.body,
+  //       );
+  //     }
+
+  //     else if (event === 'subscription.authenticated') {
+  //       await this.handlePaymentCaptured(
+  //         req.body,
+  //       );
+  //     }
+  //     else if (event === 'subscription.activated') {
+  //       await this.handlePaymentCaptured(
+  //         req.body,
+  //       );
+  //     }
+
+      
+
+  //     // =====================================================
+  //     // 9. PAYMENT FAILED
+  //     // =====================================================
+
+  //     else if (event === 'payment.failed') {
+  //       await this.handlePaymentFailed(
+  //         req.body,
+  //       );
+  //     }
+
+  //     // =====================================================
+  //     // 10. ORDER PAID
+  //     // =====================================================
+
+  //     else if (event === 'order.paid') {
+  //       await this.handleOrderPaid(
+  //         req.body,
+  //       );
+  //     }
+
+  //     // =====================================================
+  //     // 11. REFUND CREATED
+  //     // =====================================================
+
+  //     else if (event === 'refund.created') {
+  //       await this.handleRefundCreated(
+  //         req.body,
+  //       );
+  //     }
+
+  //     // =====================================================
+  //     // 12. REFUND PROCESSED
+  //     // =====================================================
+
+  //     else if (event === 'refund.processed') {
+  //       await this.handleRefundProcessed(
+  //         req.body,
+  //       );
+  //     }
+
+  //     // =====================================================
+  //     // 13. REFUND FAILED
+  //     // =====================================================
+
+  //     else if (event === 'refund.failed') {
+  //       await this.handleRefundFailed(
+  //         req.body,
+  //       );
+  //     }
+
+  //     // =====================================================
+  //     // 14. UNKNOWN EVENT
+  //     // =====================================================
+
+  //     else {
+  //       this.logger.warn(
+  //         `Unhandled Razorpay event: ${event}`,
+  //       );
+  //     }
+
+  //     // =====================================================
+  //     // 15. MARK WEBHOOK PROCESSED
+  //     // =====================================================
+
+  //     await this.dataSource.query(
+  //       `
+  //       UPDATE razorpay_webhook_events
+  //       SET
+  //         status = 'processed',
+  //         processed_at = NOW()
+  //       WHERE event_id = ?
+  //       `,
+  //       [eventId],
+  //     );
+
+  //     // =====================================================
+  //     // 16. RESPONSE
+  //     // =====================================================
+
+  //     return res.status(200).send({
+  //       success: true,
+  //       message: 'Webhook Processed',
+  //       event,
+  //       eventId,
+  //     });
+
+  //   } catch (error) {
+  //     this.logger.error(
+  //       'Razorpay Webhook Error',
+  //        error,
+  //     );
+
+  //     return res.status(500).send({
+  //       success: false,
+  //       message: 'Internal Server Error',
+  //     });
+  //   }
+  // }
+
   async webhook(req: any, res: any) {
-    console.log( 'Razorpay webhook Has been Created')
-    try {
-      // =====================================================
-      // 1. GET RAZORPAY CONFIG
-      // =====================================================
+  this.logger.log(
+    'Razorpay webhook received',
+  );
 
-      const config =
-        await this.integrationService.getIntegrationConfig(
-          'razorpay',
-        );
+  let eventId: string | undefined;
 
-      const configData =
-        typeof config === 'string'
-          ? JSON.parse(config)
-          : config;
+  try {
+    // =====================================================
+    // 1. GET RAZORPAY CONFIG
+    // =====================================================
 
-      const webhookSecret =
-        configData?.webhook_secret;
+    const config =
+      await this.integrationService.getIntegrationConfig(
+        'razorpay',
+      );
 
-      if (!webhookSecret) {
-        this.logger.error(
+    const configData =
+      typeof config === 'string'
+        ? JSON.parse(config)
+        : config;
+
+    const webhookSecret =
+      configData?.webhook_secret;
+
+    if (!webhookSecret) {
+      this.logger.error(
+        'Razorpay webhook secret not configured',
+      );
+
+      return res.status(500).send({
+        success: false,
+        message:
           'Razorpay webhook secret not configured',
-        );
+      });
+    }
 
-        return res.status(500).send({
-          success: false,
-          message:
-            'Razorpay webhook secret not configured',
-        });
-      }
+    // =====================================================
+    // 2. GET HEADERS
+    // =====================================================
 
-      // =====================================================
-      // 2. GET HEADERS
-      // =====================================================
+    const signature =
+      req.headers['x-razorpay-signature'];
 
-      const signature =
-        req.headers['x-razorpay-signature'];
+    eventId =
+      req.headers['x-razorpay-event-id'];
 
-      const eventId =
-        req.headers['x-razorpay-event-id'];
-
-      if (!signature) {
-        this.logger.error(
-          'Missing Razorpay signature',
-        );
-
-        return res.status(400).send({
-          success: false,
-          message: 'Missing Signature',
-        });
-      }
-
-      if (!eventId) {
-        this.logger.error(
-          'Missing Razorpay event ID',
-        );
-
-        return res.status(400).send({
-          success: false,
-          message: 'Missing Event ID',
-        });
-      }
-
-      // =====================================================
-      // 3. GET RAW BODY
-      // =====================================================
-
-      const rawBody =
-        req.rawBody ||
-        (Buffer.isBuffer(req.body)
-          ? req.body
-          : Buffer.from(
-              JSON.stringify(req.body),
-            ));
-
-      if (!rawBody) {
-        this.logger.error(
-          'Razorpay raw body is missing',
-        );
-
-        return res.status(400).send({
-          success: false,
-          message: 'Raw body unavailable',
-        });
-      }
-
-      // =====================================================
-      // 4. VERIFY RAZORPAY SIGNATURE
-      // =====================================================
-
-      const generatedSignature =
-        crypto
-          .createHmac(
-            'sha256',
-            webhookSecret,
-          )
-          .update(rawBody)
-          .digest('hex');
-
-      if (
-        signature.length !==
-        generatedSignature.length
-      ) {
-        this.logger.error(
-          'Invalid Razorpay signature length',
-        );
-
-        return res.status(400).send({
-          success: false,
-          message: 'Invalid Signature',
-        });
-      }
-
-      const isValid =
-        crypto.timingSafeEqual(
-          Buffer.from(signature),
-          Buffer.from(generatedSignature),
-        );
-
-      if (!isValid) {
-        this.logger.error(
-          'Invalid Razorpay webhook signature',
-        );
-
-        return res.status(400).send({
-          success: false,
-          message: 'Invalid Signature',
-        });
-      }
-
-      this.logger.log(
-        'Razorpay signature verified',
+    if (!signature) {
+      this.logger.error(
+        'Missing Razorpay signature',
       );
 
-      // =====================================================
-      // 5. GET EVENT
-      // =====================================================
+      return res.status(400).send({
+        success: false,
+        message: 'Missing Signature',
+      });
+    }
 
-      const event =
-        req.body?.event;
-
-      if (!event) {
-        return res.status(400).send({
-          success: false,
-          message: 'Event missing',
-        });
-      }
-
-      this.logger.log(
-        `Razorpay Event: ${event}`,
+    if (!eventId) {
+      this.logger.error(
+        'Missing Razorpay event ID',
       );
 
-      this.logger.log(
-        `Razorpay Event ID: ${eventId}`,
+      return res.status(400).send({
+        success: false,
+        message: 'Missing Event ID',
+      });
+    }
+
+    // =====================================================
+    // 3. GET RAW BODY
+    // =====================================================
+
+    const rawBody =
+      req.rawBody ||
+      (Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(
+            JSON.stringify(req.body),
+          ));
+
+    if (!rawBody) {
+      this.logger.error(
+        'Razorpay raw body is missing',
       );
 
-      // =====================================================
-      // 6. CHECK DUPLICATE WEBHOOK
-      // =====================================================
+      return res.status(400).send({
+        success: false,
+        message: 'Raw body unavailable',
+      });
+    }
 
-      const [existingEvent] =
-        await this.dataSource.query(
-          `
-          SELECT id, status
-          FROM razorpay_webhook_events
-          WHERE event_id = ?
-          LIMIT 1
-          `,
-          [eventId],
-        );
+    // =====================================================
+    // 4. VERIFY RAZORPAY SIGNATURE
+    // =====================================================
 
-      if (existingEvent) {
-        this.logger.warn(
-          `Duplicate Razorpay webhook: ${eventId}`,
-        );
+    const generatedSignature =
+      crypto
+        .createHmac(
+          'sha256',
+          webhookSecret,
+        )
+        .update(rawBody)
+        .digest('hex');
 
-        return res.status(200).send({
-          success: true,
-          message: 'Webhook already processed',
-        });
-      }
+    if (
+      signature.length !==
+      generatedSignature.length
+    ) {
+      this.logger.error(
+        'Invalid Razorpay signature length',
+      );
 
-      // =====================================================
-      // 7. SAVE WEBHOOK EVENT
-      // =====================================================
+      return res.status(400).send({
+        success: false,
+        message: 'Invalid Signature',
+      });
+    }
 
+    const isValid =
+      crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(generatedSignature),
+      );
+
+    if (!isValid) {
+      this.logger.error(
+        'Invalid Razorpay webhook signature',
+      );
+
+      return res.status(400).send({
+        success: false,
+        message: 'Invalid Signature',
+      });
+    }
+
+    this.logger.log(
+      'Razorpay signature verified',
+    );
+
+    // =====================================================
+    // 5. GET EVENT
+    // =====================================================
+
+    const event =
+      req.body?.event;
+
+    if (!event) {
+      this.logger.error(
+        'Razorpay event missing',
+      );
+
+      return res.status(400).send({
+        success: false,
+        message: 'Event missing',
+      });
+    }
+
+    this.logger.log(
+      `Razorpay Event: ${event}`,
+    );
+
+    this.logger.log(
+      `Razorpay Event ID: ${eventId}`,
+    );
+
+    // =====================================================
+    // 6. CHECK EXISTING WEBHOOK
+    // =====================================================
+
+    const [existingEvent] =
+      await this.dataSource.query(
+        `
+        SELECT
+          id,
+          status
+        FROM razorpay_webhook_events
+        WHERE event_id = ?
+        LIMIT 1
+        `,
+        [eventId],
+      );
+
+    // -----------------------------------------------------
+    // Only skip if it was successfully processed.
+    // -----------------------------------------------------
+
+    if (
+      existingEvent &&
+      existingEvent.status === 'processed'
+    ) {
+      this.logger.warn(
+        `Duplicate processed Razorpay webhook: ${eventId}`,
+      );
+
+      return res.status(200).send({
+        success: true,
+        message: 'Webhook already processed',
+        event,
+        eventId,
+      });
+    }
+
+    // =====================================================
+    // 7. INSERT / RESET WEBHOOK EVENT
+    // =====================================================
+
+    if (!existingEvent) {
       await this.dataSource.query(
         `
         INSERT INTO razorpay_webhook_events
@@ -5584,136 +5933,230 @@ async cancelBooking(body: any, id: number) {
           status,
           created_at
         )
-        VALUES (?, ?, ?, 'received', NOW())
+        VALUES
+        (
+          ?,
+          ?,
+          ?,
+          'received',
+          NOW()
+        )
         `,
         [
-          eventId, 
+          eventId,
           event,
           JSON.stringify(req.body),
         ],
       );
 
-      // =====================================================
-      // 8. PAYMENT CAPTURED
-      // =====================================================
-
-      if (event === 'payment.captured') { 
-        await this.handlePaymentCaptured(
-          req.body,
-        );
-      }
-
-      else if (event === 'subscription.authenticated') {
-        await this.handlePaymentCaptured(
-          req.body,
-        );
-      }
-      else if (event === 'subscription.activated') {
-        await this.handlePaymentCaptured(
-          req.body,
-        );
-      }
-
-      
-
-      // =====================================================
-      // 9. PAYMENT FAILED
-      // =====================================================
-
-      else if (event === 'payment.failed') {
-        await this.handlePaymentFailed(
-          req.body,
-        );
-      }
-
-      // =====================================================
-      // 10. ORDER PAID
-      // =====================================================
-
-      else if (event === 'order.paid') {
-        await this.handleOrderPaid(
-          req.body,
-        );
-      }
-
-      // =====================================================
-      // 11. REFUND CREATED
-      // =====================================================
-
-      else if (event === 'refund.created') {
-        await this.handleRefundCreated(
-          req.body,
-        );
-      }
-
-      // =====================================================
-      // 12. REFUND PROCESSED
-      // =====================================================
-
-      else if (event === 'refund.processed') {
-        await this.handleRefundProcessed(
-          req.body,
-        );
-      }
-
-      // =====================================================
-      // 13. REFUND FAILED
-      // =====================================================
-
-      else if (event === 'refund.failed') {
-        await this.handleRefundFailed(
-          req.body,
-        );
-      }
-
-      // =====================================================
-      // 14. UNKNOWN EVENT
-      // =====================================================
-
-      else {
-        this.logger.warn(
-          `Unhandled Razorpay event: ${event}`,
-        );
-      }
-
-      // =====================================================
-      // 15. MARK WEBHOOK PROCESSED
-      // =====================================================
-
+      this.logger.log(
+        `Webhook event saved: ${eventId}`,
+      );
+    } else {
       await this.dataSource.query(
         `
         UPDATE razorpay_webhook_events
         SET
-          status = 'processed',
-          processed_at = NOW()
+          event_type = ?,
+          payload = ?,
+          status = 'received',
+          processed_at = NULL
         WHERE event_id = ?
         `,
-        [eventId],
+        [
+          event,
+          JSON.stringify(req.body),
+          eventId,
+        ],
       );
 
-      // =====================================================
-      // 16. RESPONSE
-      // =====================================================
-
-      return res.status(200).send({
-        success: true,
-        message: 'Webhook Processed',
-        event,
-        eventId,
-      });
-
-    } catch (error) {
-      this.logger.error(
-        'Razorpay Webhook Error',
-         error,
+      this.logger.log(
+        `Retrying webhook event: ${eventId}`,
       );
-
-      return res.status(500).send({
-        success: false,
-        message: 'Internal Server Error',
-      });
     }
+
+    // =====================================================
+    // 8. HANDLE EVENT
+    // =====================================================
+
+    if (event === 'payment.captured') {
+      await this.handlePaymentCaptured(
+        req.body,
+      );
+    }
+
+    // =====================================================
+    // SUBSCRIPTION AUTHENTICATED
+    // =====================================================
+
+    else if (
+      event === 'subscription.authenticated'
+    ) {
+      this.logger.log(
+        `Subscription authenticated: ${eventId}`,
+      );
+
+      // Do NOT call handlePaymentCaptured here.
+      //
+      // Add a separate handler if you need to process
+      // subscription authentication.
+      //
+      // await this.handleSubscriptionAuthenticated(req.body);
+    }
+
+    // =====================================================
+    // SUBSCRIPTION ACTIVATED
+    // =====================================================
+
+    else if (
+      event === 'subscription.activated'
+    ) {
+      this.logger.log(
+        `Subscription activated: ${eventId}`,
+      );
+
+      // Do NOT call handlePaymentCaptured here.
+      //
+      // Add a separate handler if required.
+      //
+      // await this.handleSubscriptionActivated(req.body);
+    }
+
+    // =====================================================
+    // PAYMENT FAILED
+    // =====================================================
+
+    else if (
+      event === 'payment.failed'
+    ) {
+      await this.handlePaymentFailed(
+        req.body,
+      );
+    }
+
+    // =====================================================
+    // ORDER PAID
+    // =====================================================
+
+    else if (
+      event === 'order.paid'
+    ) {
+      await this.handleOrderPaid(
+        req.body,
+      );
+    }
+
+    // =====================================================
+    // REFUND CREATED
+    // =====================================================
+
+    else if (
+      event === 'refund.created'
+    ) {
+      await this.handleRefundCreated(
+        req.body,
+      );
+    }
+
+    // =====================================================
+    // REFUND PROCESSED
+    // =====================================================
+
+    else if (
+      event === 'refund.processed'
+    ) {
+      await this.handleRefundProcessed(
+        req.body,
+      );
+    }
+
+    // =====================================================
+    // REFUND FAILED
+    // =====================================================
+
+    else if (
+      event === 'refund.failed'
+    ) {
+      await this.handleRefundFailed(
+        req.body,
+      );
+    }
+
+    // =====================================================
+    // UNKNOWN EVENT
+    // =====================================================
+
+    else {
+      this.logger.warn(
+        `Unhandled Razorpay event: ${event}`,
+      );
+    }
+
+    // =====================================================
+    // 9. MARK WEBHOOK AS PROCESSED
+    // =====================================================
+
+    await this.dataSource.query(
+      `
+      UPDATE razorpay_webhook_events
+      SET
+        status = 'processed',
+        processed_at = NOW()
+      WHERE event_id = ?
+      `,
+      [eventId],
+    );
+
+    this.logger.log(
+      `Razorpay webhook processed successfully: ${eventId}`,
+    );
+
+    // =====================================================
+    // 10. RESPONSE
+    // =====================================================
+
+    return res.status(200).send({
+      success: true,
+      message: 'Webhook Processed',
+      event,
+      eventId,
+    });
+
+  } catch (error) {
+    this.logger.error(
+      `Razorpay Webhook Error: ${error?.message || error}`,
+      error?.stack,
+    );
+
+    // =====================================================
+    // MARK WEBHOOK FAILED
+    // =====================================================
+
+    if (eventId) {
+      try {
+        await this.dataSource.query(
+          `
+          UPDATE razorpay_webhook_events
+          SET
+            status = 'failed',
+            processed_at = NULL
+          WHERE event_id = ?
+          `,
+          [eventId],
+        );
+      } catch (updateError) {
+        this.logger.error(
+          `Failed to update webhook status: ${updateError?.message || updateError}`,
+        );
+      }
+    }
+
+    return res.status(500).send({
+      success: false,
+      message: 'Internal Server Error',
+    });
   }
+}
 
   // =========================================================
   // PAYMENT CAPTURED
