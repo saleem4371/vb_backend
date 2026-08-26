@@ -6498,7 +6498,7 @@ await this.dataSource.query(
   `
   UPDATE user_subscriptions
   SET
-    next_billing_date = ?,
+    next_billing_date = NOW(),
     updated_at = NOW()
   WHERE id = ?
   `,
