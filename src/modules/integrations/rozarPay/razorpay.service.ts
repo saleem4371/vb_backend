@@ -6124,8 +6124,8 @@ async cancelBooking(body: any, id: number) {
 
   } catch (error) {
     this.logger.error(
-      `Razorpay Webhook Error: ${error?.message || error}`,
-      error?.stack,
+      `Razorpay Webhook Error: ${ error}`,
+      error,
     );
 
     // =====================================================
@@ -6146,7 +6146,7 @@ async cancelBooking(body: any, id: number) {
         );
       } catch (updateError) {
         this.logger.error(
-          `Failed to update webhook status: ${updateError?.message || updateError}`,
+          `Failed to update webhook status: ${ updateError}`,
         );
       }
     }
@@ -6937,13 +6937,13 @@ async processSingleRecurringPayment(
   // =========================================================
 
   const email = String(
-    subscription.email || '',
+    subscription.email || 'vb.develop1@gmail.com',
   ).trim();
 
   const contact = String(
     subscription.mobile ||
       subscription.phone ||
-      '',
+      '8147484371',
   ).trim();
 
   if (!email) {
@@ -7033,7 +7033,7 @@ async processSingleRecurringPayment(
         total_amount,
         payment_status,
         payment_method,
-        razorpay_order_id,
+        order_id,
         created_at
       )
       VALUES
@@ -7043,7 +7043,7 @@ async processSingleRecurringPayment(
         ?,
         ?,
         'processing',
-        'razorpay_token',
+        'razorpay_tokenq',
         ?,
         NOW()
       )
@@ -7179,8 +7179,6 @@ async processSingleRecurringPayment(
   } catch (error) {
     console.error(
       'Razorpay recurring payment failed:',
-      error?.response?.data ||
-        error?.error ||
         error,
     );
 
@@ -7189,9 +7187,7 @@ async processSingleRecurringPayment(
     // =======================================================
 
     const failureReason =
-      error?.response?.data?.error?.description ||
-      error?.response?.data?.error?.reason ||
-      error?.message ||
+      error ||
       'Recurring payment failed';
 
     await this.dataSource.query(
