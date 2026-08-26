@@ -6203,13 +6203,10 @@ private async handlePaymentCaptured(
   const [subscription] =
     await this.dataSource.query(
       `
-      SELECT
-        id,
-        user_id,
-        razorpay_order_id,
-        status
-      FROM user_subscriptions
-      WHERE razorpay_order_id = ?
+     SELECT us.id, us.user_id, usp.razorpay_order_id, us.status 
+     FROM user_subscriptions us 
+     LEFT JOIN user_subscription_payments usp ON usp.subscription_id = us.id 
+     WHERE order_id = 
       LIMIT 1
       `,
       [razorpayOrderId],
