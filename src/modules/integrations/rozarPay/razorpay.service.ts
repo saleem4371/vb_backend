@@ -6164,6 +6164,8 @@ async cancelBooking(body: any, id: number) {
 private async handlePaymentCaptured(
   body: any,
 ) {
+
+  console.log(body);
   const payment =
     body?.payload?.payment?.entity;
 
