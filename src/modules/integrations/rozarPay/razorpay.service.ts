@@ -6882,31 +6882,25 @@ async processRecurringPayments() {
 async processSingleRecurringPayment(
   subscription: any,
 ) {
+  const subscriptionId = Number(subscription.id);
 
-  const subscriptionId =
-    Number(subscription.id);
-
-  if (
-    !Number.isInteger(
-      subscriptionId,
-    )
-  ) {
+  if (!Number.isInteger(subscriptionId) || subscriptionId <= 0) {
     throw new BadRequestException(
       'Invalid subscription ID',
     );
   }
 
-  const customerId =
-    String(
-      subscription.razorpay_customer_id ||
-        '',
-    ).trim();
+  // =========================================================
+  // 1. Razorpay customer + token
+  // =========================================================
 
-  const tokenId =
-    String(
-      subscription.razorpay_token_id ||
-        '',
-    ).trim();
+  const customerId = String(
+    subscription.razorpay_customer_id || '',
+  ).trim();
+
+  const tokenId = String(
+    subscription.razorpay_token_id || '',
+  ).trim();
 
   if (!customerId) {
     throw new BadRequestException(
@@ -6920,77 +6914,52 @@ async processSingleRecurringPayment(
     );
   }
 
-  const amount =
-    Number(
-      subscription.total_amount,
-    );
+  // =========================================================
+  // 2. Amount
+  // =========================================================
 
-  if (
-    !Number.isFinite(amount) ||
-    amount <= 0
-  ) {
+  const amount = Number(
+    subscription.total_amount,
+  );
+
+  if (!Number.isFinite(amount) || amount <= 0) {
     throw new BadRequestException(
       'Invalid recurring amount',
     );
   }
 
-  const interval = 1;
-
-const currentBillingDate = dayjs(
-  subscription.next_billing_date,
-);
-
-const nextBillingDate =
-  Number(subscription.plan_title) === 2
-    ? currentBillingDate
-        .add(interval, 'year')
-        .format('YYYY-MM-DD HH:mm:ss')
-    : currentBillingDate
-        .add(interval, 'month')
-        .format('YYYY-MM-DD HH:mm:ss');
-
-await this.dataSource.query(
-  `
-  UPDATE user_subscriptions
-  SET
-    next_billing_date = ?,
-    updated_at = NOW()
-  WHERE id = ?
-  `,
-  [
-    nextBillingDate,
-    subscriptionId,
-  ],
-);
-
-  const amountInPaise =
-    Math.round(
-      amount * 100,
-    );
-
-  const receipt =
-    `RECP_${subscriptionId}_${Date.now()}`;
-
-
-  /*
-   * IMPORTANT:
-   *
-   * This is where you call the Razorpay
-   * token-based recurring debit API enabled
-   * for your Razorpay account.
-   *
-   * Do NOT use:
-   *
-   * razorpay.orders.create()
-   *
-   * here as a substitute for the recurring
-   * debit.
-   */
-
-  
+  const amountInPaise = Math.round(
+    amount * 100,
+  );
 
   // =========================================================
-  // 2. Get Razorpay configuration
+  // 3. Customer details
+  // =========================================================
+
+  const email = String(
+    subscription.email || '',
+  ).trim();
+
+  const contact = String(
+    subscription.mobile ||
+      subscription.phone ||
+      '',
+  ).trim();
+
+  if (!email) {
+    throw new BadRequestException(
+      'Customer email missing',
+    );
+  }
+
+  if (!contact) {
+    throw new BadRequestException(
+      'Customer contact missing',
+    );
+  }
+
+  // =========================================================
+  // 4. Razorpay configuration
   // =========================================================
 
   const config =
@@ -6998,62 +6967,60 @@ await this.dataSource.query(
       'razorpay',
     );
 
-
-
   const configData =
     typeof config === 'string'
       ? JSON.parse(config)
       : config;
 
+  const keyId = String(
+    configData?.key_id || '',
+  ).trim();
+
   const keySecret = String(
     configData?.key_secret || '',
   ).trim();
 
-  if (!keySecret) {
+  if (!keyId || !keySecret) {
     throw new BadRequestException(
-      'Razorpay key secret is missing',
+      'Razorpay configuration is missing',
     );
   }
 
-   const razorpay = new Razorpay({
-      key_id: configData.key_id,
-      key_secret: configData.key_secret,
-    });
+  const razorpay = new Razorpay({
+    key_id: keyId,
+    key_secret: keySecret,
+  });
 
-const order = await razorpay.orders.create({
-  amount: amountInPaise,
-  currency: 'INR',
-  receipt: `REC_${subscriptionId}_${Date.now()}`,
-});
+  // =========================================================
+  // 5. Create a NEW Razorpay order
+  // =========================================================
 
-try {
-  const payment =
-    await razorpay.payments.createRecurringPayment({
-      order_id: order.id,
-      email: subscription.email,
-      contact: subscription.mobile,
+  const receipt =
+    `REC_${subscriptionId}_${Date.now()}`;
 
-      customer_id: customerId,
-      token: tokenId,
-
+  const order =
+    await razorpay.orders.create({
       amount: amountInPaise,
       currency: 'INR',
-
-      recurring: true,
-
+      receipt,
       notes: {
-        subscription_id: String(subscriptionId),
+        subscription_id:
+          String(subscriptionId),
       },
     });
 
   console.log(
-    'Recurring payment response:',
-    payment,
+    'Recurring Razorpay order created:',
+    {
+      subscriptionId,
+      orderId: order.id,
+      amount: amountInPaise,
+    },
   );
 
-    // ============================================================
-  // CREATE PAYMENT ATTEMPT
-  // ============================================================
+  // =========================================================
+  // 6. Create payment attempt BEFORE debit
+  // =========================================================
 
   const paymentInsert =
     await this.dataSource.query(
@@ -7062,39 +7029,31 @@ try {
       (
         subscription_id,
         user_id,
-
         amount,
         total_amount,
-
         payment_status,
         payment_method,
-
         razorpay_order_id,
-
         created_at
       )
       VALUES
       (
         ?,
         ?,
-
         ?,
         ?,
-
         'processing',
         'razorpay_token',
         ?,
-
         NOW()
       )
       `,
       [
         subscriptionId,
         subscription.user_id,
-
         amount,
         amount,
-        order.id
+        order.id,
       ],
     );
 
@@ -7103,27 +7062,158 @@ try {
       paymentInsert?.insertId,
     );
 
-  console.log(
-    'Recurring payment should be initiated:',
-    {
-      subscriptionId,
-      customerId,
-      tokenId,
-      amountInPaise,
-      currency: 'INR',
-      receipt,
-      paymentAttemptId,
-    },
-  );
+  if (
+    !Number.isInteger(paymentAttemptId) ||
+    paymentAttemptId <= 0
+  ) {
+    throw new BadRequestException(
+      'Failed to create payment attempt',
+    );
+  }
 
-} catch (error) {
-  console.error(
-    'Recurring payment failed:',
-    error?.response?.data || error,
-  );
-}
-}
+  // =========================================================
+  // 7. Execute recurring debit
+  // =========================================================
 
+  try {
+    const payment =
+      await razorpay.payments.createRecurringPayment({
+        email,
+        contact,
+
+        customer_id: customerId,
+        token: tokenId,
+
+        amount: amountInPaise,
+        currency: 'INR',
+
+        order_id: order.id,
+
+        recurring: true,
+
+        description:
+          `Recurring payment for subscription ${subscriptionId}`,
+
+        notes: {
+          subscription_id:
+            String(subscriptionId),
+
+          payment_attempt_id:
+            String(paymentAttemptId),
+        },
+      });
+
+    console.log(
+      'Razorpay recurring payment response:',
+      payment,
+    );
+
+    const razorpayPaymentId =
+      String(
+        payment?.razorpay_payment_id || '',
+      ).trim();
+
+    const razorpayOrderId =
+      String(
+        payment?.razorpay_order_id ||
+          order.id,
+      ).trim();
+
+    // =======================================================
+    // 8. Update payment attempt
+    // =======================================================
+
+    await this.dataSource.query(
+      `
+      UPDATE user_subscription_payments
+      SET
+        razorpay_order_id = ?,
+        payment_id = ?,
+        payment_status = 'processing',
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        razorpayOrderId,
+        razorpayPaymentId || null,
+        paymentAttemptId,
+      ],
+    );
+
+    // =======================================================
+    // 9. IMPORTANT
+    //
+    // Do NOT update next_billing_date here.
+    //
+    // Wait for Razorpay webhook:
+    //
+    // payment.captured
+    // / relevant recurring payment success event
+    //
+    // Then update next_billing_date.
+    // =======================================================
+
+    return {
+      success: true,
+
+      subscription_id:
+        subscriptionId,
+
+      payment_attempt_id:
+        paymentAttemptId,
+
+      razorpay_order_id:
+        razorpayOrderId,
+
+      razorpay_payment_id:
+        razorpayPaymentId || null,
+
+      amount,
+
+      amount_in_paise:
+        amountInPaise,
+
+      status:
+        'processing',
+    };
+  } catch (error) {
+    console.error(
+      'Razorpay recurring payment failed:',
+      error?.response?.data ||
+        error?.error ||
+        error,
+    );
+
+    // =======================================================
+    // 10. Mark payment attempt as failed
+    // =======================================================
+
+    const failureReason =
+      error?.response?.data?.error?.description ||
+      error?.response?.data?.error?.reason ||
+      error?.message ||
+      'Recurring payment failed';
+
+    await this.dataSource.query(
+      `
+      UPDATE user_subscription_payments
+      SET
+        payment_status = 'failed',
+        failure_reason = ?,
+        updated_at = NOW()
+      WHERE id = ?
+      `,
+      [
+        failureReason,
+        paymentAttemptId,
+      ],
+    );
+
+    throw new BadRequestException(
+      failureReason,
+    );
+  }
+}
   
 }
 
