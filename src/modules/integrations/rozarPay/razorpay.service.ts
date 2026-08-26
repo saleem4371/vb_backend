@@ -6514,7 +6514,7 @@ await this.dataSource.query(
     );
 
   const receipt =
-    `REC_${subscriptionId}_${Date.now()}`;
+    `RECP_${subscriptionId}_${Date.now()}`;
 
   // ============================================================
   // CREATE PAYMENT ATTEMPT
